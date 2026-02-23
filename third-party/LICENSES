@@ -1,0 +1,16 @@
+This project includes third-party components.
+
+See their respective license files in `third-party/`.
+
+If there is a discrepancy between this repository listing and
+the original listing, the original license text provided by the third-party project shall govern.
+
+- anyascii: ISC
+- Chart.js: MIT
+- commander.js: MIT
+- GeneralUser GS: see `third-party/generaluser-gs/LICENSE.txt`
+- node-addon-api: MIT
+- node-gyp: MIT
+- sharp: Apache-2.0
+- spessasynth_lib: Apache-2.0
+- tauri-apps: Apache-2.0 OR MIT (see respective license files)

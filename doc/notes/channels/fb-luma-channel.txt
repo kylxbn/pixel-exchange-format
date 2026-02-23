@@ -1,0 +1,34 @@
+Facebook JPEG Compression
+Luma Channel Analysis
+
+==== GLOBAL DISTORTION ====
+Average Delta-Y: +0.003
+Max |Delta-Y|:   41
+
+================ GLOBAL DISTORTION METRICS ================
+Mean Delta-Y:                 +0.0031
+Median Delta-Y:               +0.0000
+StdDev Delta-Y:               7.9930
+Min Delta-Y:                  -39
+Max Delta-Y:                  41
+Max |Delta-Y|:                41
+
+90th percentile |Delta-Y|:    13.0000
+95th percentile |Delta-Y|:    16.0000
+99th percentile |Delta-Y|:    21.0000
+
+Bias analysis:
+  No strong brightness bias detected.
+
+================ PER-VALUE SUMMARY ================
+Top 10 Y values with highest max|Delta-Y|:
+  Y=179: max|Delta-Y|=41, avgDelta=-0.048
+  Y=190: max|Delta-Y|=40, avgDelta=+0.078
+  Y=  1: max|Delta-Y|=40, avgDelta=+2.673
+  Y=142: max|Delta-Y|=39, avgDelta=+0.007
+  Y=213: max|Delta-Y|=39, avgDelta=+0.144
+  Y= 54: max|Delta-Y|=39, avgDelta=+0.041
+  Y= 97: max|Delta-Y|=39, avgDelta=-0.059
+  Y=174: max|Delta-Y|=39, avgDelta=+0.014
+  Y=242: max|Delta-Y|=38, avgDelta=-0.128
+  Y=214: max|Delta-Y|=38, avgDelta=+0.262

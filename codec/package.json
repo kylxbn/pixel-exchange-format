@@ -1,0 +1,26 @@
+{
+    "name": "@pixel-exchange-format/codec",
+    "version": "3.0.0",
+    "description": "Core codec for Pixel Exchange Format",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "type": "module",
+    "scripts": {
+        "doc": "npx ts-node spec-builder.ts",
+        "prebuild": "node -e \"const fs = require('fs'); const { execSync } = require('child_process'); const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')); let buildNumber = '0', gitHash = 'dev'; try { buildNumber = execSync('git rev-list --count HEAD').toString().trim(); } catch {} try { gitHash = execSync('git rev-parse --short HEAD').toString().trim(); } catch {} fs.writeFileSync('src/buildInfo.ts', 'export const VERSION = \\'' + pkg.version + '\\';\\nexport const BUILD_NUMBER = ' + buildNumber + ';\\nexport const BUILD_HASH = \\'' + gitHash + '\\';\\n');\"",
+        "build": "rimraf dist && tsc && esbuild src/index.ts --bundle --minify --format=esm --platform=neutral --outfile=dist/index.js",
+        "watch": "tsc -w",
+        "test": "vitest run"
+    },
+    "devDependencies": {
+        "@vitest/browser": "^4.0.16",
+        "@vitest/coverage-v8": "^4.0.16",
+        "esbuild": "^0.27.2",
+        "rimraf": "^6.1.2",
+        "typescript": "^5.5.0",
+        "vitest": "^4.0.16"
+    },
+    "dependencies": {
+        "any-ascii": "^0.3.3"
+    }
+}

@@ -1,0 +1,57 @@
+/*
+SPDX-License-Identifier: BSD-3-Clause
+Copyright (c) 2026 Kyle Alexander Buan
+*/
+
+@import 'tailwindcss';
+@plugin '@tailwindcss/forms';
+
+@theme {
+    --font-sans: "Inter", sans-serif;
+    --font-mono: "IBM Plex Mono", "Consolas", monospace;
+
+    --color-gray-50: #fafafa;
+    --color-gray-100: #f4f4f5;
+    --color-gray-200: #e4e4e7;
+    --color-gray-300: #d4d4d8;
+    --color-gray-400: #a1a1aa;
+    --color-gray-500: #71717a;
+    --color-gray-600: #52525b;
+    --color-gray-700: #3f3f46;
+    --color-gray-800: #27272a;
+    --color-gray-850: #202023;
+    --color-gray-900: #18181b;
+    --color-gray-950: #09090b;
+
+    --color-primary-50: #eff6ff;
+    --color-primary-100: #dbeafe;
+    --color-primary-200: #bfdbfe;
+    --color-primary-300: #93c5fd;
+    --color-primary-400: #60a5fa;
+    --color-primary-500: #3b82f6;
+    --color-primary-600: #2563eb;
+    --color-primary-700: #1d4ed8;
+    --color-primary-800: #1e40af;
+    --color-primary-900: #1e3a8a;
+    --color-primary-950: #172554;
+}
+
+body {
+    @apply font-sans bg-gray-950 text-gray-200 antialiased selection:bg-primary-500/30 selection:text-white;
+}
+
+::-webkit-scrollbar {
+    @apply size-1.5;
+}
+
+::-webkit-scrollbar-track {
+    @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    @apply bg-gray-700/50 rounded-full hover:bg-gray-600 transition-colors;
+}
+
+.glass {
+    @apply backdrop-blur-md bg-white/5 border border-white/10;
+}

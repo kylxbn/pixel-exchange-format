@@ -1,0 +1,20 @@
+{
+  "name": "@pixel-exchange-format/jpeg-decoder",
+  "version": "1.0.0",
+  "description": "Custom JPEG decoder for PXF with nearest-neighbor chroma upsampling",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "scripts": {
+    "build": "rimraf dist && tsc",
+    "watch": "tsc -w"
+  },
+  "dependencies": {
+    "@pixel-exchange-format/codec": "file:../codec"
+  },
+  "devDependencies": {
+    "rimraf": "^6.1.2",
+    "typescript": "^5.5.0"
+  }
+}

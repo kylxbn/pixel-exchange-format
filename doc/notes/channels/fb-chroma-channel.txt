@@ -1,0 +1,41 @@
+================ POINT-SPACE DISTORTION ================
+
+Delta-Y (point)
+  Mean:      -0.000046
+  Median:    -0.000121
+  StdDev:    0.075973
+  Min:       -0.419349
+  Max:       +0.395612
+  Max |Delta|:   0.419349
+  p90 |Delta|:   0.125367
+  p95 |Delta|:   0.150514
+  p99 |Delta|:   0.200295
+
+Delta-Cb (point)
+  Mean:      +0.000033
+  Median:    -0.000080
+  StdDev:    0.277390
+  Min:       -0.806450
+  Max:       +0.838041
+  Max |Delta|:   0.838041
+  p90 |Delta|:   0.442879
+  p95 |Delta|:   0.499075
+  p99 |Delta|:   0.595142
+
+Delta-Cr (point)
+  Mean:      -0.000055
+  Median:    +0.000085
+  StdDev:    0.278808
+  Min:       -0.876197
+  Max:       +0.848830
+  Max |Delta|:   0.876197
+  p90 |Delta|:   0.445524
+  p95 |Delta|:   0.503057
+  p99 |Delta|:   0.601199
+
+Delta Vector Magnitude
+  Mean:      0.371084
+  Median:    0.367813
+  Max:       1.011389
+  p95:       0.625421
+  p99:       0.723639
