@@ -2,6 +2,8 @@
 
 I don't know how this codec even reached version 3.0.0. What the heck.
 
+Try it [here](https://pxf.kylxbn.com/).
+
 ## Format Overview
 
 The Pixel Exchange Format (PXF) v300 encodes audio or arbitrary binary data into fixed-width images. It combines deterministic transforms, forward error correction, and integrity checks so data can be reconstructed after common image degradation.
