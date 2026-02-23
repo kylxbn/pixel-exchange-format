@@ -406,6 +406,7 @@ Copyright (c) 2026 Kyle Alexander Buan
 							<span>Download all</span>
 							<DownloadIcon class="w-3 h-3" />
 						</button>
+                        <!--
 						<button
 							onclick={handleFacebookTranscodeThenDecode}
 							disabled={isFacebookTranscoding}
@@ -417,6 +418,7 @@ Copyright (c) 2026 Kyle Alexander Buan
 									: 'Facebook Transcode then Decode'}</span
 							>
 						</button>
+                        -->
 						<button
 							onclick={handleTransferClick}
 							disabled={isFacebookTranscoding}
