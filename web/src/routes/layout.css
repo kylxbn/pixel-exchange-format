@@ -1,0 +1,61 @@
+@import 'tailwindcss';
+
+:root {
+	--paper: #f2ede5;
+	--ink: #111111;
+	--accent: #ff5a1f;
+	--grid: rgba(17, 17, 17, 0.08);
+	--frame: rgba(17, 17, 17, 0.16);
+}
+
+html {
+	scroll-behavior: smooth;
+	background: var(--paper);
+}
+
+body {
+	min-height: 100vh;
+	background:
+		linear-gradient(to bottom, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0)),
+		repeating-linear-gradient(
+			to right,
+			transparent 0,
+			transparent 95px,
+			var(--grid) 95px,
+			var(--grid) 96px
+		),
+		repeating-linear-gradient(
+			to bottom,
+			transparent 0,
+			transparent 95px,
+			var(--grid) 95px,
+			var(--grid) 96px
+		),
+		var(--paper);
+	color: var(--ink);
+	font-family:
+		'Space Grotesk',
+		'IBM Plex Sans',
+		'Avenir Next',
+		'Segoe UI',
+		sans-serif;
+	text-rendering: optimizeLegibility;
+}
+
+a {
+	text-decoration: none;
+}
+
+img {
+	display: block;
+}
+
+::selection {
+	background: var(--accent);
+	color: var(--paper);
+}
+
+:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}
