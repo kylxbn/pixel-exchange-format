@@ -80,10 +80,17 @@ export { ZIGZAG_4X4_FLAT, RASTER_4X4_FLAT, ZIGZAG_8X8_FLAT, RASTER_8X8_FLAT };
 
 // // --- Protocol & Format Identifiers ---
 
-export const FORMAT_VERSION = 300;
-export const HEADER_XOR_MASK_SEED = 0xe5b4d3bd; // SHA256("PXF:v300:Main header whitening seed")[0:4]
-export const ROW_META_XOR_SEED_BASE = 0xc4396125; // SHA256("PXF:v300:Audio row metadata whitening seed")[0:4]
-export const BINARY_PERMUTATION_SEED = 0xbf4d0153; // SHA256("PXF:v300:Binary mode byte pair permutation seed")[0:4]
+export const FORMAT_VERSION = 301;
+export const SUPPORTED_FORMAT_VERSIONS = [300, 301] as const;
+export function isSupportedFormatVersion(version: number): boolean {
+    return SUPPORTED_FORMAT_VERSIONS.includes(version as typeof SUPPORTED_FORMAT_VERSIONS[number]);
+}
+
+// These protocol seeds are intentionally preserved from v300 so that the
+// v301 encoder remains layout-compatible with the existing decoder pipeline.
+export const HEADER_XOR_MASK_SEED = 0xe5b4d3bd; // Legacy seed from SHA256("PXF:v300:Main header whitening seed")[0:4]
+export const ROW_META_XOR_SEED_BASE = 0xc4396125; // Legacy seed from SHA256("PXF:v300:Audio row metadata whitening seed")[0:4]
+export const BINARY_PERMUTATION_SEED = 0xbf4d0153; // Legacy seed from SHA256("PXF:v300:Binary mode byte pair permutation seed")[0:4]
 
 // // Seeds for LDPC Matrix Generation (ensures decoder matches encoder)
 // export const LDPC_SEED_HEADER = 0x46a11d63; // SHA256("PXF:v300:Binary mode byte pair permutation seed")[0:4]

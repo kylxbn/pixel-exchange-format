@@ -37,6 +37,55 @@ export const RASTER_8X8_FLAT = new Uint8Array([
     56, 57, 58, 59, 60, 61, 62, 63
 ]);
 
+// Derived from the average of ImageMagick/libjpeg Q91/Q92/Q93 luma tables.
+// Order is sorted by lower quantization first, with ties broken by lower Q92
+// value and then the original JPEG zigzag slot. See:
+// doc/notes/jpeg-q91-q92-q93-quant-rankings.txt
+export const Q92PM1_LUMA_8X8_FLAT = new Uint8Array([
+    2, 1, 8, 9, 17, 16, 10, 24,
+    0, 3, 25, 18, 32, 11, 4, 19,
+    26, 33, 40, 12, 27, 41, 34, 5,
+    20, 48, 6, 28, 13, 21, 35, 42,
+    15, 23, 14, 7, 31, 49, 43, 36,
+    22, 56, 50, 39, 30, 44, 29, 51,
+    57, 58, 47, 59, 61, 55, 63, 52,
+    38, 62, 45, 37, 46, 60, 53, 54
+]);
+
+// Derived from the average of ImageMagick/libjpeg Q91/Q92/Q93 chroma tables
+// over the first 16 JPEG chroma zigzag slots. The current codec uses one
+// shared 4x4 chroma map for both Cb and Cr because the JPEGs we are targeting
+// also use one shared chroma quantization table.
+export const Q92PM1_CHROMA_4X4_FLAT = new Uint8Array([
+    0, 1, 4, 5,
+    8, 2, 6, 9,
+    3, 12, 7, 10,
+    11, 13, 14, 15
+]);
+
+// Derived from weighted ImageMagick/libjpeg Q84..Q100 tables using triangular
+// weights centered on Q92. See:
+// doc/notes/jpeg-q84-q100-q92pm8-quant-rankings.txt
+export const Q92PM8_LUMA_8X8_FLAT = new Uint8Array([
+    2, 1, 8, 9, 17, 16, 10, 24,
+    0, 3, 18, 25, 32, 11, 26, 33,
+    4, 19, 40, 12, 27, 41, 34, 5,
+    20, 48, 6, 28, 42, 15, 35, 23,
+    21, 13, 14, 7, 31, 49, 43, 36,
+    22, 56, 39, 50, 30, 44, 29, 51,
+    57, 47, 58, 59, 61, 55, 63, 52,
+    38, 62, 45, 37, 60, 46, 54, 53
+]);
+
+// Derived from weighted ImageMagick/libjpeg Q84..Q100 chroma tables over the
+// first 16 JPEG chroma zigzag slots using the same Q92-centered weighting.
+export const Q92PM8_CHROMA_4X4_FLAT = new Uint8Array([
+    0, 1, 4, 5,
+    8, 2, 6, 9,
+    3, 12, 7, 10,
+    11, 13, 14, 15
+]);
+
 const DEFAULT_BAND_MAP = new Int8Array(64);
 for (let k = 0; k < 64; k++) {
     if (k < 3) DEFAULT_BAND_MAP[k] = 0;
@@ -49,6 +98,14 @@ export const AUDIO_PIXEL_MAPPING_PRESETS = {
     zigzag: {
         luma8x8: ZIGZAG_8X8_FLAT,
         chroma4x4: ZIGZAG_4X4_FLAT,
+    },
+    q92pm1: {
+        luma8x8: Q92PM1_LUMA_8X8_FLAT,
+        chroma4x4: Q92PM1_CHROMA_4X4_FLAT,
+    },
+    q92pm8: {
+        luma8x8: Q92PM8_LUMA_8X8_FLAT,
+        chroma4x4: Q92PM8_CHROMA_4X4_FLAT,
     },
     raster: {
         luma8x8: RASTER_8X8_FLAT,
@@ -71,8 +128,8 @@ export const AUDIO_PSYCHOACOUSTICS = {
     bandMap: DEFAULT_BAND_MAP,
 
     // Active coefficient maps used for block <-> flat bin mapping.
-    // Swap this to AUDIO_PIXEL_MAPPING_PRESETS.raster for a raster path.
-    blockMap: AUDIO_PIXEL_MAPPING_PRESETS.zigzag,
+    // The q92pm8 preset uses weighted Q84..Q100 rankings centered on Q92.
+    blockMap: AUDIO_PIXEL_MAPPING_PRESETS.q92pm8,
 
     // Mu-law companding strengths used by OBB point mapping.
     // Set any value to 0 to make that axis linear (no mu-law).

@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Kyle Alexander Buan
 
 import { describe, it, expect } from 'vitest';
-import { CHANNEL_MODE } from '../constants';
+import { CHANNEL_MODE, FORMAT_VERSION, isSupportedFormatVersion } from '../constants';
 import { StreamingAudioDecoder } from './audio';
 import { PxfEncoder } from '../encoder';
 import { PxfDecoder } from '.';
@@ -31,6 +31,18 @@ async function createEncodedBinaryImage(size = 100, metadata: Record<string, str
 describe('PxfDecoder', () => {
 
     describe('General API', () => {
+        it('should encode with version 301 and keep 300/301 decode support configured', async () => {
+            const img = await createEncodedAudioImage();
+            const src = PxfDecoder.load(img);
+
+            expect(src.visualizationMetadata.version).toBe(FORMAT_VERSION);
+            expect(FORMAT_VERSION).toBe(301);
+            expect(isSupportedFormatVersion(300)).toBe(true);
+            expect(isSupportedFormatVersion(301)).toBe(true);
+            expect(isSupportedFormatVersion(299)).toBe(false);
+            expect(isSupportedFormatVersion(302)).toBe(false);
+        });
+
         it('should throw error if sources array is empty', async () => {
             await expect(PxfDecoder.decode([])).rejects.toThrow("No valid sources found");
             await expect(PxfDecoder.decodeMetadataOnly([])).rejects.toThrow("No valid sources found");

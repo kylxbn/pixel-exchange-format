@@ -92,9 +92,9 @@ function generateSpecification(files: MarkdownFile[]): string {
     const spec = [
         '# Pixel Exchange Format (PXF) Specification',
         '',
-        'Version 300 - Normative Technical Specification',
+        'Version 301 - Normative Technical Specification',
         '',
-        'This document provides a complete technical specification for the Pixel Exchange Format (PXF) version 300, enabling clean-room implementation of encoders and decoders.',
+        'This document provides a complete technical specification for the Pixel Exchange Format (PXF) version 301, enabling clean-room implementation of encoders and decoders.',
         '',
         '---',
         ''

@@ -3,7 +3,7 @@ order: 1
 title: Format Constants
 ---
 
-PXF v300 uses fixed constants shared by encoder and decoder implementations.
+PXF v301 uses fixed constants shared by encoder and decoder implementations.
 
 ## Image and Row Layout
 
@@ -71,7 +71,7 @@ Binary LDPC:
 
 ## Protocol and Seeds
 
-- `FORMAT_VERSION = 300`
+- `FORMAT_VERSION = 301`
 
 Channel modes:
 - `0`: mono
@@ -86,16 +86,33 @@ Whitening/permutation seeds:
 
 ## Coefficient Orders and Mu-Law
 
-Implemented scan orders:
+Implemented coefficient orders:
 - `ZIGZAG_8X8_FLAT`
 - `ZIGZAG_4X4_FLAT`
 - `RASTER_8X8_FLAT`
 - `RASTER_4X4_FLAT`
+- `Q92PM1_LUMA_8X8_FLAT`
+- `Q92PM1_CHROMA_4X4_FLAT`
+- `Q92PM8_LUMA_8X8_FLAT`
+- `Q92PM8_CHROMA_4X4_FLAT`
 
-Band-map assignment and active pixel scan selection are configured in `psychoacoustics.ts`:
+Preset selection and active block maps are configured in `psychoacoustics.ts`:
+- `AUDIO_PIXEL_MAPPING_PRESETS.zigzag`
+- `AUDIO_PIXEL_MAPPING_PRESETS.q92pm1`
+- `AUDIO_PIXEL_MAPPING_PRESETS.q92pm8`
+- `AUDIO_PIXEL_MAPPING_PRESETS.raster`
+- Default: `AUDIO_PSYCHOACOUSTICS.blockMap = AUDIO_PIXEL_MAPPING_PRESETS.q92pm8`
+
+Band-map assignment and active coefficient placement are configured in `psychoacoustics.ts`:
 - `AUDIO_PSYCHOACOUSTICS.bandMap`
 - `AUDIO_PSYCHOACOUSTICS.blockMap.luma8x8`
 - `AUDIO_PSYCHOACOUSTICS.blockMap.chroma4x4`
+
+The `q92pm1` and `q92pm8` presets are JPEG-tuned permutations derived from
+ImageMagick/libjpeg quantization tables. `q92pm8` uses weighted Q84..Q100
+tables centered on Q92 and is the current default. Chroma uses one shared 4x4
+map for both Cb and Cr because the targeted JPEG family uses one shared chroma
+quantization table.
 
 Mu-law values and audio stage toggles are configured in `psychoacoustics.ts`:
 - `AUDIO_PSYCHOACOUSTICS.muLaw.luma`

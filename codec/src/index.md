@@ -3,7 +3,7 @@ order: 2
 title: Format Overview
 ---
 
-The Pixel Exchange Format (PXF) v300 encodes audio or arbitrary binary data into fixed-width images. It combines deterministic transforms, forward error correction, and integrity checks so data can be reconstructed after common image degradation.
+The Pixel Exchange Format (PXF) v301 encodes audio or arbitrary binary data into fixed-width images. It combines deterministic transforms, forward error correction, and integrity checks so data can be reconstructed after common image degradation.
 
 ## Encoding Modes
 
@@ -46,4 +46,4 @@ Stereo decoding behavior:
 
 ## Versioning and Compatibility
 
-The implementation uses `FORMAT_VERSION = 300` with deterministic seeded whitening/permutation and precomputed LDPC graphs so encoder and decoder remain bit-compatible.
+The implementation uses `FORMAT_VERSION = 301` with deterministic seeded whitening/permutation and precomputed LDPC graphs so encoder and decoder remain bit-compatible.
