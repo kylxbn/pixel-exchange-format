@@ -4,6 +4,7 @@
 import {
     BLOCKS_PER_ROW,
     DATA_BLOCKS_PER_ROW,
+    FORMAT_VERSION,
     IMAGE_WIDTH,
     ROW_META_SBR_BYTES,
     SILENCE_THRESHOLD,
@@ -13,7 +14,7 @@ import {
 import {
     AUDIO_PSYCHOACOUSTICS,
 } from '../psychoacoustics';
-import { analyzeRowSBR, encodeRowSBR } from '../utils/sbr';
+import { analyzeRowSBR, createDefaultRowSBR, encodeRowSBR, type RowSBRParams } from '../utils/sbr';
 import {
     idct4x4,
     idct8x8,
@@ -58,32 +59,41 @@ export type RowMetadataWriter = (
     blockIndex: number
 ) => void;
 
-export function processRow(
-    rowIndex: number,
+export interface PreparedAudioRow {
+    rowDataCount: number;
+    rowMDCTCoeffs: Float32Array[];
+    rowSpatialY: Float32Array;
+    rowSpatialCb: Float32Array;
+    rowSpatialCr: Float32Array;
+    scaleYA: number;
+    scaleYB: number;
+    scaleCAX: number;
+    scaleCAY: number;
+    scaleCBX: number;
+    scaleCBY: number;
+    bandFactorsA: Float32Array;
+    bandFactorsB: Float32Array;
+    sbrParams: RowSBRParams;
+}
+
+export function prepareAudioRow(
     rowDataCount: number,
     firstImageBlockInRow: number,
-    firstAudioBlockIndex: number,
     totalAudioBlocks: number,
     paddedAudio: Float32Array,
-    imageData: SimpleImageData,
     hopSize: number,
     windowSize: number,
     mdctWindow: Float32Array,
-    sampleRate: number,
     whiteningProfile: MdctWhiteningProfile | null,
-    buffers: EncodeRowBuffers,
-    writeRowMetadata: RowMetadataWriter
-): void {
-    // Intermediate buffers to hold MDCT coefficients for the whole row
+    buffers: EncodeRowBuffers
+): PreparedAudioRow {
     const rowCoeffsBuffer = new Float32Array(rowDataCount * 96);
-    const rowMDCTCoeffs: Float32Array[] = []; // Full 128-bin MDCT for SBR analysis
+    const rowMDCTCoeffs: Float32Array[] = [];
 
-    // Row-level spatial buffers to store IDCT results (one pass)
     const rowSpatialY = new Float32Array(rowDataCount * 64);
     const rowSpatialCb = new Float32Array(rowDataCount * 16);
     const rowSpatialCr = new Float32Array(rowDataCount * 16);
 
-    // --- STEP 1: COMPUTE MDCT AND SBR ANALYSIS ---
     for (let i = 0; i < rowDataCount; i++) {
         const audioBlockIdx = firstImageBlockInRow + i;
         if (audioBlockIdx < totalAudioBlocks) {
@@ -94,30 +104,24 @@ export function processRow(
 
             mdct(buffers.winFrame, buffers.mdctCoeffs);
 
-            // Save bins 0-95 for processing
             for (let k = 0; k < 96; k++) {
                 rowCoeffsBuffer[i * 96 + k] = buffers.mdctCoeffs[k];
             }
 
-            // Save full 128-bin MDCT for SBR analysis
             rowMDCTCoeffs.push(new Float32Array(buffers.mdctCoeffs));
         }
     }
 
-    // SBR: Analyze entire row using dedicated SBR module
-    const sbrBytes = AUDIO_PSYCHOACOUSTICS.enableSbr
-        ? encodeRowSBR(analyzeRowSBR(rowMDCTCoeffs, rowDataCount))
-        : new Uint8Array(ROW_META_SBR_BYTES);
+    const sbrParams = AUDIO_PSYCHOACOUSTICS.enableSbr
+        ? analyzeRowSBR(rowMDCTCoeffs, rowDataCount)
+        : createDefaultRowSBR();
 
-    // --- STEP 2: STATIC MDCT BIN WHITENING (bins 0..95) ---
     for (let i = 0; i < rowDataCount; i++) {
         if (AUDIO_PSYCHOACOUSTICS.enableMdctWhitening && whiteningProfile) {
             applyMdctWhiteningWithProfile(rowCoeffsBuffer, whiteningProfile, i * 96);
         }
     }
 
-    // --- STEP 3: ANALYZE BANDS ON MDCT COEFFICIENTS ---
-    // We'll analyze bands separately for subgroup A and B
     const bandFactorsA = new Float32Array([1, 1, 1, 1]);
     const bandFactorsB = new Float32Array([1, 1, 1, 1]);
 
@@ -129,12 +133,10 @@ export function processRow(
             const isA = i < SUBGROUP_A_SIZE;
             const bandMax = isA ? bandMaxA : bandMaxB;
 
-            // Retrieve coefficients for this block
             for (let k = 0; k < 64; k++) {
                 buffers.mdctCoeffs[k] = rowCoeffsBuffer[i * 96 + k];
             }
 
-            // Analyze each bin and assign to band using pre-computed bandMap
             for (let k = 0; k < 64; k++) {
                 const val = Math.abs(buffers.mdctCoeffs[k]);
                 const bandIdx = BAND_MAP[k];
@@ -142,23 +144,15 @@ export function processRow(
             }
         }
 
-        // Create band factors with logDecode(logEncode(...)) quantization
         for (let b = 0; b < 4; b++) {
-            if (bandMaxA[b] > SILENCE_THRESHOLD) {
-                bandFactorsA[b] = logDecode(logEncode(1.0 / bandMaxA[b]));
-            } else {
-                bandFactorsA[b] = logDecode(logEncode(1.0));
-            }
-
-            if (bandMaxB[b] > SILENCE_THRESHOLD) {
-                bandFactorsB[b] = logDecode(logEncode(1.0 / bandMaxB[b]));
-            } else {
-                bandFactorsB[b] = logDecode(logEncode(1.0));
-            }
+            bandFactorsA[b] = bandMaxA[b] > SILENCE_THRESHOLD
+                ? logDecode(logEncode(1.0 / bandMaxA[b]))
+                : logDecode(logEncode(1.0));
+            bandFactorsB[b] = bandMaxB[b] > SILENCE_THRESHOLD
+                ? logDecode(logEncode(1.0 / bandMaxB[b]))
+                : logDecode(logEncode(1.0));
         }
 
-        // --- STEP 4: APPLY BAND FACTORS TO MDCT ---
-        // Apply band factors directly using pre-computed bandMap
         for (let i = 0; i < rowDataCount; i++) {
             const isA = i < SUBGROUP_A_SIZE;
             const bandFactors = isA ? bandFactorsA : bandFactorsB;
@@ -171,26 +165,20 @@ export function processRow(
         }
     }
 
-    // --- STEP 5: IDCT TO SPATIAL DOMAIN ---
-    // Do IDCT once per block and store spatial results
     for (let i = 0; i < rowDataCount; i++) {
-        // Load MDCT coefficients (with band factors applied)
         const rowOffset = i * 96;
         for (let k = 0; k < 96; k++) {
             buffers.mdctCoeffs[k] = rowCoeffsBuffer[rowOffset + k];
         }
 
-        // Prepare DCT buffers
         buffers.dctY.fill(0);
         buffers.dctCb.fill(0);
         buffers.dctCr.fill(0);
 
-        // Y channel (bins 0-63)
         for (let k = 0; k < 64; k++) {
             buffers.dctY[BLOCK_MAP_8X8[k]] = buffers.mdctCoeffs[k];
         }
 
-        // Chroma channels (bins 64-95) -> 4x4 DCT
         for (let k = 0; k < 16; k++) {
             const cbBin = 64 + 2 * k;
             const crBin = 65 + 2 * k;
@@ -198,12 +186,10 @@ export function processRow(
             buffers.dctCr[BLOCK_MAP_4X4[k]] = buffers.mdctCoeffs[crBin];
         }
 
-        // IDCT to spatial domain
         idct8x8(buffers.dctY, buffers.spatialY, buffers.temp);
         idct4x4(buffers.dctCb, buffers.spatialCb, buffers.temp);
         idct4x4(buffers.dctCr, buffers.spatialCr, buffers.temp);
 
-        // Store spatial results in row buffers
         const spatialOffsetY = i * 64;
         const spatialOffsetC = i * 16;
         for (let j = 0; j < 64; j++) {
@@ -215,14 +201,56 @@ export function processRow(
         }
     }
 
-    // --- STEP 6: CALCULATE SCALING FACTORS ---
-    // Use max-based scaling to ensure NO clipping
     const { scaleYA, scaleYB, scaleCAX, scaleCAY, scaleCBX, scaleCBY } = ScalingUtils.calculateRowScalingFactors(
         rowSpatialY, rowSpatialCb, rowSpatialCr, rowDataCount
     );
 
-    // --- STEP 6: WRITE PIXELS ---
-    // Reuse upsampled chroma buffers to avoid allocations in the loop
+    return {
+        rowDataCount,
+        rowMDCTCoeffs,
+        rowSpatialY,
+        rowSpatialCb,
+        rowSpatialCr,
+        scaleYA,
+        scaleYB,
+        scaleCAX,
+        scaleCAY,
+        scaleCBX,
+        scaleCBY,
+        bandFactorsA,
+        bandFactorsB,
+        sbrParams
+    };
+}
+
+export function writePreparedAudioRow(
+    rowIndex: number,
+    firstAudioBlockIndex: number,
+    preparedRow: PreparedAudioRow,
+    imageData: SimpleImageData,
+    buffers: EncodeRowBuffers,
+    writeRowMetadata: RowMetadataWriter,
+    formatVersion: number = FORMAT_VERSION
+): void {
+    const {
+        rowDataCount,
+        rowSpatialY,
+        rowSpatialCb,
+        rowSpatialCr,
+        scaleYA,
+        scaleYB,
+        scaleCAX,
+        scaleCAY,
+        scaleCBX,
+        scaleCBY,
+        bandFactorsA,
+        bandFactorsB,
+        sbrParams
+    } = preparedRow;
+    const sbrBytes = AUDIO_PSYCHOACOUSTICS.enableSbr
+        ? encodeRowSBR(sbrParams, formatVersion)
+        : new Uint8Array(ROW_META_SBR_BYTES);
+
     const upCb = new Float32Array(64);
     const upCr = new Float32Array(64);
 
@@ -239,7 +267,6 @@ export function processRow(
         const bx = (imgBlockIdx % BLOCKS_PER_ROW) * 8;
         const by = Math.floor(imgBlockIdx / BLOCKS_PER_ROW) * 8;
 
-        // Load spatial data from row buffers and scale
         const spatialOffsetY = i * 64;
         const spatialOffsetC = i * 16;
         for (let j = 0; j < 64; j++) {
@@ -250,11 +277,10 @@ export function processRow(
             buffers.spatialCr[j] = rowSpatialCr[spatialOffsetC + j] * scaleC;
         }
 
-        // Upsample chroma from 4x4 to 8x8 in-place
         for (let y = 0; y < 8; y++) {
-            const sy = Math.floor(y / 2); // 0..3
+            const sy = Math.floor(y / 2);
             for (let x = 0; x < 8; x++) {
-                const sx = Math.floor(x / 2); // 0..3
+                const sx = Math.floor(x / 2);
                 const idx = y * 8 + x;
                 const srcIdx = sy * 4 + sx;
                 upCb[idx] = buffers.spatialCb[srcIdx];
@@ -262,7 +288,6 @@ export function processRow(
             }
         }
 
-        // Write pixels with safety margin applied
         for (let y = 0; y < 8; y++) {
             for (let x = 0; x < 8; x++) {
                 const idx = y * 8 + x;
@@ -282,7 +307,6 @@ export function processRow(
         }
     }
 
-    // Store metadata for decoder
     const metaBlockIdx = firstAudioBlockIndex + rowIndex * BLOCKS_PER_ROW + DATA_BLOCKS_PER_ROW;
     writeRowMetadata(
         rowIndex,
@@ -297,5 +321,43 @@ export function processRow(
         sbrBytes,
         imageData,
         metaBlockIdx
+    );
+}
+
+export function processRow(
+    rowIndex: number,
+    rowDataCount: number,
+    firstImageBlockInRow: number,
+    firstAudioBlockIndex: number,
+    totalAudioBlocks: number,
+    paddedAudio: Float32Array,
+    imageData: SimpleImageData,
+    hopSize: number,
+    windowSize: number,
+    mdctWindow: Float32Array,
+    sampleRate: number,
+    whiteningProfile: MdctWhiteningProfile | null,
+    buffers: EncodeRowBuffers,
+    writeRowMetadata: RowMetadataWriter
+): void {
+    const preparedRow = prepareAudioRow(
+        rowDataCount,
+        firstImageBlockInRow,
+        totalAudioBlocks,
+        paddedAudio,
+        hopSize,
+        windowSize,
+        mdctWindow,
+        whiteningProfile,
+        buffers
+    );
+
+    writePreparedAudioRow(
+        rowIndex,
+        firstAudioBlockIndex,
+        preparedRow,
+        imageData,
+        buffers,
+        writeRowMetadata
     );
 }

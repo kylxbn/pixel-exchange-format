@@ -69,6 +69,7 @@ Copyright (c) 2026 Kyle Alexander Buan
     let hudSbrNoise = $state("0");
     let hudSbrTonality = $state("0");
     let hudSbrPatch = $state("Adjacent");
+    let hudSbrProcLabel = $state("Proc");
     let hudSbrProc = $state("Normal");
     let hudSbrTransient = $state("Flat");
     let hudSbrEnvelope = $state("0, 0, 0, 0");
@@ -164,6 +165,12 @@ Copyright (c) 2026 Kyle Alexander Buan
     function toDecibels(factor: number): string {
         const dB = 20 * Math.log10(factor);
         return (dB > 0 ? '+' + dB.toFixed(1) : dB.toFixed(1)) + ' dB'
+    }
+
+    function describeStereoCue(cue: number): string {
+        const sign = ((cue >>> 2) & 0x01) === 1 ? '-' : '+';
+        const coherenceClass = cue & 0x03;
+        return `${sign} C${coherenceClass}`;
     }
 
     // Helper: Determine audio channel status
@@ -338,7 +345,10 @@ Copyright (c) 2026 Kyle Alexander Buan
 
         // Decode SBR parameters
         if (stats.sbrData && stats.sbrData.length === 8) {
-            const rowSBRParams = decodeRowSBR(stats.sbrData);
+            const formatVersion = decoderState.result && decoderState.result.type === 'audio'
+                ? decoderState.result.visualizationMetadata.version
+                : 301;
+            const rowSBRParams = decodeRowSBR(stats.sbrData, formatVersion);
             
             // Determine which SBR subgroup this block belongs to (2 subgroups)
             const colInAudioArea = currentAudioBlockIndex % DATA_BLOCKS_PER_ROW;
@@ -359,7 +369,10 @@ Copyright (c) 2026 Kyle Alexander Buan
                 hudSbrNoise = `${isSecondHalf ? temporal.noiseFloorRatioB : temporal.noiseFloorRatioA}/3`;
                 hudSbrTonality = `${temporal.tonality}/3`;
                 hudSbrPatch = PATCH_MODE_NAMES[temporal.patchMode] || 'Adjacent';
-                hudSbrProc = PROCESSING_MODE_NAMES[temporal.procMode] || 'Normal';
+                hudSbrProcLabel = formatVersion >= 301 ? 'Stereo' : 'Proc';
+                hudSbrProc = formatVersion >= 301
+                    ? describeStereoCue(temporal.stereoCue)
+                    : (PROCESSING_MODE_NAMES[temporal.procMode] || 'Normal');
                 hudSbrTransient = (isSecondHalf ? temporal.transientB : temporal.transientA) ? 'Attack' : 'Flat';
                 hudSbrEnvelope = temporal.bandEnvelope.map(v => (v >= 0 ? '+' : '') + v.toFixed(1)).join(', ');
             } else {
@@ -368,9 +381,12 @@ Copyright (c) 2026 Kyle Alexander Buan
                 hudSbrGain = `${normal.hfGain >= 0 ? '+' : ''}${normal.hfGain.toFixed(1)} dB`;
                 hudSbrGainBarWidth = Math.min(100, Math.max(0, (normal.hfGain + 48) / 63 * 100));
                 hudSbrNoise = `${normal.noiseFloorRatio}/15`;
-                hudSbrTonality = `${normal.tonality}/7`;
+                hudSbrTonality = `${normal.tonality}/${formatVersion >= 301 ? 3 : 7}`;
                 hudSbrPatch = PATCH_MODE_NAMES[normal.patchMode] || 'Adjacent';
-                hudSbrProc = PROCESSING_MODE_NAMES[normal.procMode] || 'Normal';
+                hudSbrProcLabel = formatVersion >= 301 ? 'Stereo' : 'Proc';
+                hudSbrProc = formatVersion >= 301
+                    ? describeStereoCue(normal.stereoCue)
+                    : (PROCESSING_MODE_NAMES[normal.procMode] || 'Normal');
                 hudSbrTransient = TRANSIENT_SHAPE_NAMES[normal.transientShape] || 'Flat';
                 hudSbrEnvelope = normal.bandEnvelope.map(v => (v >= 0 ? '+' : '') + v.toFixed(1)).join(', ');
             }
@@ -580,7 +596,7 @@ Copyright (c) 2026 Kyle Alexander Buan
 						<span class="text-violet-400 text-xs">{hudSbrPatch}</span>
 					</div>
 					<div class="flex justify-between items-center">
-						<span class="text-gray-400 text-xs">Proc</span>
+						<span class="text-gray-400 text-xs">{hudSbrProcLabel}</span>
 						<span class="text-orange-400 text-xs">{hudSbrProc}</span>
 					</div>
 				</div>

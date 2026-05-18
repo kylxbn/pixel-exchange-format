@@ -20,8 +20,9 @@ import { rowMetaLdpc } from '../constants';
 import { ChunkingUtils } from './chunking';
 import { HeaderEncoder } from './header';
 import { TextRenderer } from './text';
-import { processRow } from './audioMath';
+import { prepareAudioRow, processRow, writePreparedAudioRow } from './audioMath';
 import type { EncodeRowBuffers } from './audioMath';
+import { analyzeStereoRowSbrCues, applyStereoCuesToRowSBR, lockStereoRowPatchModes } from '../utils/sbr';
 
 export interface EncodedImageResult {
     data: Uint8ClampedArray;
@@ -97,20 +98,26 @@ export class AudioEncoder {
             const totalImages = numChunks * 2; // mid1, side1, mid2, side2, ...
 
             for (let chunkIdx = 0; chunkIdx < numChunks; chunkIdx++) {
-                // Encode mid channel (odd image indices: 1, 3, 5, ...)
                 const midImageIndex = chunkIdx * 2 + 1;
-                const progressCallbackMid = onProgress ? (p: number) => onProgress((midImageIndex - 1 + p / 100) / totalImages * 100) : undefined;
-
-                if (chunkIdx < midChunks.length) {
-                    results.push(await this.encodeChannel(midChunks[chunkIdx][0], sampleRate, metadata, CHANNEL_MODE.STEREO_MID, randomBytes, midImageIndex, totalImages, channels[0].length, progressCallbackMid));
-                }
-
-                // Encode side channel (even image indices: 2, 4, 6, ...)
                 const sideImageIndex = chunkIdx * 2 + 2;
-                const progressCallbackSide = onProgress ? (p: number) => onProgress((sideImageIndex - 1 + p / 100) / totalImages * 100) : undefined;
+                const progressCallback = onProgress
+                    ? (p: number) => onProgress((((midImageIndex - 1) + ((p / 100) * 2)) / totalImages) * 100)
+                    : undefined;
 
-                if (chunkIdx < sideChunks.length) {
-                    results.push(await this.encodeChannel(sideChunks[chunkIdx][0], sampleRate, metadata, CHANNEL_MODE.STEREO_SIDE, randomBytes, sideImageIndex, totalImages, channels[0].length, progressCallbackSide));
+                if (chunkIdx < midChunks.length && chunkIdx < sideChunks.length) {
+                    const pair = await this.encodeStereoChannels(
+                        midChunks[chunkIdx][0],
+                        sideChunks[chunkIdx][0],
+                        sampleRate,
+                        metadata,
+                        randomBytes,
+                        midImageIndex,
+                        sideImageIndex,
+                        totalImages,
+                        channels[0].length,
+                        progressCallback
+                    );
+                    results.push(...pair);
                 }
             }
         }
@@ -196,6 +203,127 @@ export class AudioEncoder {
         const suffix = totalImages > 1 ? `_${imageIndex}_${totalImages}.png` : '.png';
 
         return { data: buffer, width: dims.width, height: dims.height, name: (metadata.fn || 'audio') + suffix };
+    }
+
+    public static async encodeStereoChannels(
+        midData: Float32Array,
+        sideData: Float32Array,
+        sampleRate: number,
+        metadata: Record<string, string>,
+        randomBytes: Uint8Array,
+        midImageIndex: number,
+        sideImageIndex: number,
+        totalImages: number,
+        totalSamples: number,
+        onProgress?: (p: number) => void
+    ): Promise<[EncodedImageResult, EncodedImageResult]> {
+        const dims = this.calculateDimensions(midData.length);
+        const midBuffer = new Uint8ClampedArray(dims.width * dims.height * 4);
+        const sideBuffer = new Uint8ClampedArray(dims.width * dims.height * 4);
+        const midImageData: SimpleImageData = { data: midBuffer, width: dims.width, height: dims.height };
+        const sideImageData: SimpleImageData = { data: sideBuffer, width: dims.width, height: dims.height };
+
+        midBuffer.fill(0);
+        sideBuffer.fill(0);
+        for (let i = 3; i < midBuffer.length; i += 4) midBuffer[i] = 255;
+        for (let i = 3; i < sideBuffer.length; i += 4) sideBuffer[i] = 255;
+
+        HeaderEncoder.writeHeader(midImageData, sampleRate, midData.length, CHANNEL_MODE.STEREO_MID, metadata, randomBytes, midImageIndex, totalImages);
+        HeaderEncoder.writeHeader(sideImageData, sampleRate, sideData.length, CHANNEL_MODE.STEREO_SIDE, metadata, randomBytes, sideImageIndex, totalImages);
+
+        this.drawInfoText(midImageData, midData.length, sampleRate, CHANNEL_MODE.STEREO_MID, metadata, 1, midImageIndex, totalImages, totalSamples);
+        this.drawInfoText(sideImageData, sideData.length, sampleRate, CHANNEL_MODE.STEREO_SIDE, metadata, 1, sideImageIndex, totalImages, totalSamples);
+
+        const hopSize = MDCT_HOP_SIZE;
+        const windowSize = MDCT_WINDOW_SIZE;
+        const mdctWindow = getSineWindow(windowSize);
+        const totalAudioBlocks = Math.ceil(midData.length / hopSize);
+        const paddedLength = (totalAudioBlocks + 1) * hopSize * 2;
+        const paddedMid = new Float32Array(paddedLength);
+        const paddedSide = new Float32Array(paddedLength);
+        paddedMid.set(midData);
+        paddedSide.set(sideData);
+
+        const numImageRows = Math.ceil(totalAudioBlocks / DATA_BLOCKS_PER_ROW);
+        const firstAudioBlockIndex = 2 * BLOCKS_PER_ROW;
+        const whiteningProfile = getMdctWhiteningProfile(sampleRate);
+
+        const buffers: EncodeRowBuffers = {
+            winFrame: new Float32Array(windowSize),
+            mdctCoeffs: new Float32Array(hopSize),
+            dctY: new Float32Array(64),
+            dctCb: new Float32Array(64),
+            dctCr: new Float32Array(64),
+            spatialY: new Float32Array(64),
+            spatialCb: new Float32Array(64),
+            spatialCr: new Float32Array(64),
+            temp: new Float32Array(64)
+        };
+
+        for (let rowIndex = 0; rowIndex < numImageRows; rowIndex++) {
+            if (rowIndex % 5 === 0) {
+                if (onProgress) onProgress((rowIndex / numImageRows) * 100);
+                await new Promise(resolve => setTimeout(resolve, 0));
+            }
+
+            const firstImageBlockInRow = rowIndex * DATA_BLOCKS_PER_ROW;
+            const rowDataCount = Math.min(DATA_BLOCKS_PER_ROW, totalAudioBlocks - firstImageBlockInRow);
+            const midPrepared = prepareAudioRow(
+                rowDataCount,
+                firstImageBlockInRow,
+                totalAudioBlocks,
+                paddedMid,
+                hopSize,
+                windowSize,
+                mdctWindow,
+                whiteningProfile,
+                buffers
+            );
+            const sidePrepared = prepareAudioRow(
+                rowDataCount,
+                firstImageBlockInRow,
+                totalAudioBlocks,
+                paddedSide,
+                hopSize,
+                windowSize,
+                mdctWindow,
+                whiteningProfile,
+                buffers
+            );
+            const stereoCues = analyzeStereoRowSbrCues(midPrepared.rowMDCTCoeffs, sidePrepared.rowMDCTCoeffs, rowDataCount);
+            const lockedRows = lockStereoRowPatchModes(
+                midPrepared.sbrParams,
+                sidePrepared.sbrParams,
+                stereoCues,
+                midPrepared.rowMDCTCoeffs,
+                sidePrepared.rowMDCTCoeffs,
+                rowDataCount
+            );
+
+            writePreparedAudioRow(
+                rowIndex,
+                firstAudioBlockIndex,
+                { ...midPrepared, sbrParams: applyStereoCuesToRowSBR(lockedRows.mid, stereoCues) },
+                midImageData,
+                buffers,
+                AudioEncoder.encodeRowMetadata
+            );
+            writePreparedAudioRow(
+                rowIndex,
+                firstAudioBlockIndex,
+                { ...sidePrepared, sbrParams: applyStereoCuesToRowSBR(lockedRows.side, stereoCues) },
+                sideImageData,
+                buffers,
+                AudioEncoder.encodeRowMetadata
+            );
+        }
+
+        if (onProgress) onProgress(100);
+
+        return [
+            { data: midBuffer, width: dims.width, height: dims.height, name: (metadata.fn || 'audio') + `_${midImageIndex}_${totalImages}.png` },
+            { data: sideBuffer, width: dims.width, height: dims.height, name: (metadata.fn || 'audio') + `_${sideImageIndex}_${totalImages}.png` }
+        ];
     }
 
     public static drawInfoText(

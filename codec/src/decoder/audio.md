@@ -44,7 +44,8 @@ If row metadata decode fails (or yields invalid values), decoder falls back to n
 - Band factors restore original coefficient magnitudes
 - SBR synthesizes bins 96-127 from source tiles in lower bands
 - Deterministic noise generation ensures reproducible high frequencies
-- Stereo mid/side decoding uses channel-specific SBR seeds so synthesized noise is decorrelated between mid and side channels
+- Stereo `v300` decoding uses channel-specific SBR seeds so synthesized noise is decorrelated between mid and side channels
+- Stereo `v301+` decoding can instead use a subgroup stereo cue to couple the stochastic HF reconstruction between mid and side
 
 ## Time Domain Reconstruction
 

@@ -18,7 +18,7 @@ import {
 import { rowMetaLdpc } from '../constants';
 import { decodeRGBToPoint } from '../utils/obb';
 import { PxfDecoder } from '.';
-import { decodeBlock } from './audioMath';
+import { decodeBlock, decodeStereoBlocks } from './audioMath';
 import type { DecodeBlockBuffers } from './audioMath';
 
 export interface ImageSource {
@@ -92,7 +92,11 @@ export class StreamingAudioDecoder {
 
     private buffers: DecodeBlockBuffers & {
         decodedWindow: Float32Array;
+        decodedWindowMid: Float32Array;
+        decodedWindowSide: Float32Array;
         coeffs: Float32Array;
+        stereoCoeffsMid: Float32Array;
+        stereoCoeffsSide: Float32Array;
     };
 
     /**
@@ -134,6 +138,9 @@ export class StreamingAudioDecoder {
                         // Check totalSamples match
                         if (m.totalSamples !== s.totalSamples) {
                             throw new Error("Mid and side channel data do not belong together (sample count mismatch).");
+                        }
+                        if (m.visualizationMetadata.version !== s.visualizationMetadata.version) {
+                            throw new Error("Mid and side channel data do not belong together (format version mismatch).");
                         }
                     }
                 }
@@ -201,7 +208,11 @@ export class StreamingAudioDecoder {
 
         this.buffers = {
             decodedWindow: new Float32Array(this.windowSize),
+            decodedWindowMid: new Float32Array(this.windowSize),
+            decodedWindowSide: new Float32Array(this.windowSize),
             coeffs: new Float32Array(MDCT_HOP_SIZE), // 128 with SBR
+            stereoCoeffsMid: new Float32Array(MDCT_HOP_SIZE),
+            stereoCoeffsSide: new Float32Array(MDCT_HOP_SIZE),
             spatialY: new Float32Array(64),
             spatialCb: new Float32Array(64),
             spatialCr: new Float32Array(64),
@@ -584,10 +595,16 @@ export class StreamingAudioDecoder {
                 }
 
                 if (midSrc && sideSrc) {
-                    // Decode both channels
-                    const midWin = this.decodeWindowFromSource(midSrc, localBlockInPart);
+                    const useJointStereoSbr =
+                        midSrc.visualizationMetadata.version >= 301 &&
+                        sideSrc.visualizationMetadata.version >= 301;
+                    const stereoWindows = useJointStereoSbr
+                        ? this.decodeStereoWindowPair(midSrc, sideSrc, localBlockInPart)
+                        : null;
+
+                    const midWin = stereoWindows?.midWindow ?? this.decodeWindowFromSource(midSrc, localBlockInPart);
                     const midData = new Float32Array(midWin);
-                    const sideWin = this.decodeWindowFromSource(sideSrc, localBlockInPart);
+                    const sideWin = stereoWindows?.sideWindow ?? this.decodeWindowFromSource(sideSrc, localBlockInPart);
 
                     winL = midData;
                     winR = sideWin;
@@ -658,9 +675,15 @@ export class StreamingAudioDecoder {
                         const sideSrc = this.sources.find(s => s.channelMode === CHANNEL_MODE.STEREO_SIDE &&
                             s.imageIndex === targetSrc.imageIndex + 1);
                         if (sideSrc) {
-                            const midWin = winL;
+                            const useJointStereoSbr =
+                                targetSrc.visualizationMetadata.version >= 301 &&
+                                sideSrc.visualizationMetadata.version >= 301;
+                            const stereoWindows = useJointStereoSbr
+                                ? this.decodeStereoWindowPair(targetSrc, sideSrc, localAudioBlockIdx)
+                                : null;
+                            const midWin = stereoWindows?.midWindow ?? winL;
                             const midData = new Float32Array(midWin);
-                            const sideWin = this.decodeWindowFromSource(sideSrc, localAudioBlockIdx);
+                            const sideWin = stereoWindows?.sideWindow ?? this.decodeWindowFromSource(sideSrc, localAudioBlockIdx);
                             winR = sideWin;
                             // Mix
                             for (let k = 0; k < this.windowSize; k++) {
@@ -700,6 +723,89 @@ export class StreamingAudioDecoder {
      * @param localAudioBlockIdx - Block index within this specific source
      * @returns {Float32Array} Decoded audio window samples
      */
+    private getSbrSeeds(src: ImageSource, localAudioBlockIdx: number) {
+        const isStereo = src.channelMode === CHANNEL_MODE.STEREO_MID || src.channelMode === CHANNEL_MODE.STEREO_SIDE;
+        const chunkIdx = isStereo ? Math.floor((src.imageIndex - 1) / 2) : (src.imageIndex - 1);
+        const salt = (src.randomBytes[0] << 24) | (src.randomBytes[1] << 16) | (src.randomBytes[2] << 8) | src.randomBytes[3];
+        const sharedSeed = (salt ^ chunkIdx ^ localAudioBlockIdx) | 0;
+        const channelSeed = (sharedSeed ^ src.channelMode) | 0;
+        return { sharedSeed, channelSeed };
+    }
+
+    private decodeStereoWindowPair(
+        midSrc: ImageSource,
+        sideSrc: ImageSource,
+        localAudioBlockIdx: number
+    ): { midWindow: Float32Array; sideWindow: Float32Array } {
+        const blocksInThisSource = Math.ceil(midSrc.totalSamples / this.visualizationMetadata.hopSize);
+        if (localAudioBlockIdx < 0 || localAudioBlockIdx >= blocksInThisSource) {
+            return {
+                midWindow: new Float32Array(this.windowSize),
+                sideWindow: new Float32Array(this.windowSize)
+            };
+        }
+
+        const imgBlockIdxBase = localAudioBlockIdx;
+        const rowInAudioArea = Math.floor(imgBlockIdxBase / DATA_BLOCKS_PER_ROW);
+        const colInAudioArea = imgBlockIdxBase % DATA_BLOCKS_PER_ROW;
+        const absRow = 2 + rowInAudioArea;
+        const metaBlockAbsIdx = (absRow * BLOCKS_PER_ROW) + DATA_BLOCKS_PER_ROW;
+        const imgBlockAbsIdx = (absRow * BLOCKS_PER_ROW) + colInAudioArea;
+
+        const midMeta = this.getCachedRowMetadata(midSrc, metaBlockAbsIdx);
+        const sideMeta = this.getCachedRowMetadata(sideSrc, metaBlockAbsIdx);
+
+        const isSubgroupA = colInAudioArea < SUBGROUP_A_SIZE;
+        const isSubgroupX = (colInAudioArea % SUBGROUP_A_SIZE) < SUBGROUP_X_SIZE;
+        const midScaleY = isSubgroupA ? midMeta.scaleYA : midMeta.scaleYB;
+        const midScaleC = isSubgroupA
+            ? (isSubgroupX ? midMeta.scaleCAX : midMeta.scaleCAY)
+            : (isSubgroupX ? midMeta.scaleCBX : midMeta.scaleCBY);
+        const sideScaleY = isSubgroupA ? sideMeta.scaleYA : sideMeta.scaleYB;
+        const sideScaleC = isSubgroupA
+            ? (isSubgroupX ? sideMeta.scaleCAX : sideMeta.scaleCAY)
+            : (isSubgroupX ? sideMeta.scaleCBX : sideMeta.scaleCBY);
+        const midBandFactors = isSubgroupA ? midMeta.bandFactorsA : midMeta.bandFactorsB;
+        const sideBandFactors = isSubgroupA ? sideMeta.bandFactorsA : sideMeta.bandFactorsB;
+        const whiteningProfile = this.getWhiteningProfile(midSrc.sampleRate);
+        const midSeeds = this.getSbrSeeds(midSrc, localAudioBlockIdx);
+        const sideSeeds = this.getSbrSeeds(sideSrc, localAudioBlockIdx);
+
+        return decodeStereoBlocks(
+            {
+                data: midSrc.data,
+                width: midSrc.width,
+                blockIndex: imgBlockAbsIdx,
+                maxY: midScaleY,
+                maxC: midScaleC,
+                whiteningProfile,
+                bandFactors: midBandFactors,
+                coeffBuffer: this.buffers.stereoCoeffsMid,
+                outputWindow: this.buffers.decodedWindowMid,
+                sbrBytes: midMeta.sbrData
+            },
+            {
+                data: sideSrc.data,
+                width: sideSrc.width,
+                blockIndex: imgBlockAbsIdx,
+                maxY: sideScaleY,
+                maxC: sideScaleC,
+                whiteningProfile,
+                bandFactors: sideBandFactors,
+                coeffBuffer: this.buffers.stereoCoeffsSide,
+                outputWindow: this.buffers.decodedWindowSide,
+                sbrBytes: sideMeta.sbrData
+            },
+            this.mdctWindow,
+            this.buffers,
+            colInAudioArea,
+            midSeeds.sharedSeed,
+            midSeeds.channelSeed,
+            sideSeeds.channelSeed,
+            midSrc.visualizationMetadata.version
+        );
+    }
+
     private decodeWindowFromSource(src: ImageSource, localAudioBlockIdx: number): Float32Array {
         // Validate block index bounds for this source
         const blocksInThisSource = Math.ceil(src.totalSamples / this.visualizationMetadata.hopSize);
@@ -727,24 +833,15 @@ export class StreamingAudioDecoder {
             : (isSubgroupX ? scaleCBX : scaleCBY);
         const bandFactors = isSubgroupA ? bandFactorsA : bandFactorsB;
         const whiteningProfile = this.getWhiteningProfile(src.sampleRate);
-
-        // Calculate a deterministic seed for SBR noise that is shared between Mid/Side channels.
-        // For stereo, imageIndex 1 & 2 are chunk 0, 3 & 4 are chunk 1, etc.
-        const isStereo = src.channelMode === CHANNEL_MODE.STEREO_MID || src.channelMode === CHANNEL_MODE.STEREO_SIDE;
-        const chunkIdx = isStereo ? Math.floor((src.imageIndex - 1) / 2) : (src.imageIndex - 1);
-
-        // Combine header random bytes (salt) with temporal position
-        // salt (src.randomBytes) is shared across all images of the same audio file.
-        const salt = (src.randomBytes[0] << 24) | (src.randomBytes[1] << 16) | (src.randomBytes[2] << 8) | src.randomBytes[3];
-        // Include src.channelMode to ensure Mid and Side channels get UNCORRELATED noise.
-        const sbrSeed = (salt ^ chunkIdx ^ localAudioBlockIdx ^ src.channelMode) | 0;
+        const { channelSeed } = this.getSbrSeeds(src, localAudioBlockIdx);
 
         return decodeBlock(
             src.data, src.width, imgBlockAbsIdx, scaleY, scaleC, whiteningProfile, bandFactors,
             this.buffers.coeffs, this.buffers.decodedWindow, this.mdctWindow,
             this.buffers, sbrData, colInAudioArea,
             undefined, // debugCapture
-            sbrSeed
+            channelSeed,
+            src.visualizationMetadata.version
         );
     }
 }

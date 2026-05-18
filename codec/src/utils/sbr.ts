@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Kyle Alexander Buan
 
+import { FORMAT_VERSION } from '../constants';
+
 // Constants
 
 export const SBR_START_BIN = 96;
@@ -34,6 +36,10 @@ export const PROCESSING_MODE_NAMES = [
     'Inverse'     // Invert odd samples for decorrelation
 ];
 
+const STEREO_COHERENCE_AMOUNTS = [0.0, 0.33, 0.67, 1.0] as const;
+const STEREO_COHERENCE_THRESHOLDS = [0.20, 0.50, 0.80] as const;
+const STEREO_RESIDUAL_SCALES = [1.0, 0.7, 0.35, 0.0] as const;
+
 // Normal Mode: 6 bits = 64 steps, 1dB each (-48 to +15)
 const GAIN_STEP_DB_NORMAL = 1.0;
 const MIN_GAIN_DB = -48.0;
@@ -58,9 +64,10 @@ export interface SBRParams {
     hfGain: number;           // dB (-48 to +15)
     bandEnvelope: number[];   // 4 bands, each in dB relative adjustment
     noiseFloorRatio: number;  // 0-15 (0 = pure tone, 15 = pure noise)
-    tonality: number;         // 0-7 (0 = noisy, 7 = pure harmonic)
+    tonality: number;         // 0-7 in v300, 0-3 in v301+
     patchMode: number;        // 0-3 (source frequency selection)
-    procMode: number;         // 0-3 (processing mode)
+    procMode: number;         // 0-3 (legacy v300 processing mode)
+    stereoCue: number;        // 0-7 (v301+ stereo HF cue)
     transientShape: number;   // 0-3 (temporal envelope) - Normal only
 }
 
@@ -71,8 +78,9 @@ export interface SBRParamsTemporal {
     temporalMode: true;
     // Shared (slow-changing) parameters
     patchMode: number;        // 0-3
-    procMode: number;         // 0-3
+    procMode: number;         // 0-3 (legacy v300 processing mode)
     tonality: number;         // 0-3 (reduced precision)
+    stereoCue: number;        // 0-7 (v301+ stereo HF cue)
     bandEnvelope: number[];   // 4 bands * 2 bits each (reduced precision)
 
     // Fast parameters (first half of subgroup)
@@ -92,10 +100,18 @@ export interface RowSBRParams {
     subgroups: [SBRParamsUnion, SBRParamsUnion];
 }
 
+export interface StereoSbrCueInfo {
+    raw: number;
+    sign: number;
+    coherenceClass: number;
+    sharedAmount: number;
+    residualScale: number;
+}
+
 // Encoding / Decoding
 
 /**
- * Normal Mode Bit Layout (32 bits, flag=0):
+ * v300 Normal Mode Bit Layout (32 bits, flag=0):
  *   [31:26] hfGain        - 6 bits  (1dB steps, -48 to +15)
  *   [25:14] bandEnvelope  - 12 bits (4 bands * 3 bits)
  *   [13:10] noiseFloor    - 4 bits
@@ -105,7 +121,7 @@ export interface RowSBRParams {
  *   [2:1]   transient     - 2 bits
  *   [0]     mode flag     - 1 bit = 0
  * 
- * Temporal Mode Bit Layout (32 bits, flag=1):
+ * v300 Temporal Mode Bit Layout (32 bits, flag=1):
  *   [31:30] patchMode     - 2 bits (shared)
  *   [29:28] procMode      - 2 bits (shared)
  *   [27:26] tonality      - 2 bits (shared, reduced)
@@ -118,17 +134,46 @@ export interface RowSBRParams {
  *   [2]     transientB    - 1 bit (second half)
  *   [1]     reserved      - 1 bit
  *   [0]     mode flag     - 1 bit = 1
+ *
+ * v301+ Normal Mode Bit Layout (32 bits, flag=0):
+ *   [31:26] hfGain        - 6 bits
+ *   [25:14] bandEnvelope  - 12 bits
+ *   [13:10] noiseFloor    - 4 bits
+ *   [9:8]   tonality      - 2 bits
+ *   [7:5]   stereo cue    - 3 bits
+ *   [4:3]   patchMode     - 2 bits
+ *   [2:1]   transient     - 2 bits
+ *   [0]     mode flag     - 1 bit = 0
+ *
+ * v301+ Temporal Mode Bit Layout (32 bits, flag=1):
+ *   [31:29] stereo cue    - 3 bits
+ *   [28:27] patchMode     - 2 bits
+ *   [26:25] tonality      - 2 bits
+ *   [24:17] bandEnvelope  - 8 bits
+ *   [16:12] hfGainA       - 5 bits
+ *   [11:10] noiseFloorA   - 2 bits
+ *   [9]     transientA    - 1 bit
+ *   [8:4]   hfGainB       - 5 bits
+ *   [3:2]   noiseFloorB   - 2 bits
+ *   [1]     transientB    - 1 bit
+ *   [0]     mode flag     - 1 bit = 1
  */
 
-export function encodeSBRWord(params: SBRParamsUnion): number {
+export function encodeSBRWord(params: SBRParamsUnion, formatVersion: number = FORMAT_VERSION): number {
+    if (formatVersion >= 301) {
+        return params.temporalMode
+            ? encodeSBRWordTemporalV301(params as SBRParamsTemporal)
+            : encodeSBRWordNormalV301(params as SBRParams);
+    }
+
     if (params.temporalMode) {
-        return encodeSBRWordTemporal(params as SBRParamsTemporal);
+        return encodeSBRWordTemporalLegacy(params as SBRParamsTemporal);
     } else {
-        return encodeSBRWordNormal(params as SBRParams);
+        return encodeSBRWordNormalLegacy(params as SBRParams);
     }
 }
 
-function encodeSBRWordNormal(params: SBRParams): number {
+function encodeSBRWordNormalLegacy(params: SBRParams): number {
     // Quantize gain (6 bits)
     let gainIdx = Math.round((params.hfGain - MIN_GAIN_DB) / GAIN_STEP_DB_NORMAL);
     gainIdx = Math.max(0, Math.min(63, gainIdx));
@@ -151,7 +196,7 @@ function encodeSBRWordNormal(params: SBRParams): number {
         0; // mode flag = 0
 }
 
-function encodeSBRWordTemporal(params: SBRParamsTemporal): number {
+function encodeSBRWordTemporalLegacy(params: SBRParamsTemporal): number {
     // Quantize gains (5 bits each)
     let gainIdxA = Math.round((params.hfGainA - MIN_GAIN_DB) / GAIN_STEP_DB_TEMPORAL);
     gainIdxA = Math.max(0, Math.min(31, gainIdxA));
@@ -181,16 +226,73 @@ function encodeSBRWordTemporal(params: SBRParamsTemporal): number {
         1; // mode flag = 1
 }
 
-export function decodeSBRWord(word: number): SBRParamsUnion {
+function encodeSBRWordNormalV301(params: SBRParams): number {
+    let gainIdx = Math.round((params.hfGain - MIN_GAIN_DB) / GAIN_STEP_DB_NORMAL);
+    gainIdx = Math.max(0, Math.min(63, gainIdx));
+
+    let bandBits = 0;
+    for (let b = 0; b < 4; b++) {
+        let envIdx = Math.round((params.bandEnvelope[b] - BAND_ENV_MIN_DB) / BAND_ENV_STEP_DB_NORMAL);
+        envIdx = Math.max(0, Math.min(7, envIdx));
+        bandBits |= (envIdx << (b * 3));
+    }
+
+    const tonality = Math.max(0, Math.min(3, params.tonality));
+    const stereoCue = Math.max(0, Math.min(7, params.stereoCue));
+
+    return ((gainIdx & 0x3F) << 26) |
+        ((bandBits & 0xFFF) << 14) |
+        ((params.noiseFloorRatio & 0x0F) << 10) |
+        ((tonality & 0x03) << 8) |
+        ((stereoCue & 0x07) << 5) |
+        ((params.patchMode & 0x03) << 3) |
+        ((params.transientShape & 0x03) << 1);
+}
+
+function encodeSBRWordTemporalV301(params: SBRParamsTemporal): number {
+    let gainIdxA = Math.round((params.hfGainA - MIN_GAIN_DB) / GAIN_STEP_DB_TEMPORAL);
+    gainIdxA = Math.max(0, Math.min(31, gainIdxA));
+
+    let gainIdxB = Math.round((params.hfGainB - MIN_GAIN_DB) / GAIN_STEP_DB_TEMPORAL);
+    gainIdxB = Math.max(0, Math.min(31, gainIdxB));
+
+    let bandBits = 0;
+    for (let b = 0; b < 4; b++) {
+        let envIdx = Math.round((params.bandEnvelope[b] - BAND_ENV_MIN_DB_TEMPORAL) / BAND_ENV_STEP_DB_TEMPORAL);
+        envIdx = Math.max(0, Math.min(3, envIdx));
+        bandBits |= (envIdx << (b * 2));
+    }
+
+    const tonality = Math.max(0, Math.min(3, params.tonality));
+    const stereoCue = Math.max(0, Math.min(7, params.stereoCue));
+
+    return ((stereoCue & 0x07) << 29) |
+        ((params.patchMode & 0x03) << 27) |
+        ((tonality & 0x03) << 25) |
+        ((bandBits & 0xFF) << 17) |
+        ((gainIdxA & 0x1F) << 12) |
+        ((params.noiseFloorRatioA & 0x03) << 10) |
+        ((params.transientA & 0x01) << 9) |
+        ((gainIdxB & 0x1F) << 4) |
+        ((params.noiseFloorRatioB & 0x03) << 2) |
+        ((params.transientB & 0x01) << 1) |
+        1;
+}
+
+export function decodeSBRWord(word: number, formatVersion: number = FORMAT_VERSION): SBRParamsUnion {
     const modeFlag = word & 1;
+    if (formatVersion >= 301) {
+        return modeFlag === 1 ? decodeSBRWordTemporalV301(word) : decodeSBRWordNormalV301(word);
+    }
+
     if (modeFlag === 1) {
-        return decodeSBRWordTemporal(word);
+        return decodeSBRWordTemporalLegacy(word);
     } else {
-        return decodeSBRWordNormal(word);
+        return decodeSBRWordNormalLegacy(word);
     }
 }
 
-function decodeSBRWordNormal(word: number): SBRParams {
+function decodeSBRWordNormalLegacy(word: number): SBRParams {
     const gainIdx = (word >>> 26) & 0x3F;
     const bandBits = (word >>> 14) & 0xFFF;
 
@@ -208,11 +310,12 @@ function decodeSBRWordNormal(word: number): SBRParams {
         tonality: (word >>> 7) & 0x07,
         patchMode: (word >>> 5) & 0x03,
         procMode: (word >>> 3) & 0x03,
+        stereoCue: 0,
         transientShape: (word >>> 1) & 0x03
     };
 }
 
-function decodeSBRWordTemporal(word: number): SBRParamsTemporal {
+function decodeSBRWordTemporalLegacy(word: number): SBRParamsTemporal {
     const bandBits = (word >>> 18) & 0xFF;
 
     const bandEnvelope: number[] = [];
@@ -226,6 +329,7 @@ function decodeSBRWordTemporal(word: number): SBRParamsTemporal {
         patchMode: (word >>> 30) & 0x03,
         procMode: (word >>> 28) & 0x03,
         tonality: (word >>> 26) & 0x03,
+        stereoCue: 0,
         bandEnvelope,
         hfGainA: (((word >>> 13) & 0x1F) * GAIN_STEP_DB_TEMPORAL) + MIN_GAIN_DB,
         noiseFloorRatioA: (word >>> 11) & 0x03,
@@ -236,10 +340,58 @@ function decodeSBRWordTemporal(word: number): SBRParamsTemporal {
     };
 }
 
-export function encodeRowSBR(rowParams: RowSBRParams): Uint8Array {
+function decodeSBRWordNormalV301(word: number): SBRParams {
+    const gainIdx = (word >>> 26) & 0x3F;
+    const bandBits = (word >>> 14) & 0xFFF;
+
+    const bandEnvelope: number[] = [];
+    for (let b = 0; b < 4; b++) {
+        const envIdx = (bandBits >>> (b * 3)) & 0x07;
+        bandEnvelope.push((envIdx * BAND_ENV_STEP_DB_NORMAL) + BAND_ENV_MIN_DB);
+    }
+
+    return {
+        temporalMode: false,
+        hfGain: (gainIdx * GAIN_STEP_DB_NORMAL) + MIN_GAIN_DB,
+        bandEnvelope,
+        noiseFloorRatio: (word >>> 10) & 0x0F,
+        tonality: (word >>> 8) & 0x03,
+        patchMode: (word >>> 3) & 0x03,
+        procMode: 0,
+        stereoCue: (word >>> 5) & 0x07,
+        transientShape: (word >>> 1) & 0x03
+    };
+}
+
+function decodeSBRWordTemporalV301(word: number): SBRParamsTemporal {
+    const bandBits = (word >>> 17) & 0xFF;
+
+    const bandEnvelope: number[] = [];
+    for (let b = 0; b < 4; b++) {
+        const envIdx = (bandBits >>> (b * 2)) & 0x03;
+        bandEnvelope.push((envIdx * BAND_ENV_STEP_DB_TEMPORAL) + BAND_ENV_MIN_DB_TEMPORAL);
+    }
+
+    return {
+        temporalMode: true,
+        patchMode: (word >>> 27) & 0x03,
+        procMode: 0,
+        tonality: (word >>> 25) & 0x03,
+        stereoCue: (word >>> 29) & 0x07,
+        bandEnvelope,
+        hfGainA: (((word >>> 12) & 0x1F) * GAIN_STEP_DB_TEMPORAL) + MIN_GAIN_DB,
+        noiseFloorRatioA: (word >>> 10) & 0x03,
+        transientA: (word >>> 9) & 0x01,
+        hfGainB: (((word >>> 4) & 0x1F) * GAIN_STEP_DB_TEMPORAL) + MIN_GAIN_DB,
+        noiseFloorRatioB: (word >>> 2) & 0x03,
+        transientB: (word >>> 1) & 0x01
+    };
+}
+
+export function encodeRowSBR(rowParams: RowSBRParams, formatVersion: number = FORMAT_VERSION): Uint8Array {
     const bytes = new Uint8Array(SBR_BYTES_PER_ROW);
     for (let i = 0; i < SBR_SUBGROUPS_PER_ROW; i++) {
-        const word = encodeSBRWord(rowParams.subgroups[i]);
+        const word = encodeSBRWord(rowParams.subgroups[i], formatVersion);
         // Big-endian encoding (4 bytes per word)
         bytes[i * 4 + 0] = (word >>> 24) & 0xFF;
         bytes[i * 4 + 1] = (word >>> 16) & 0xFF;
@@ -249,7 +401,7 @@ export function encodeRowSBR(rowParams: RowSBRParams): Uint8Array {
     return bytes;
 }
 
-export function decodeRowSBR(bytes: Uint8Array): RowSBRParams {
+export function decodeRowSBR(bytes: Uint8Array, formatVersion: number = FORMAT_VERSION): RowSBRParams {
     if (bytes.length !== SBR_BYTES_PER_ROW) {
         throw new Error(`Invalid SBR bytes length: expected ${SBR_BYTES_PER_ROW}, got ${bytes.length}`);
     }
@@ -257,9 +409,23 @@ export function decodeRowSBR(bytes: Uint8Array): RowSBRParams {
     for (let i = 0; i < SBR_SUBGROUPS_PER_ROW; i++) {
         const word = (bytes[i * 4] << 24) | (bytes[i * 4 + 1] << 16) |
             (bytes[i * 4 + 2] << 8) | bytes[i * 4 + 3];
-        subgroups.push(decodeSBRWord(word));
+        subgroups.push(decodeSBRWord(word, formatVersion));
     }
     return { subgroups: subgroups as [SBRParamsUnion, SBRParamsUnion] };
+}
+
+export function decodeStereoSbrCue(cue: number): StereoSbrCueInfo {
+    const raw = Math.max(0, Math.min(7, cue | 0));
+    const sign = (raw >>> 2) & 0x01;
+    const coherenceClass = raw & 0x03;
+
+    return {
+        raw,
+        sign,
+        coherenceClass,
+        sharedAmount: STEREO_COHERENCE_AMOUNTS[coherenceClass],
+        residualScale: STEREO_RESIDUAL_SCALES[coherenceClass]
+    };
 }
 
 // Deterministic Noise Generator
@@ -282,28 +448,11 @@ export function applySBRSynthesis(
     params: SBRParamsUnion,
     blockIndexInSubgroup: number = 0,
     subgroupSize: number = 1,
-    externalSeed?: number
+    externalSeed?: number,
+    formatVersion: number = FORMAT_VERSION
 ): void {
-    if (params.temporalMode) {
-        const temporal = params as SBRParamsTemporal;
-        const isSecondHalf = blockIndexInSubgroup >= Math.floor(subgroupSize / 2);
-
-        // Convert temporal params to synthesis params
-        const synthParams = {
-            hfGain: isSecondHalf ? temporal.hfGainB : temporal.hfGainA,
-            noiseFloorRatio: isSecondHalf ? temporal.noiseFloorRatioB : temporal.noiseFloorRatioA,
-            transientShape: isSecondHalf ? temporal.transientB : temporal.transientA,
-            bandEnvelope: temporal.bandEnvelope,
-            tonality: temporal.tonality,
-            patchMode: temporal.patchMode,
-            procMode: temporal.procMode
-        };
-
-        synthesizeBlock(mdctCoeffs, synthParams, blockIndexInSubgroup, subgroupSize, externalSeed);
-    } else {
-        const normal = params as SBRParams;
-        synthesizeBlock(mdctCoeffs, normal, blockIndexInSubgroup, subgroupSize, externalSeed);
-    }
+    const synthParams = resolveSynthesisParams(params, blockIndexInSubgroup, subgroupSize, formatVersion);
+    synthesizeBlock(mdctCoeffs, synthParams, blockIndexInSubgroup, subgroupSize, externalSeed, formatVersion);
 }
 
 interface SynthesisParams {
@@ -313,7 +462,43 @@ interface SynthesisParams {
     tonality: number;
     patchMode: number;
     procMode: number;
+    stereoCue: number;
     transientShape: number;
+}
+
+function resolveSynthesisParams(
+    params: SBRParamsUnion,
+    blockIndexInSubgroup: number,
+    subgroupSize: number,
+    formatVersion: number
+): SynthesisParams {
+    if (params.temporalMode) {
+        const temporal = params as SBRParamsTemporal;
+        const isSecondHalf = blockIndexInSubgroup >= Math.floor(subgroupSize / 2);
+
+        return {
+            hfGain: isSecondHalf ? temporal.hfGainB : temporal.hfGainA,
+            noiseFloorRatio: isSecondHalf ? temporal.noiseFloorRatioB : temporal.noiseFloorRatioA,
+            transientShape: isSecondHalf ? temporal.transientB : temporal.transientA,
+            bandEnvelope: temporal.bandEnvelope,
+            tonality: temporal.tonality,
+            patchMode: temporal.patchMode,
+            procMode: formatVersion >= 301 ? 0 : temporal.procMode,
+            stereoCue: temporal.stereoCue
+        };
+    }
+
+    const normal = params as SBRParams;
+    return {
+        hfGain: normal.hfGain,
+        bandEnvelope: normal.bandEnvelope,
+        noiseFloorRatio: normal.noiseFloorRatio,
+        tonality: normal.tonality,
+        patchMode: normal.patchMode,
+        procMode: formatVersion >= 301 ? 0 : normal.procMode,
+        stereoCue: normal.stereoCue,
+        transientShape: normal.transientShape
+    };
 }
 
 function synthesizeBlock(
@@ -321,12 +506,15 @@ function synthesizeBlock(
     params: SynthesisParams,
     blockIndexInSubgroup: number,
     subgroupSize: number,
-    externalSeed?: number
+    externalSeed?: number,
+    formatVersion: number = FORMAT_VERSION,
+    unitNoiseProvider?: (destIdx: number) => number
 ): void {
     // Scale noise ratio based on precision (temporal mode has 2 bits, normal has 4)
     const noiseRatio = Math.min(1.0, params.noiseFloorRatio / 15.0);
     const toneRatio = 1.0 - noiseRatio;
-    const tonalityFactor = Math.min(1.0, params.tonality / 7.0);
+    const tonalityDivisor = formatVersion >= 301 ? 3.0 : 7.0;
+    const tonalityFactor = Math.min(1.0, params.tonality / tonalityDivisor);
 
     // Temporal envelope multiplier
     let temporalMult = 1.0;
@@ -462,8 +650,9 @@ function synthesizeBlock(
             const SCALE_SQRT3 = Math.sqrt(3.0);
             let finalVal: number;
             if (params.procMode === 1) {
+                const noiseSample = unitNoiseProvider ? unitNoiseProvider(destIdx) : getDeterministicNoise(frameSeed, destIdx);
                 if (srcRMS <= floor * 1.1 && noiseRatio > 0.5) {
-                    finalVal = getDeterministicNoise(frameSeed, destIdx) * srcRMS * SCALE_SQRT3;
+                    finalVal = noiseSample * srcRMS * SCALE_SQRT3;
                 } else {
                     finalVal = val;
                 }
@@ -473,13 +662,50 @@ function synthesizeBlock(
                 const wNoisy = Math.sqrt((1.0 - tonalityFactor) * toneRatio + noiseRatio);
 
                 // Normalize noise power
-                const noise = getDeterministicNoise(frameSeed, destIdx) * srcRMS * SCALE_SQRT3;
+                const noiseSample = unitNoiseProvider ? unitNoiseProvider(destIdx) : getDeterministicNoise(frameSeed, destIdx);
+                const noise = noiseSample * srcRMS * SCALE_SQRT3;
                 finalVal = (val * wTonal) + (noise * wNoisy);
             }
 
             mdctFull[destIdx] = finalVal * finalGainLin;
         }
     }
+}
+
+export function applyJointStereoSBRSynthesis(
+    midCoeffs: Float32Array,
+    sideCoeffs: Float32Array,
+    midParamsUnion: SBRParamsUnion,
+    sideParamsUnion: SBRParamsUnion,
+    blockIndexInSubgroup: number = 0,
+    subgroupSize: number = 1,
+    sharedSeed?: number,
+    midSeed?: number,
+    sideSeed?: number,
+    formatVersion: number = FORMAT_VERSION
+): void {
+    const midParams = resolveSynthesisParams(midParamsUnion, blockIndexInSubgroup, subgroupSize, formatVersion);
+    const sideParams = resolveSynthesisParams(sideParamsUnion, blockIndexInSubgroup, subgroupSize, formatVersion);
+    const cue = decodeStereoSbrCue(midParams.stereoCue);
+    const sharedMix = Math.sqrt(cue.sharedAmount);
+    const independentMix = Math.sqrt(Math.max(0.0, 1.0 - cue.sharedAmount));
+    const signFactor = cue.sign === 1 ? -1.0 : 1.0;
+
+    const sharedFrameSeed = sharedSeed ?? ((midSeed ?? 0) ^ (sideSeed ?? 0) ^ 0x9e3779b9);
+    const midFrameSeed = midSeed ?? (sharedFrameSeed ^ 0x13579bdf);
+    const sideFrameSeed = sideSeed ?? (sharedFrameSeed ^ 0x2468ace0);
+
+    const sharedNoise = (destIdx: number) => getDeterministicNoise(sharedFrameSeed, destIdx);
+    const midNoise = (destIdx: number) =>
+        (sharedMix * sharedNoise(destIdx)) +
+        (independentMix * getDeterministicNoise(midFrameSeed, destIdx));
+    const sideNoise = (destIdx: number) =>
+        (signFactor * sharedMix * sharedNoise(destIdx)) +
+        (independentMix * getDeterministicNoise(sideFrameSeed, destIdx));
+
+    synthesizeBlock(midCoeffs, midParams, blockIndexInSubgroup, subgroupSize, midSeed, formatVersion, midNoise);
+    synthesizeBlock(sideCoeffs, sideParams, blockIndexInSubgroup, subgroupSize, sideSeed, formatVersion, sideNoise);
+    projectStereoCueToHighFrequencies(midCoeffs, sideCoeffs, cue);
 }
 
 // Analysis
@@ -527,6 +753,7 @@ export function analyzeRowSBR(
                 patchMode: analysisFull.patchMode,
                 procMode: 0,
                 tonality: Math.min(3, Math.round(analysisFull.tonality / 2)),
+                stereoCue: 0,
                 bandEnvelope: analysisFull.bandEnvelope.map(v =>
                     Math.max(BAND_ENV_MIN_DB_TEMPORAL, Math.min(4.5, v))
                 ),
@@ -545,9 +772,10 @@ export function analyzeRowSBR(
                 hfGain: analysisFull.hfGain,
                 bandEnvelope: analysisFull.bandEnvelope,
                 noiseFloorRatio: analysisFull.noiseFloorRatio,
-                tonality: analysisFull.tonality,
+                tonality: Math.min(3, Math.round(analysisFull.tonality * 3 / 7)),
                 patchMode: analysisFull.patchMode,
                 procMode: 0,
+                stereoCue: 0,
                 transientShape: analysisFull.transientShape
             };
             subgroups.push(normal);
@@ -753,15 +981,357 @@ function analyzeHalfSubgroup(
     };
 }
 
+function analyzeStereoCueRange(
+    midMdctCoeffsArray: Float32Array[],
+    sideMdctCoeffsArray: Float32Array[],
+    start: number,
+    end: number
+): number {
+    let totalWeight = 0;
+    let totalCoherenceWeight = 0;
+    let positiveCoherenceWeight = 0;
+    let negativeCoherenceWeight = 0;
+
+    for (let band = 0; band < 4; band++) {
+        let cross = 0;
+        let midEnergy = 0;
+        let sideEnergy = 0;
+        const bandStart = SBR_START_BIN + band * 8;
+        const bandEnd = bandStart + 8;
+
+        for (let block = start; block < end; block++) {
+            const midBins = midMdctCoeffsArray[block];
+            const sideBins = sideMdctCoeffsArray[block];
+            if (!midBins || !sideBins) continue;
+
+            for (let bin = bandStart; bin < bandEnd; bin++) {
+                const midVal = midBins[bin];
+                const sideVal = sideBins[bin];
+                cross += midVal * sideVal;
+                midEnergy += midVal * midVal;
+                sideEnergy += sideVal * sideVal;
+            }
+        }
+
+        if (midEnergy <= 1e-9 || sideEnergy <= 1e-9) {
+            continue;
+        }
+
+        const weight = Math.sqrt((midEnergy * sideEnergy) + 1e-9);
+        const coherence = Math.min(1.0, Math.abs(cross) / weight);
+        totalWeight += weight;
+        totalCoherenceWeight += weight * coherence;
+
+        if (cross < 0) {
+            negativeCoherenceWeight += weight * coherence;
+        } else {
+            positiveCoherenceWeight += weight * coherence;
+        }
+    }
+
+    if (totalWeight <= 1e-9 || totalCoherenceWeight <= 1e-9) {
+        return 0;
+    }
+
+    const signBit = negativeCoherenceWeight > positiveCoherenceWeight ? 1 : 0;
+    const signConsensus = Math.max(positiveCoherenceWeight, negativeCoherenceWeight) / totalCoherenceWeight;
+    const averageCoherence = totalCoherenceWeight / totalWeight;
+    const coherence = Math.min(1.0, averageCoherence * signConsensus);
+    let coherenceClass = 3;
+    if (coherence < STEREO_COHERENCE_THRESHOLDS[0]) coherenceClass = 0;
+    else if (coherence < STEREO_COHERENCE_THRESHOLDS[1]) coherenceClass = 1;
+    else if (coherence < STEREO_COHERENCE_THRESHOLDS[2]) coherenceClass = 2;
+
+    return (signBit << 2) | coherenceClass;
+}
+
+function getSynthesisHfGain(params: SBRParamsUnion): number {
+    if (params.temporalMode) {
+        const temporal = params as SBRParamsTemporal;
+        return (temporal.hfGainA + temporal.hfGainB) * 0.5;
+    }
+
+    return (params as SBRParams).hfGain;
+}
+
+function computePatchModeError(
+    mdctCoeffsArray: Float32Array[],
+    start: number,
+    end: number,
+    patchMode: number,
+    overallGainLin: number
+): number {
+    const targetBandEnergy = new Float32Array(4);
+    const srcOffset = [64, 48, 32, 64][patchMode];
+    const mirror = patchMode === 3;
+    let patchError = 0;
+
+    for (let band = 0; band < 4; band++) {
+        let patchSourceEnergy = 0;
+        for (let b = start; b < end; b++) {
+            const bins = mdctCoeffsArray[b];
+            if (!bins) continue;
+
+            const bandStart = band * 8;
+            for (let i = 0; i < 8; i++) {
+                const targetIdx = SBR_START_BIN + bandStart + i;
+                const val = bins[targetIdx];
+                targetBandEnergy[band] += val * val;
+
+                const j = bandStart + i;
+                let srcIdx = srcOffset + j;
+                if (mirror) {
+                    srcIdx = srcOffset + (j % 2 === 0 ? 30 - j : 32 - j);
+                }
+                patchSourceEnergy += bins[srcIdx] ** 2;
+            }
+        }
+
+        const targetMag = Math.sqrt(targetBandEnergy[band]);
+        const sourceMag = Math.sqrt(patchSourceEnergy);
+        const scaledSource = sourceMag * overallGainLin;
+        patchError += (targetMag - scaledSource) ** 2;
+    }
+
+    return patchError;
+}
+
+function computeBandEnvelopeForPatch(
+    mdctCoeffsArray: Float32Array[],
+    start: number,
+    end: number,
+    patchMode: number,
+    hfGain: number,
+    minDb: number,
+    maxDb: number
+): number[] {
+    const bandEnvelope: number[] = [];
+    const targetBandEnergy = new Float32Array(4);
+    const srcOffset = [64, 48, 32, 64][patchMode];
+    const mirror = patchMode === 3;
+
+    for (let band = 0; band < 4; band++) {
+        let patchSourceEnergy = 0;
+        for (let b = start; b < end; b++) {
+            const bins = mdctCoeffsArray[b];
+            if (!bins) continue;
+
+            const bandStart = band * 8;
+            for (let i = 0; i < 8; i++) {
+                const targetIdx = SBR_START_BIN + bandStart + i;
+                const targetVal = bins[targetIdx];
+                targetBandEnergy[band] += targetVal * targetVal;
+
+                const j = bandStart + i;
+                let srcIdx = srcOffset + j;
+                if (mirror) {
+                    srcIdx = srcOffset + (j % 2 === 0 ? 30 - j : 32 - j);
+                }
+                patchSourceEnergy += bins[srcIdx] ** 2;
+            }
+        }
+
+        let bandGainDb = 0;
+        if (patchSourceEnergy > 1e-9 && targetBandEnergy[band] > 1e-9) {
+            const bandRatio = Math.sqrt(targetBandEnergy[band] / (patchSourceEnergy + 1e-12));
+            const idealBandGain = 20 * Math.log10(bandRatio);
+            bandGainDb = idealBandGain - hfGain;
+        }
+
+        bandEnvelope.push(Math.max(minDb, Math.min(maxDb, bandGainDb)));
+    }
+
+    return bandEnvelope;
+}
+
+export function lockStereoRowPatchModes(
+    midRowParams: RowSBRParams,
+    sideRowParams: RowSBRParams,
+    stereoCues: [number, number],
+    midMdctCoeffsArray: Float32Array[],
+    sideMdctCoeffsArray: Float32Array[],
+    rowDataCount: number
+): { mid: RowSBRParams; side: RowSBRParams } {
+    const blocksPerSubgroup = Math.max(1, Math.floor(rowDataCount / SBR_SUBGROUPS_PER_ROW));
+    const midSubgroups = [...midRowParams.subgroups] as [SBRParamsUnion, SBRParamsUnion];
+    const sideSubgroups = [...sideRowParams.subgroups] as [SBRParamsUnion, SBRParamsUnion];
+
+    for (let subgroup = 0; subgroup < SBR_SUBGROUPS_PER_ROW; subgroup++) {
+        const cue = decodeStereoSbrCue(stereoCues[subgroup] ?? 0);
+        if (cue.coherenceClass < 2) continue;
+
+        const start = subgroup * blocksPerSubgroup;
+        const end = (subgroup === SBR_SUBGROUPS_PER_ROW - 1)
+            ? rowDataCount
+            : Math.min(rowDataCount, (subgroup + 1) * blocksPerSubgroup);
+
+        if (start >= rowDataCount || end <= start) continue;
+
+        const midParams = midSubgroups[subgroup];
+        const sideParams = sideSubgroups[subgroup];
+        const midGainLin = Math.pow(10, getSynthesisHfGain(midParams) / 20);
+        const sideGainLin = Math.pow(10, getSynthesisHfGain(sideParams) / 20);
+
+        let bestPatchMode = midParams.patchMode;
+        let bestError = Infinity;
+
+        for (let patchMode = 0; patchMode < 4; patchMode++) {
+            const midError = computePatchModeError(midMdctCoeffsArray, start, end, patchMode, midGainLin);
+            const sideError = computePatchModeError(sideMdctCoeffsArray, start, end, patchMode, sideGainLin);
+            const combinedError = midError + sideError;
+
+            if (combinedError < bestError) {
+                bestError = combinedError;
+                bestPatchMode = patchMode;
+            }
+        }
+
+        const midEnvelope = computeBandEnvelopeForPatch(
+            midMdctCoeffsArray,
+            start,
+            end,
+            bestPatchMode,
+            getSynthesisHfGain(midParams),
+            midParams.temporalMode ? BAND_ENV_MIN_DB_TEMPORAL : BAND_ENV_MIN_DB,
+            midParams.temporalMode ? 4.5 : 8.0
+        );
+        const sideEnvelope = computeBandEnvelopeForPatch(
+            sideMdctCoeffsArray,
+            start,
+            end,
+            bestPatchMode,
+            getSynthesisHfGain(sideParams),
+            sideParams.temporalMode ? BAND_ENV_MIN_DB_TEMPORAL : BAND_ENV_MIN_DB,
+            sideParams.temporalMode ? 4.5 : 8.0
+        );
+
+        midSubgroups[subgroup] = {
+            ...midParams,
+            patchMode: bestPatchMode,
+            bandEnvelope: midEnvelope
+        };
+        sideSubgroups[subgroup] = {
+            ...sideParams,
+            patchMode: bestPatchMode,
+            bandEnvelope: sideEnvelope
+        };
+    }
+
+    return {
+        mid: { subgroups: midSubgroups },
+        side: { subgroups: sideSubgroups }
+    };
+}
+
+export function projectStereoCueToHighFrequencies(
+    midCoeffs: Float32Array,
+    sideCoeffs: Float32Array,
+    cueInfoOrRaw: StereoSbrCueInfo | number
+): void {
+    const cue = typeof cueInfoOrRaw === 'number' ? decodeStereoSbrCue(cueInfoOrRaw) : cueInfoOrRaw;
+    const residualScale = cue.residualScale;
+    const signFactor = cue.sign === 1 ? -1.0 : 1.0;
+
+    for (let band = 0; band < 4; band++) {
+        const bandStart = SBR_START_BIN + band * 8;
+        const bandEnd = bandStart + 8;
+        let midEnergy = 0;
+        let alignedSideEnergy = 0;
+
+        for (let bin = bandStart; bin < bandEnd; bin++) {
+            const midVal = midCoeffs[bin];
+            const alignedSide = signFactor * sideCoeffs[bin];
+            midEnergy += midVal * midVal;
+            alignedSideEnergy += alignedSide * alignedSide;
+        }
+
+        let ratio = 1.0;
+        if (midEnergy > 1e-12 && alignedSideEnergy > 1e-12) {
+            ratio = Math.sqrt(alignedSideEnergy / midEnergy);
+        } else if (midEnergy <= 1e-12 && alignedSideEnergy > 1e-12) {
+            ratio = 4.0;
+        } else if (alignedSideEnergy <= 1e-12 && midEnergy > 1e-12) {
+            ratio = 0.25;
+        }
+        ratio = Math.max(0.25, Math.min(4.0, ratio));
+
+        const axisNormSq = 1.0 + (ratio * ratio);
+
+        for (let bin = bandStart; bin < bandEnd; bin++) {
+            const midVal = midCoeffs[bin];
+            const sideVal = sideCoeffs[bin];
+            const alignedSide = signFactor * sideVal;
+            const projectionScale = (midVal + (alignedSide * ratio)) / axisNormSq;
+            const projectedMidBase = projectionScale;
+            const projectedAlignedSideBase = projectionScale * ratio;
+            const midResidual = midVal - projectedMidBase;
+            const sideResidual = alignedSide - projectedAlignedSideBase;
+
+            let projectedMid = projectedMidBase + (residualScale * midResidual);
+            let projectedAlignedSide = projectedAlignedSideBase + (residualScale * sideResidual);
+            let projectedSide = signFactor * projectedAlignedSide;
+
+            const beforeEnergy = (midVal * midVal) + (sideVal * sideVal);
+            const afterEnergy = (projectedMid * projectedMid) + (projectedSide * projectedSide);
+            if (beforeEnergy > 1e-12 && afterEnergy > 1e-12) {
+                const norm = Math.sqrt(beforeEnergy / afterEnergy);
+                projectedMid *= norm;
+                projectedSide *= norm;
+            }
+
+            midCoeffs[bin] = projectedMid;
+            sideCoeffs[bin] = projectedSide;
+        }
+    }
+}
+
+export function analyzeStereoRowSbrCues(
+    midMdctCoeffsArray: Float32Array[],
+    sideMdctCoeffsArray: Float32Array[],
+    rowDataCount: number
+): [number, number] {
+    const cues: number[] = [];
+    const blocksPerSubgroup = Math.max(1, Math.floor(rowDataCount / SBR_SUBGROUPS_PER_ROW));
+
+    for (let subgroup = 0; subgroup < SBR_SUBGROUPS_PER_ROW; subgroup++) {
+        const start = subgroup * blocksPerSubgroup;
+        const end = (subgroup === SBR_SUBGROUPS_PER_ROW - 1)
+            ? rowDataCount
+            : Math.min(rowDataCount, (subgroup + 1) * blocksPerSubgroup);
+
+        if (start >= rowDataCount || end <= start) {
+            cues.push(0);
+            continue;
+        }
+
+        cues.push(analyzeStereoCueRange(midMdctCoeffsArray, sideMdctCoeffsArray, start, end));
+    }
+
+    return [cues[0] ?? 0, cues[1] ?? 0];
+}
+
+export function applyStereoCuesToRowSBR(
+    rowParams: RowSBRParams,
+    stereoCues: [number, number]
+): RowSBRParams {
+    const subgroups = rowParams.subgroups.map((subgroup, idx) => ({
+        ...subgroup,
+        stereoCue: stereoCues[idx] ?? 0
+    })) as [SBRParamsUnion, SBRParamsUnion];
+
+    return { subgroups };
+}
+
 export function createDefaultSBRParams(): SBRParams {
     return {
         temporalMode: false,
         hfGain: 0,
         bandEnvelope: [0, 0, 0, 0],
         noiseFloorRatio: 4,
-        tonality: 4,
+        tonality: 2,
         patchMode: 0,
         procMode: 0,
+        stereoCue: 0,
         transientShape: 0
     };
 }

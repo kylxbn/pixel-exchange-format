@@ -80,9 +80,10 @@ export interface SBRParams {
     hfGain: number;           // dB (-48 to +15)
     bandEnvelope: number[];   // 4 bands, dB relative
     noiseFloorRatio: number;  // 0-15
-    tonality: number;         // 0-7
+    tonality: number;         // 0-7 in v300, 0-3 in v301+
     patchMode: number;        // 0-3
-    procMode: number;         // 0-3
+    procMode: number;         // 0-3 (legacy v300)
+    stereoCue: number;        // 0-7 (v301+)
     transientShape: number;   // 0-3
 }
 
@@ -90,8 +91,9 @@ export interface SBRParams {
 export interface SBRParamsTemporal {
     temporalMode: true;
     patchMode: number;        // 0-3 (shared)
-    procMode: number;         // 0-3 (shared)
+    procMode: number;         // 0-3 (legacy v300)
     tonality: number;         // 0-3 (reduced)
+    stereoCue: number;        // 0-7 (v301+)
     bandEnvelope: number[];   // 4 bands (reduced precision)
     hfGainA: number;          // First half gain
     noiseFloorRatioA: number; // First half noise
@@ -134,6 +136,7 @@ function decodeSBRWordNormal(word: number): SBRParams {
         tonality: (word >>> 7) & 0x07,
         patchMode: (word >>> 5) & 0x03,
         procMode: (word >>> 3) & 0x03,
+        stereoCue: 0,
         transientShape: (word >>> 1) & 0x03
     };
 }
@@ -152,6 +155,7 @@ function decodeSBRWordTemporal(word: number): SBRParamsTemporal {
         patchMode: (word >>> 30) & 0x03,
         procMode: (word >>> 28) & 0x03,
         tonality: (word >>> 26) & 0x03,
+        stereoCue: 0,
         bandEnvelope,
         hfGainA: (((word >>> 13) & 0x1F) * GAIN_STEP_DB_TEMPORAL) + MIN_GAIN_DB,
         noiseFloorRatioA: (word >>> 11) & 0x03,
@@ -162,8 +166,59 @@ function decodeSBRWordTemporal(word: number): SBRParamsTemporal {
     };
 }
 
-export function decodeSBRWord(word: number): SBRParamsUnion {
+function decodeSBRWordNormalV301(word: number): SBRParams {
+    const gainIdx = (word >>> 26) & 0x3F;
+    const bandBits = (word >>> 14) & 0xFFF;
+
+    const bandEnvelope: number[] = [];
+    for (let b = 0; b < 4; b++) {
+        const envIdx = (bandBits >>> (b * 3)) & 0x07;
+        bandEnvelope.push((envIdx * BAND_ENV_STEP_DB_NORMAL) + BAND_ENV_MIN_DB);
+    }
+
+    return {
+        temporalMode: false,
+        hfGain: (gainIdx * GAIN_STEP_DB_NORMAL) + MIN_GAIN_DB,
+        bandEnvelope,
+        noiseFloorRatio: (word >>> 10) & 0x0F,
+        tonality: (word >>> 8) & 0x03,
+        patchMode: (word >>> 3) & 0x03,
+        procMode: 0,
+        stereoCue: (word >>> 5) & 0x07,
+        transientShape: (word >>> 1) & 0x03
+    };
+}
+
+function decodeSBRWordTemporalV301(word: number): SBRParamsTemporal {
+    const bandBits = (word >>> 17) & 0xFF;
+
+    const bandEnvelope: number[] = [];
+    for (let b = 0; b < 4; b++) {
+        const envIdx = (bandBits >>> (b * 2)) & 0x03;
+        bandEnvelope.push((envIdx * BAND_ENV_STEP_DB_TEMPORAL) + BAND_ENV_MIN_DB_TEMPORAL);
+    }
+
+    return {
+        temporalMode: true,
+        patchMode: (word >>> 27) & 0x03,
+        procMode: 0,
+        tonality: (word >>> 25) & 0x03,
+        stereoCue: (word >>> 29) & 0x07,
+        bandEnvelope,
+        hfGainA: (((word >>> 12) & 0x1F) * GAIN_STEP_DB_TEMPORAL) + MIN_GAIN_DB,
+        noiseFloorRatioA: (word >>> 10) & 0x03,
+        transientA: (word >>> 9) & 0x01,
+        hfGainB: (((word >>> 4) & 0x1F) * GAIN_STEP_DB_TEMPORAL) + MIN_GAIN_DB,
+        noiseFloorRatioB: (word >>> 2) & 0x03,
+        transientB: (word >>> 1) & 0x01
+    };
+}
+
+export function decodeSBRWord(word: number, formatVersion: number = 301): SBRParamsUnion {
     const modeFlag = word & 1;
+    if (formatVersion >= 301) {
+        return modeFlag === 1 ? decodeSBRWordTemporalV301(word) : decodeSBRWordNormalV301(word);
+    }
     if (modeFlag === 1) {
         return decodeSBRWordTemporal(word);
     } else {
@@ -171,7 +226,7 @@ export function decodeSBRWord(word: number): SBRParamsUnion {
     }
 }
 
-export function decodeRowSBR(bytes: Uint8Array): RowSBRParams {
+export function decodeRowSBR(bytes: Uint8Array, formatVersion: number = 301): RowSBRParams {
     if (bytes.length !== 8) {
         throw new Error("Invalid SBR bytes length");
     }
@@ -180,7 +235,7 @@ export function decodeRowSBR(bytes: Uint8Array): RowSBRParams {
         // 4 bytes per word (32-bit), big-endian
         const word = (bytes[i * 4] << 24) | (bytes[i * 4 + 1] << 16) |
             (bytes[i * 4 + 2] << 8) | bytes[i * 4 + 3];
-        subgroups.push(decodeSBRWord(word));
+        subgroups.push(decodeSBRWord(word, formatVersion));
     }
     return { subgroups: subgroups as [SBRParamsUnion, SBRParamsUnion] };
 }

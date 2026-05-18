@@ -4,6 +4,7 @@
 import {
     BLOCKS_PER_ROW,
     DATA_BLOCKS_PER_ROW,
+    FORMAT_VERSION,
     MDCT_WINDOW_SIZE,
 } from '../constants';
 import { dct4x4, dct8x8, imdct } from '../utils/audioUtils';
@@ -12,7 +13,16 @@ import {
 } from '../psychoacoustics';
 import { reverseMdctWhiteningWithProfile } from '../utils/mdctWhitening';
 import type { MdctWhiteningProfile } from '../utils/mdctWhitening';
-import { decodeRowSBR, applySBRSynthesis, SBR_SUBGROUPS_PER_ROW } from '../utils/sbr';
+import {
+    decodeRowSBR,
+    applySBRSynthesis,
+    applyJointStereoSBRSynthesis,
+    decodeStereoSbrCue,
+    SBR_START_BIN,
+    SBR_END_BIN,
+    SBR_SUBGROUPS_PER_ROW,
+    type SBRParamsUnion,
+} from '../utils/sbr';
 import { decodeRGBToPoint } from '../utils/obb';
 
 const BAND_MAP = AUDIO_PSYCHOACOUSTICS.bandMap;
@@ -38,27 +48,29 @@ export interface DecodeBlockDebugCapture {
     rawPixelsCr?: Float32Array;
 }
 
+export interface SelectedSbrParams {
+    params: SBRParamsUnion;
+    blockIdxInSubgroup: number;
+    subgroupSize: number;
+}
+
 /**
  * Core YCbCr block decoding function that converts pixel data back to audio samples.
  * Performs the complete decoding pipeline: pixel reading, spatial unscaling, DCT,
  * frequency domain processing, SBR synthesis, and IMDCT to time domain.
  */
-export function decodeBlock(
+export function decodeBlockToCoefficients(
     data: Uint8ClampedArray, width: number, blockIndex: number,
     maxY: number, maxC: number,
     whiteningProfile: MdctWhiteningProfile,
-    bandFactors: Float32Array,
-    coeffBuffer: Float32Array, outputWindow: Float32Array, mdctWindow: Float32Array,
+    bandFactors: Float32Array, coeffBuffer: Float32Array,
     buffers: DecodeBlockBuffers,
-    sbrBytes: Uint8Array | null,
-    colInAudioArea: number,
-    debugCapture?: DecodeBlockDebugCapture,
-    externalSbrSeed?: number
+    debugCapture?: DecodeBlockDebugCapture
 ): Float32Array {
     // Check for invalid scaling factors - output silence if any are zero
     if (maxY === 0 || maxC === 0 || bandFactors.some(f => f === 0)) {
-        outputWindow.fill(0);
-        return outputWindow;
+        coeffBuffer.fill(0);
+        return coeffBuffer;
     }
 
     const bx = (blockIndex % BLOCKS_PER_ROW) * 8;
@@ -150,24 +162,35 @@ export function decodeBlock(
         reverseMdctWhiteningWithProfile(coeffBuffer, whiteningProfile);
     }
 
-    // --- STEP 6: SBR SYNTHESIS ---
-    // Generate HF content (bins 96-127) using 2-subgroup AAC-style SBR
-    if (AUDIO_PSYCHOACOUSTICS.enableSbr && sbrBytes && sbrBytes.length === 8 && colInAudioArea !== undefined) {
-        const rowParams = decodeRowSBR(sbrBytes);
-        const subgroupSize = DATA_BLOCKS_PER_ROW / SBR_SUBGROUPS_PER_ROW;
-        const blockIdxInSubgroup = colInAudioArea % subgroupSize;
-        const subgroupIdx = Math.min(SBR_SUBGROUPS_PER_ROW - 1, Math.floor(colInAudioArea / subgroupSize));
-        const params = rowParams.subgroups[subgroupIdx];
+    return coeffBuffer;
+}
 
-        applySBRSynthesis(coeffBuffer, params, blockIdxInSubgroup, subgroupSize, externalSbrSeed);
-    } else {
-        // No SBR data available - zero out HF bins
-        for (let k = 96; k < 128; k++) {
-            coeffBuffer[k] = 0;
-        }
+export function selectSbrParamsForBlock(
+    sbrBytes: Uint8Array | null,
+    colInAudioArea: number,
+    formatVersion: number = FORMAT_VERSION
+): SelectedSbrParams | null {
+    if (!AUDIO_PSYCHOACOUSTICS.enableSbr || !sbrBytes || sbrBytes.length !== 8 || colInAudioArea === undefined) {
+        return null;
     }
 
-    // --- STEP 7: IMDCT ---
+    const rowParams = decodeRowSBR(sbrBytes, formatVersion);
+    const subgroupSize = DATA_BLOCKS_PER_ROW / SBR_SUBGROUPS_PER_ROW;
+    const blockIdxInSubgroup = colInAudioArea % subgroupSize;
+    const subgroupIdx = Math.min(SBR_SUBGROUPS_PER_ROW - 1, Math.floor(colInAudioArea / subgroupSize));
+
+    return {
+        params: rowParams.subgroups[subgroupIdx],
+        blockIdxInSubgroup,
+        subgroupSize
+    };
+}
+
+export function finalizeDecodedBlock(
+    coeffBuffer: Float32Array,
+    outputWindow: Float32Array,
+    mdctWindow: Float32Array
+): Float32Array {
     imdct(coeffBuffer, outputWindow);
 
     for (let k = 0; k < MDCT_WINDOW_SIZE; k++) {
@@ -175,4 +198,175 @@ export function decodeBlock(
     }
 
     return outputWindow;
+}
+
+export function decodeBlock(
+    data: Uint8ClampedArray, width: number, blockIndex: number,
+    maxY: number, maxC: number,
+    whiteningProfile: MdctWhiteningProfile,
+    bandFactors: Float32Array,
+    coeffBuffer: Float32Array, outputWindow: Float32Array, mdctWindow: Float32Array,
+    buffers: DecodeBlockBuffers,
+    sbrBytes: Uint8Array | null,
+    colInAudioArea: number,
+    debugCapture?: DecodeBlockDebugCapture,
+    externalSbrSeed?: number,
+    formatVersion: number = FORMAT_VERSION
+): Float32Array {
+    decodeBlockToCoefficients(
+        data, width, blockIndex, maxY, maxC, whiteningProfile, bandFactors, coeffBuffer, buffers, debugCapture
+    );
+
+    const selection = selectSbrParamsForBlock(sbrBytes, colInAudioArea, formatVersion);
+    if (selection) {
+        applySBRSynthesis(
+            coeffBuffer,
+            selection.params,
+            selection.blockIdxInSubgroup,
+            selection.subgroupSize,
+            externalSbrSeed,
+            formatVersion
+        );
+    } else {
+        for (let k = 96; k < 128; k++) {
+            coeffBuffer[k] = 0;
+        }
+    }
+
+    return finalizeDecodedBlock(coeffBuffer, outputWindow, mdctWindow);
+}
+
+export function decodeStereoBlocks(
+    midBlock: {
+        data: Uint8ClampedArray;
+        width: number;
+        blockIndex: number;
+        maxY: number;
+        maxC: number;
+        whiteningProfile: MdctWhiteningProfile;
+        bandFactors: Float32Array;
+        coeffBuffer: Float32Array;
+        outputWindow: Float32Array;
+        sbrBytes: Uint8Array | null;
+    },
+    sideBlock: {
+        data: Uint8ClampedArray;
+        width: number;
+        blockIndex: number;
+        maxY: number;
+        maxC: number;
+        whiteningProfile: MdctWhiteningProfile;
+        bandFactors: Float32Array;
+        coeffBuffer: Float32Array;
+        outputWindow: Float32Array;
+        sbrBytes: Uint8Array | null;
+    },
+    mdctWindow: Float32Array,
+    buffers: DecodeBlockBuffers,
+    colInAudioArea: number,
+    sharedSeed?: number,
+    midSeed?: number,
+    sideSeed?: number,
+    formatVersion: number = FORMAT_VERSION
+): { midWindow: Float32Array; sideWindow: Float32Array } {
+    decodeBlockToCoefficients(
+        midBlock.data,
+        midBlock.width,
+        midBlock.blockIndex,
+        midBlock.maxY,
+        midBlock.maxC,
+        midBlock.whiteningProfile,
+        midBlock.bandFactors,
+        midBlock.coeffBuffer,
+        buffers
+    );
+    decodeBlockToCoefficients(
+        sideBlock.data,
+        sideBlock.width,
+        sideBlock.blockIndex,
+        sideBlock.maxY,
+        sideBlock.maxC,
+        sideBlock.whiteningProfile,
+        sideBlock.bandFactors,
+        sideBlock.coeffBuffer,
+        buffers
+    );
+
+    const midSelection = selectSbrParamsForBlock(midBlock.sbrBytes, colInAudioArea, formatVersion);
+    const sideSelection = selectSbrParamsForBlock(sideBlock.sbrBytes, colInAudioArea, formatVersion);
+
+    if (midSelection && sideSelection) {
+        applyJointStereoSBRSynthesis(
+            midBlock.coeffBuffer,
+            sideBlock.coeffBuffer,
+            midSelection.params,
+            sideSelection.params,
+            midSelection.blockIdxInSubgroup,
+            midSelection.subgroupSize,
+            sharedSeed,
+            midSeed,
+            sideSeed,
+            formatVersion
+        );
+    } else if (midSelection) {
+        applySBRSynthesis(
+            midBlock.coeffBuffer,
+            midSelection.params,
+            midSelection.blockIdxInSubgroup,
+            midSelection.subgroupSize,
+            midSeed,
+            formatVersion
+        );
+        deriveMissingStereoHighFrequencies(
+            sideBlock.coeffBuffer,
+            midBlock.coeffBuffer,
+            midSelection.params
+        );
+    } else if (sideSelection) {
+        applySBRSynthesis(
+            sideBlock.coeffBuffer,
+            sideSelection.params,
+            sideSelection.blockIdxInSubgroup,
+            sideSelection.subgroupSize,
+            sideSeed,
+            formatVersion
+        );
+        deriveMissingStereoHighFrequencies(
+            midBlock.coeffBuffer,
+            sideBlock.coeffBuffer,
+            sideSelection.params
+        );
+    } else {
+        for (let k = 96; k < 128; k++) {
+            midBlock.coeffBuffer[k] = 0;
+            sideBlock.coeffBuffer[k] = 0;
+        }
+    }
+
+    return {
+        midWindow: finalizeDecodedBlock(midBlock.coeffBuffer, midBlock.outputWindow, mdctWindow),
+        sideWindow: finalizeDecodedBlock(sideBlock.coeffBuffer, sideBlock.outputWindow, mdctWindow)
+    };
+}
+
+function deriveMissingStereoHighFrequencies(
+    missingCoeffs: Float32Array,
+    validCoeffs: Float32Array,
+    validParams: SBRParamsUnion
+): void {
+    const cue = decodeStereoSbrCue(validParams.stereoCue);
+    const signFactor = cue.sign === 1 ? -1.0 : 1.0;
+    const sharedAmount = cue.sharedAmount;
+    let validEnergy = 0;
+    let missingEnergy = 0;
+
+    for (let bin = 64; bin < 96; bin++) {
+        validEnergy += validCoeffs[bin] * validCoeffs[bin];
+        missingEnergy += missingCoeffs[bin] * missingCoeffs[bin];
+    }
+
+    const ratio = validEnergy > 1e-9 ? Math.sqrt(missingEnergy / (validEnergy + 1e-9)) : 0.0;
+    for (let bin = SBR_START_BIN; bin < SBR_END_BIN; bin++) {
+        missingCoeffs[bin] = signFactor * ratio * sharedAmount * validCoeffs[bin];
+    }
 }
