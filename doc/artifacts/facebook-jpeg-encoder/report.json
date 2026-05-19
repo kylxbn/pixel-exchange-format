@@ -1,0 +1,2695 @@
+{
+  "probe": "doc/artifacts/facebook-jpeg-encoder/probe.png",
+  "target": "doc/artifacts/facebook-jpeg-encoder/facebook-roundtrip.jpg",
+  "target_exists": true,
+  "candidates": [
+    {
+      "path": "doc/artifacts/facebook-jpeg-encoder/candidates/cjpeg_fast.jpg",
+      "size_bytes": 214969,
+      "progressive": false,
+      "sampling_factors": [
+        [
+          2,
+          2
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "block_dims": [
+        [
+          128,
+          128
+        ],
+        [
+          64,
+          64
+        ],
+        [
+          64,
+          64
+        ]
+      ],
+      "quant_table_slots": [
+        0,
+        1,
+        1
+      ],
+      "quant_tables": [
+        [
+          [
+            3,
+            2,
+            2,
+            3,
+            4,
+            6,
+            8,
+            10
+          ],
+          [
+            2,
+            2,
+            2,
+            3,
+            4,
+            9,
+            10,
+            9
+          ],
+          [
+            2,
+            2,
+            3,
+            4,
+            6,
+            9,
+            11,
+            9
+          ],
+          [
+            2,
+            3,
+            4,
+            5,
+            8,
+            14,
+            13,
+            10
+          ],
+          [
+            3,
+            4,
+            6,
+            9,
+            11,
+            17,
+            16,
+            12
+          ],
+          [
+            4,
+            6,
+            9,
+            10,
+            13,
+            17,
+            18,
+            15
+          ],
+          [
+            8,
+            10,
+            12,
+            14,
+            16,
+            19,
+            19,
+            16
+          ],
+          [
+            12,
+            15,
+            15,
+            16,
+            18,
+            16,
+            16,
+            16
+          ]
+        ],
+        [
+          [
+            3,
+            3,
+            4,
+            8,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            3,
+            3,
+            4,
+            11,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            4,
+            4,
+            9,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            8,
+            11,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ]
+        ]
+      ],
+      "quant_table_hash": "47a34ca1e02eca0b62c6eff1d828bb59e2a2a69663467ed4e2c7ba76a38d52bd",
+      "coeff_hash": "cc3a4dd4bbdf4cd16fde83d8afb6f96b09cb4da672f2c1f700dc4bb95a55ca09",
+      "component_hashes": {
+        "Y": "748544f43a11cf3e10db02588171b614a66dbb941de6275d1287294f4b8738a9",
+        "Cb": "b07446befa640bfac773d6fc071805007f5d15f16b7b9414c6354f26b8fb4b47",
+        "Cr": "f16690a93c1b1431e2b19d9913d77c0afb2d079ac138d6647b9aa107de1f481b"
+      },
+      "markers": [
+        "<Marker JPEG_APP0 N=14>"
+      ],
+      "name": "cjpeg_fast",
+      "encoder": "cjpeg",
+      "note": "libjpeg-turbo fast integer FDCT"
+    },
+    {
+      "path": "doc/artifacts/facebook-jpeg-encoder/candidates/cjpeg_float.jpg",
+      "size_bytes": 214948,
+      "progressive": false,
+      "sampling_factors": [
+        [
+          2,
+          2
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "block_dims": [
+        [
+          128,
+          128
+        ],
+        [
+          64,
+          64
+        ],
+        [
+          64,
+          64
+        ]
+      ],
+      "quant_table_slots": [
+        0,
+        1,
+        1
+      ],
+      "quant_tables": [
+        [
+          [
+            3,
+            2,
+            2,
+            3,
+            4,
+            6,
+            8,
+            10
+          ],
+          [
+            2,
+            2,
+            2,
+            3,
+            4,
+            9,
+            10,
+            9
+          ],
+          [
+            2,
+            2,
+            3,
+            4,
+            6,
+            9,
+            11,
+            9
+          ],
+          [
+            2,
+            3,
+            4,
+            5,
+            8,
+            14,
+            13,
+            10
+          ],
+          [
+            3,
+            4,
+            6,
+            9,
+            11,
+            17,
+            16,
+            12
+          ],
+          [
+            4,
+            6,
+            9,
+            10,
+            13,
+            17,
+            18,
+            15
+          ],
+          [
+            8,
+            10,
+            12,
+            14,
+            16,
+            19,
+            19,
+            16
+          ],
+          [
+            12,
+            15,
+            15,
+            16,
+            18,
+            16,
+            16,
+            16
+          ]
+        ],
+        [
+          [
+            3,
+            3,
+            4,
+            8,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            3,
+            3,
+            4,
+            11,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            4,
+            4,
+            9,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            8,
+            11,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ]
+        ]
+      ],
+      "quant_table_hash": "47a34ca1e02eca0b62c6eff1d828bb59e2a2a69663467ed4e2c7ba76a38d52bd",
+      "coeff_hash": "d71a8008140caaff0641a2168efe6b67ef2f00bb93aa807db02b0f3a4caf2f59",
+      "component_hashes": {
+        "Y": "abe9feb23cb14e160bdb001f837a530c3572b04bae9c6c1f3573571be2d336c5",
+        "Cb": "fec45a2bf3e9cccb463638a421807c926f8bd3aadd0286f8fc248d0d0e0a7b7d",
+        "Cr": "7e3b9d1ceb7bf96527f903d7c6c965723cdc9a5d4d9ad7459bccdde49f2d7836"
+      },
+      "markers": [
+        "<Marker JPEG_APP0 N=14>"
+      ],
+      "name": "cjpeg_float",
+      "encoder": "cjpeg",
+      "note": "libjpeg-turbo float FDCT"
+    },
+    {
+      "path": "doc/artifacts/facebook-jpeg-encoder/candidates/cjpeg_int.jpg",
+      "size_bytes": 215464,
+      "progressive": false,
+      "sampling_factors": [
+        [
+          2,
+          2
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "block_dims": [
+        [
+          128,
+          128
+        ],
+        [
+          64,
+          64
+        ],
+        [
+          64,
+          64
+        ]
+      ],
+      "quant_table_slots": [
+        0,
+        1,
+        1
+      ],
+      "quant_tables": [
+        [
+          [
+            3,
+            2,
+            2,
+            3,
+            4,
+            6,
+            8,
+            10
+          ],
+          [
+            2,
+            2,
+            2,
+            3,
+            4,
+            9,
+            10,
+            9
+          ],
+          [
+            2,
+            2,
+            3,
+            4,
+            6,
+            9,
+            11,
+            9
+          ],
+          [
+            2,
+            3,
+            4,
+            5,
+            8,
+            14,
+            13,
+            10
+          ],
+          [
+            3,
+            4,
+            6,
+            9,
+            11,
+            17,
+            16,
+            12
+          ],
+          [
+            4,
+            6,
+            9,
+            10,
+            13,
+            17,
+            18,
+            15
+          ],
+          [
+            8,
+            10,
+            12,
+            14,
+            16,
+            19,
+            19,
+            16
+          ],
+          [
+            12,
+            15,
+            15,
+            16,
+            18,
+            16,
+            16,
+            16
+          ]
+        ],
+        [
+          [
+            3,
+            3,
+            4,
+            8,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            3,
+            3,
+            4,
+            11,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            4,
+            4,
+            9,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            8,
+            11,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ]
+        ]
+      ],
+      "quant_table_hash": "47a34ca1e02eca0b62c6eff1d828bb59e2a2a69663467ed4e2c7ba76a38d52bd",
+      "coeff_hash": "d392f65093d35156c175f47dae9cde78975ca9fcc46d02365bba0cd317582e1d",
+      "component_hashes": {
+        "Y": "8026ecd8cd401d298b73d68f159a5098ed3f9ef9a1fc50691f88ac3018355d04",
+        "Cb": "8f6b392a5b526a4ba975f6df3cfeb26a7b4006e52761bc2cad3a0ebb419c24ca",
+        "Cr": "332d7e02d0dafe4ffb1004e57388ee19597b25716c0b793352536214b3967127"
+      },
+      "markers": [
+        "<Marker JPEG_APP0 N=14>"
+      ],
+      "name": "cjpeg_int",
+      "encoder": "cjpeg",
+      "note": "libjpeg-turbo integer FDCT"
+    },
+    {
+      "path": "doc/artifacts/facebook-jpeg-encoder/candidates/cjpeg_int_opt.jpg",
+      "size_bytes": 204996,
+      "progressive": false,
+      "sampling_factors": [
+        [
+          2,
+          2
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "block_dims": [
+        [
+          128,
+          128
+        ],
+        [
+          64,
+          64
+        ],
+        [
+          64,
+          64
+        ]
+      ],
+      "quant_table_slots": [
+        0,
+        1,
+        1
+      ],
+      "quant_tables": [
+        [
+          [
+            3,
+            2,
+            2,
+            3,
+            4,
+            6,
+            8,
+            10
+          ],
+          [
+            2,
+            2,
+            2,
+            3,
+            4,
+            9,
+            10,
+            9
+          ],
+          [
+            2,
+            2,
+            3,
+            4,
+            6,
+            9,
+            11,
+            9
+          ],
+          [
+            2,
+            3,
+            4,
+            5,
+            8,
+            14,
+            13,
+            10
+          ],
+          [
+            3,
+            4,
+            6,
+            9,
+            11,
+            17,
+            16,
+            12
+          ],
+          [
+            4,
+            6,
+            9,
+            10,
+            13,
+            17,
+            18,
+            15
+          ],
+          [
+            8,
+            10,
+            12,
+            14,
+            16,
+            19,
+            19,
+            16
+          ],
+          [
+            12,
+            15,
+            15,
+            16,
+            18,
+            16,
+            16,
+            16
+          ]
+        ],
+        [
+          [
+            3,
+            3,
+            4,
+            8,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            3,
+            3,
+            4,
+            11,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            4,
+            4,
+            9,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            8,
+            11,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ]
+        ]
+      ],
+      "quant_table_hash": "47a34ca1e02eca0b62c6eff1d828bb59e2a2a69663467ed4e2c7ba76a38d52bd",
+      "coeff_hash": "d392f65093d35156c175f47dae9cde78975ca9fcc46d02365bba0cd317582e1d",
+      "component_hashes": {
+        "Y": "8026ecd8cd401d298b73d68f159a5098ed3f9ef9a1fc50691f88ac3018355d04",
+        "Cb": "8f6b392a5b526a4ba975f6df3cfeb26a7b4006e52761bc2cad3a0ebb419c24ca",
+        "Cr": "332d7e02d0dafe4ffb1004e57388ee19597b25716c0b793352536214b3967127"
+      },
+      "markers": [
+        "<Marker JPEG_APP0 N=14>"
+      ],
+      "name": "cjpeg_int_opt",
+      "encoder": "cjpeg",
+      "note": "libjpeg-turbo integer FDCT with optimized Huffman tables"
+    },
+    {
+      "path": "doc/artifacts/facebook-jpeg-encoder/candidates/gm.jpg",
+      "size_bytes": 204996,
+      "progressive": false,
+      "sampling_factors": [
+        [
+          2,
+          2
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "block_dims": [
+        [
+          128,
+          128
+        ],
+        [
+          64,
+          64
+        ],
+        [
+          64,
+          64
+        ]
+      ],
+      "quant_table_slots": [
+        0,
+        1,
+        1
+      ],
+      "quant_tables": [
+        [
+          [
+            3,
+            2,
+            2,
+            3,
+            4,
+            6,
+            8,
+            10
+          ],
+          [
+            2,
+            2,
+            2,
+            3,
+            4,
+            9,
+            10,
+            9
+          ],
+          [
+            2,
+            2,
+            3,
+            4,
+            6,
+            9,
+            11,
+            9
+          ],
+          [
+            2,
+            3,
+            4,
+            5,
+            8,
+            14,
+            13,
+            10
+          ],
+          [
+            3,
+            4,
+            6,
+            9,
+            11,
+            17,
+            16,
+            12
+          ],
+          [
+            4,
+            6,
+            9,
+            10,
+            13,
+            17,
+            18,
+            15
+          ],
+          [
+            8,
+            10,
+            12,
+            14,
+            16,
+            19,
+            19,
+            16
+          ],
+          [
+            12,
+            15,
+            15,
+            16,
+            18,
+            16,
+            16,
+            16
+          ]
+        ],
+        [
+          [
+            3,
+            3,
+            4,
+            8,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            3,
+            3,
+            4,
+            11,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            4,
+            4,
+            9,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            8,
+            11,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ]
+        ]
+      ],
+      "quant_table_hash": "47a34ca1e02eca0b62c6eff1d828bb59e2a2a69663467ed4e2c7ba76a38d52bd",
+      "coeff_hash": "d392f65093d35156c175f47dae9cde78975ca9fcc46d02365bba0cd317582e1d",
+      "component_hashes": {
+        "Y": "8026ecd8cd401d298b73d68f159a5098ed3f9ef9a1fc50691f88ac3018355d04",
+        "Cb": "8f6b392a5b526a4ba975f6df3cfeb26a7b4006e52761bc2cad3a0ebb419c24ca",
+        "Cr": "332d7e02d0dafe4ffb1004e57388ee19597b25716c0b793352536214b3967127"
+      },
+      "markers": [
+        "<Marker JPEG_APP0 N=14>"
+      ],
+      "name": "gm",
+      "encoder": "gm",
+      "note": "GraphicsMagick JPEG writer"
+    },
+    {
+      "path": "doc/artifacts/facebook-jpeg-encoder/candidates/magick.jpg",
+      "size_bytes": 204996,
+      "progressive": false,
+      "sampling_factors": [
+        [
+          2,
+          2
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "block_dims": [
+        [
+          128,
+          128
+        ],
+        [
+          64,
+          64
+        ],
+        [
+          64,
+          64
+        ]
+      ],
+      "quant_table_slots": [
+        0,
+        1,
+        1
+      ],
+      "quant_tables": [
+        [
+          [
+            3,
+            2,
+            2,
+            3,
+            4,
+            6,
+            8,
+            10
+          ],
+          [
+            2,
+            2,
+            2,
+            3,
+            4,
+            9,
+            10,
+            9
+          ],
+          [
+            2,
+            2,
+            3,
+            4,
+            6,
+            9,
+            11,
+            9
+          ],
+          [
+            2,
+            3,
+            4,
+            5,
+            8,
+            14,
+            13,
+            10
+          ],
+          [
+            3,
+            4,
+            6,
+            9,
+            11,
+            17,
+            16,
+            12
+          ],
+          [
+            4,
+            6,
+            9,
+            10,
+            13,
+            17,
+            18,
+            15
+          ],
+          [
+            8,
+            10,
+            12,
+            14,
+            16,
+            19,
+            19,
+            16
+          ],
+          [
+            12,
+            15,
+            15,
+            16,
+            18,
+            16,
+            16,
+            16
+          ]
+        ],
+        [
+          [
+            3,
+            3,
+            4,
+            8,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            3,
+            3,
+            4,
+            11,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            4,
+            4,
+            9,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            8,
+            11,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ]
+        ]
+      ],
+      "quant_table_hash": "47a34ca1e02eca0b62c6eff1d828bb59e2a2a69663467ed4e2c7ba76a38d52bd",
+      "coeff_hash": "d392f65093d35156c175f47dae9cde78975ca9fcc46d02365bba0cd317582e1d",
+      "component_hashes": {
+        "Y": "8026ecd8cd401d298b73d68f159a5098ed3f9ef9a1fc50691f88ac3018355d04",
+        "Cb": "8f6b392a5b526a4ba975f6df3cfeb26a7b4006e52761bc2cad3a0ebb419c24ca",
+        "Cr": "332d7e02d0dafe4ffb1004e57388ee19597b25716c0b793352536214b3967127"
+      },
+      "markers": [
+        "<Marker JPEG_APP0 N=14>"
+      ],
+      "name": "magick",
+      "encoder": "magick",
+      "note": "ImageMagick JPEG writer"
+    },
+    {
+      "path": "doc/artifacts/facebook-jpeg-encoder/candidates/pillow.jpg",
+      "size_bytes": 215464,
+      "progressive": false,
+      "sampling_factors": [
+        [
+          2,
+          2
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "block_dims": [
+        [
+          128,
+          128
+        ],
+        [
+          64,
+          64
+        ],
+        [
+          64,
+          64
+        ]
+      ],
+      "quant_table_slots": [
+        0,
+        1,
+        1
+      ],
+      "quant_tables": [
+        [
+          [
+            3,
+            2,
+            2,
+            3,
+            4,
+            6,
+            8,
+            10
+          ],
+          [
+            2,
+            2,
+            2,
+            3,
+            4,
+            9,
+            10,
+            9
+          ],
+          [
+            2,
+            2,
+            3,
+            4,
+            6,
+            9,
+            11,
+            9
+          ],
+          [
+            2,
+            3,
+            4,
+            5,
+            8,
+            14,
+            13,
+            10
+          ],
+          [
+            3,
+            4,
+            6,
+            9,
+            11,
+            17,
+            16,
+            12
+          ],
+          [
+            4,
+            6,
+            9,
+            10,
+            13,
+            17,
+            18,
+            15
+          ],
+          [
+            8,
+            10,
+            12,
+            14,
+            16,
+            19,
+            19,
+            16
+          ],
+          [
+            12,
+            15,
+            15,
+            16,
+            18,
+            16,
+            16,
+            16
+          ]
+        ],
+        [
+          [
+            3,
+            3,
+            4,
+            8,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            3,
+            3,
+            4,
+            11,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            4,
+            4,
+            9,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            8,
+            11,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ]
+        ]
+      ],
+      "quant_table_hash": "47a34ca1e02eca0b62c6eff1d828bb59e2a2a69663467ed4e2c7ba76a38d52bd",
+      "coeff_hash": "d392f65093d35156c175f47dae9cde78975ca9fcc46d02365bba0cd317582e1d",
+      "component_hashes": {
+        "Y": "8026ecd8cd401d298b73d68f159a5098ed3f9ef9a1fc50691f88ac3018355d04",
+        "Cb": "8f6b392a5b526a4ba975f6df3cfeb26a7b4006e52761bc2cad3a0ebb419c24ca",
+        "Cr": "332d7e02d0dafe4ffb1004e57388ee19597b25716c0b793352536214b3967127"
+      },
+      "markers": [
+        "<Marker JPEG_APP0 N=14>"
+      ],
+      "name": "pillow",
+      "encoder": "pillow",
+      "note": "Pillow save() using libjpeg backend"
+    },
+    {
+      "path": "doc/artifacts/facebook-jpeg-encoder/candidates/pillow_opt.jpg",
+      "size_bytes": 204996,
+      "progressive": false,
+      "sampling_factors": [
+        [
+          2,
+          2
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "block_dims": [
+        [
+          128,
+          128
+        ],
+        [
+          64,
+          64
+        ],
+        [
+          64,
+          64
+        ]
+      ],
+      "quant_table_slots": [
+        0,
+        1,
+        1
+      ],
+      "quant_tables": [
+        [
+          [
+            3,
+            2,
+            2,
+            3,
+            4,
+            6,
+            8,
+            10
+          ],
+          [
+            2,
+            2,
+            2,
+            3,
+            4,
+            9,
+            10,
+            9
+          ],
+          [
+            2,
+            2,
+            3,
+            4,
+            6,
+            9,
+            11,
+            9
+          ],
+          [
+            2,
+            3,
+            4,
+            5,
+            8,
+            14,
+            13,
+            10
+          ],
+          [
+            3,
+            4,
+            6,
+            9,
+            11,
+            17,
+            16,
+            12
+          ],
+          [
+            4,
+            6,
+            9,
+            10,
+            13,
+            17,
+            18,
+            15
+          ],
+          [
+            8,
+            10,
+            12,
+            14,
+            16,
+            19,
+            19,
+            16
+          ],
+          [
+            12,
+            15,
+            15,
+            16,
+            18,
+            16,
+            16,
+            16
+          ]
+        ],
+        [
+          [
+            3,
+            3,
+            4,
+            8,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            3,
+            3,
+            4,
+            11,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            4,
+            4,
+            9,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            8,
+            11,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ]
+        ]
+      ],
+      "quant_table_hash": "47a34ca1e02eca0b62c6eff1d828bb59e2a2a69663467ed4e2c7ba76a38d52bd",
+      "coeff_hash": "d392f65093d35156c175f47dae9cde78975ca9fcc46d02365bba0cd317582e1d",
+      "component_hashes": {
+        "Y": "8026ecd8cd401d298b73d68f159a5098ed3f9ef9a1fc50691f88ac3018355d04",
+        "Cb": "8f6b392a5b526a4ba975f6df3cfeb26a7b4006e52761bc2cad3a0ebb419c24ca",
+        "Cr": "332d7e02d0dafe4ffb1004e57388ee19597b25716c0b793352536214b3967127"
+      },
+      "markers": [
+        "<Marker JPEG_APP0 N=14>"
+      ],
+      "name": "pillow_opt",
+      "encoder": "pillow",
+      "note": "Pillow save() with optimize=True"
+    },
+    {
+      "path": "doc/artifacts/facebook-jpeg-encoder/candidates/vips.jpg",
+      "size_bytes": 215446,
+      "progressive": false,
+      "sampling_factors": [
+        [
+          2,
+          2
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "block_dims": [
+        [
+          128,
+          128
+        ],
+        [
+          64,
+          64
+        ],
+        [
+          64,
+          64
+        ]
+      ],
+      "quant_table_slots": [
+        0,
+        1,
+        1
+      ],
+      "quant_tables": [
+        [
+          [
+            3,
+            2,
+            2,
+            3,
+            4,
+            6,
+            8,
+            10
+          ],
+          [
+            2,
+            2,
+            2,
+            3,
+            4,
+            9,
+            10,
+            9
+          ],
+          [
+            2,
+            2,
+            3,
+            4,
+            6,
+            9,
+            11,
+            9
+          ],
+          [
+            2,
+            3,
+            4,
+            5,
+            8,
+            14,
+            13,
+            10
+          ],
+          [
+            3,
+            4,
+            6,
+            9,
+            11,
+            17,
+            16,
+            12
+          ],
+          [
+            4,
+            6,
+            9,
+            10,
+            13,
+            17,
+            18,
+            15
+          ],
+          [
+            8,
+            10,
+            12,
+            14,
+            16,
+            19,
+            19,
+            16
+          ],
+          [
+            12,
+            15,
+            15,
+            16,
+            18,
+            16,
+            16,
+            16
+          ]
+        ],
+        [
+          [
+            3,
+            3,
+            4,
+            8,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            3,
+            3,
+            4,
+            11,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            4,
+            4,
+            9,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            8,
+            11,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ],
+          [
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16,
+            16
+          ]
+        ]
+      ],
+      "quant_table_hash": "47a34ca1e02eca0b62c6eff1d828bb59e2a2a69663467ed4e2c7ba76a38d52bd",
+      "coeff_hash": "d392f65093d35156c175f47dae9cde78975ca9fcc46d02365bba0cd317582e1d",
+      "component_hashes": {
+        "Y": "8026ecd8cd401d298b73d68f159a5098ed3f9ef9a1fc50691f88ac3018355d04",
+        "Cb": "8f6b392a5b526a4ba975f6df3cfeb26a7b4006e52761bc2cad3a0ebb419c24ca",
+        "Cr": "332d7e02d0dafe4ffb1004e57388ee19597b25716c0b793352536214b3967127"
+      },
+      "markers": [],
+      "name": "vips",
+      "encoder": "vips",
+      "note": "libvips jpegsave"
+    }
+  ],
+  "failures": [],
+  "equivalent_pairs": [
+    [
+      "cjpeg_int",
+      "cjpeg_int_opt"
+    ],
+    [
+      "cjpeg_int",
+      "gm"
+    ],
+    [
+      "cjpeg_int",
+      "magick"
+    ],
+    [
+      "cjpeg_int",
+      "pillow"
+    ],
+    [
+      "cjpeg_int",
+      "pillow_opt"
+    ],
+    [
+      "cjpeg_int",
+      "vips"
+    ],
+    [
+      "cjpeg_int_opt",
+      "gm"
+    ],
+    [
+      "cjpeg_int_opt",
+      "magick"
+    ],
+    [
+      "cjpeg_int_opt",
+      "pillow"
+    ],
+    [
+      "cjpeg_int_opt",
+      "pillow_opt"
+    ],
+    [
+      "cjpeg_int_opt",
+      "vips"
+    ],
+    [
+      "gm",
+      "magick"
+    ],
+    [
+      "gm",
+      "pillow"
+    ],
+    [
+      "gm",
+      "pillow_opt"
+    ],
+    [
+      "gm",
+      "vips"
+    ],
+    [
+      "magick",
+      "pillow"
+    ],
+    [
+      "magick",
+      "pillow_opt"
+    ],
+    [
+      "magick",
+      "vips"
+    ],
+    [
+      "pillow",
+      "pillow_opt"
+    ],
+    [
+      "pillow",
+      "vips"
+    ],
+    [
+      "pillow_opt",
+      "vips"
+    ]
+  ],
+  "target_results": [
+    {
+      "same_sampling": true,
+      "same_quant_tables": true,
+      "same_quant_slots": true,
+      "same_progressive_flag": true,
+      "components": {
+        "Cb": {
+          "same_shape": true,
+          "shape": [
+            64,
+            64,
+            8,
+            8
+          ],
+          "coeff_count": 262144,
+          "exact_ratio": 1.0,
+          "mae": 0.0,
+          "rmse": 0.0,
+          "max_abs": 0,
+          "dc_exact_ratio": 1.0,
+          "dc_mae": 0.0,
+          "ac_exact_ratio": 1.0,
+          "ac_mae": 0.0
+        },
+        "Cr": {
+          "same_shape": true,
+          "shape": [
+            64,
+            64,
+            8,
+            8
+          ],
+          "coeff_count": 262144,
+          "exact_ratio": 1.0,
+          "mae": 0.0,
+          "rmse": 0.0,
+          "max_abs": 0,
+          "dc_exact_ratio": 1.0,
+          "dc_mae": 0.0,
+          "ac_exact_ratio": 1.0,
+          "ac_mae": 0.0
+        },
+        "Y": {
+          "same_shape": true,
+          "shape": [
+            128,
+            128,
+            8,
+            8
+          ],
+          "coeff_count": 1048576,
+          "exact_ratio": 1.0,
+          "mae": 0.0,
+          "rmse": 0.0,
+          "max_abs": 0,
+          "dc_exact_ratio": 1.0,
+          "dc_mae": 0.0,
+          "ac_exact_ratio": 1.0,
+          "ac_mae": 0.0
+        }
+      },
+      "overall": {
+        "coeff_count": 1572864,
+        "exact_ratio": 1.0,
+        "mae": 0.0,
+        "rmse": 0.0
+      },
+      "score": 6750.0,
+      "name": "cjpeg_int",
+      "encoder": "cjpeg",
+      "note": "libjpeg-turbo integer FDCT"
+    },
+    {
+      "same_sampling": true,
+      "same_quant_tables": true,
+      "same_quant_slots": true,
+      "same_progressive_flag": true,
+      "components": {
+        "Cb": {
+          "same_shape": true,
+          "shape": [
+            64,
+            64,
+            8,
+            8
+          ],
+          "coeff_count": 262144,
+          "exact_ratio": 1.0,
+          "mae": 0.0,
+          "rmse": 0.0,
+          "max_abs": 0,
+          "dc_exact_ratio": 1.0,
+          "dc_mae": 0.0,
+          "ac_exact_ratio": 1.0,
+          "ac_mae": 0.0
+        },
+        "Cr": {
+          "same_shape": true,
+          "shape": [
+            64,
+            64,
+            8,
+            8
+          ],
+          "coeff_count": 262144,
+          "exact_ratio": 1.0,
+          "mae": 0.0,
+          "rmse": 0.0,
+          "max_abs": 0,
+          "dc_exact_ratio": 1.0,
+          "dc_mae": 0.0,
+          "ac_exact_ratio": 1.0,
+          "ac_mae": 0.0
+        },
+        "Y": {
+          "same_shape": true,
+          "shape": [
+            128,
+            128,
+            8,
+            8
+          ],
+          "coeff_count": 1048576,
+          "exact_ratio": 1.0,
+          "mae": 0.0,
+          "rmse": 0.0,
+          "max_abs": 0,
+          "dc_exact_ratio": 1.0,
+          "dc_mae": 0.0,
+          "ac_exact_ratio": 1.0,
+          "ac_mae": 0.0
+        }
+      },
+      "overall": {
+        "coeff_count": 1572864,
+        "exact_ratio": 1.0,
+        "mae": 0.0,
+        "rmse": 0.0
+      },
+      "score": 6750.0,
+      "name": "cjpeg_int_opt",
+      "encoder": "cjpeg",
+      "note": "libjpeg-turbo integer FDCT with optimized Huffman tables"
+    },
+    {
+      "same_sampling": true,
+      "same_quant_tables": true,
+      "same_quant_slots": true,
+      "same_progressive_flag": true,
+      "components": {
+        "Cb": {
+          "same_shape": true,
+          "shape": [
+            64,
+            64,
+            8,
+            8
+          ],
+          "coeff_count": 262144,
+          "exact_ratio": 1.0,
+          "mae": 0.0,
+          "rmse": 0.0,
+          "max_abs": 0,
+          "dc_exact_ratio": 1.0,
+          "dc_mae": 0.0,
+          "ac_exact_ratio": 1.0,
+          "ac_mae": 0.0
+        },
+        "Cr": {
+          "same_shape": true,
+          "shape": [
+            64,
+            64,
+            8,
+            8
+          ],
+          "coeff_count": 262144,
+          "exact_ratio": 1.0,
+          "mae": 0.0,
+          "rmse": 0.0,
+          "max_abs": 0,
+          "dc_exact_ratio": 1.0,
+          "dc_mae": 0.0,
+          "ac_exact_ratio": 1.0,
+          "ac_mae": 0.0
+        },
+        "Y": {
+          "same_shape": true,
+          "shape": [
+            128,
+            128,
+            8,
+            8
+          ],
+          "coeff_count": 1048576,
+          "exact_ratio": 1.0,
+          "mae": 0.0,
+          "rmse": 0.0,
+          "max_abs": 0,
+          "dc_exact_ratio": 1.0,
+          "dc_mae": 0.0,
+          "ac_exact_ratio": 1.0,
+          "ac_mae": 0.0
+        }
+      },
+      "overall": {
+        "coeff_count": 1572864,
+        "exact_ratio": 1.0,
+        "mae": 0.0,
+        "rmse": 0.0
+      },
+      "score": 6750.0,
+      "name": "gm",
+      "encoder": "gm",
+      "note": "GraphicsMagick JPEG writer"
+    },
+    {
+      "same_sampling": true,
+      "same_quant_tables": true,
+      "same_quant_slots": true,
+      "same_progressive_flag": true,
+      "components": {
+        "Cb": {
+          "same_shape": true,
+          "shape": [
+            64,
+            64,
+            8,
+            8
+          ],
+          "coeff_count": 262144,
+          "exact_ratio": 1.0,
+          "mae": 0.0,
+          "rmse": 0.0,
+          "max_abs": 0,
+          "dc_exact_ratio": 1.0,
+          "dc_mae": 0.0,
+          "ac_exact_ratio": 1.0,
+          "ac_mae": 0.0
+        },
+        "Cr": {
+          "same_shape": true,
+          "shape": [
+            64,
+            64,
+            8,
+            8
+          ],
+          "coeff_count": 262144,
+          "exact_ratio": 1.0,
+          "mae": 0.0,
+          "rmse": 0.0,
+          "max_abs": 0,
+          "dc_exact_ratio": 1.0,
+          "dc_mae": 0.0,
+          "ac_exact_ratio": 1.0,
+          "ac_mae": 0.0
+        },
+        "Y": {
+          "same_shape": true,
+          "shape": [
+            128,
+            128,
+            8,
+            8
+          ],
+          "coeff_count": 1048576,
+          "exact_ratio": 1.0,
+          "mae": 0.0,
+          "rmse": 0.0,
+          "max_abs": 0,
+          "dc_exact_ratio": 1.0,
+          "dc_mae": 0.0,
+          "ac_exact_ratio": 1.0,
+          "ac_mae": 0.0
+        }
+      },
+      "overall": {
+        "coeff_count": 1572864,
+        "exact_ratio": 1.0,
+        "mae": 0.0,
+        "rmse": 0.0
+      },
+      "score": 6750.0,
+      "name": "magick",
+      "encoder": "magick",
+      "note": "ImageMagick JPEG writer"
+    },
+    {
+      "same_sampling": true,
+      "same_quant_tables": true,
+      "same_quant_slots": true,
+      "same_progressive_flag": true,
+      "components": {
+        "Cb": {
+          "same_shape": true,
+          "shape": [
+            64,
+            64,
+            8,
+            8
+          ],
+          "coeff_count": 262144,
+          "exact_ratio": 1.0,
+          "mae": 0.0,
+          "rmse": 0.0,
+          "max_abs": 0,
+          "dc_exact_ratio": 1.0,
+          "dc_mae": 0.0,
+          "ac_exact_ratio": 1.0,
+          "ac_mae": 0.0
+        },
+        "Cr": {
+          "same_shape": true,
+          "shape": [
+            64,
+            64,
+            8,
+            8
+          ],
+          "coeff_count": 262144,
+          "exact_ratio": 1.0,
+          "mae": 0.0,
+          "rmse": 0.0,
+          "max_abs": 0,
+          "dc_exact_ratio": 1.0,
+          "dc_mae": 0.0,
+          "ac_exact_ratio": 1.0,
+          "ac_mae": 0.0
+        },
+        "Y": {
+          "same_shape": true,
+          "shape": [
+            128,
+            128,
+            8,
+            8
+          ],
+          "coeff_count": 1048576,
+          "exact_ratio": 1.0,
+          "mae": 0.0,
+          "rmse": 0.0,
+          "max_abs": 0,
+          "dc_exact_ratio": 1.0,
+          "dc_mae": 0.0,
+          "ac_exact_ratio": 1.0,
+          "ac_mae": 0.0
+        }
+      },
+      "overall": {
+        "coeff_count": 1572864,
+        "exact_ratio": 1.0,
+        "mae": 0.0,
+        "rmse": 0.0
+      },
+      "score": 6750.0,
+      "name": "pillow",
+      "encoder": "pillow",
+      "note": "Pillow save() using libjpeg backend"
+    },
+    {
+      "same_sampling": true,
+      "same_quant_tables": true,
+      "same_quant_slots": true,
+      "same_progressive_flag": true,
+      "components": {
+        "Cb": {
+          "same_shape": true,
+          "shape": [
+            64,
+            64,
+            8,
+            8
+          ],
+          "coeff_count": 262144,
+          "exact_ratio": 1.0,
+          "mae": 0.0,
+          "rmse": 0.0,
+          "max_abs": 0,
+          "dc_exact_ratio": 1.0,
+          "dc_mae": 0.0,
+          "ac_exact_ratio": 1.0,
+          "ac_mae": 0.0
+        },
+        "Cr": {
+          "same_shape": true,
+          "shape": [
+            64,
+            64,
+            8,
+            8
+          ],
+          "coeff_count": 262144,
+          "exact_ratio": 1.0,
+          "mae": 0.0,
+          "rmse": 0.0,
+          "max_abs": 0,
+          "dc_exact_ratio": 1.0,
+          "dc_mae": 0.0,
+          "ac_exact_ratio": 1.0,
+          "ac_mae": 0.0
+        },
+        "Y": {
+          "same_shape": true,
+          "shape": [
+            128,
+            128,
+            8,
+            8
+          ],
+          "coeff_count": 1048576,
+          "exact_ratio": 1.0,
+          "mae": 0.0,
+          "rmse": 0.0,
+          "max_abs": 0,
+          "dc_exact_ratio": 1.0,
+          "dc_mae": 0.0,
+          "ac_exact_ratio": 1.0,
+          "ac_mae": 0.0
+        }
+      },
+      "overall": {
+        "coeff_count": 1572864,
+        "exact_ratio": 1.0,
+        "mae": 0.0,
+        "rmse": 0.0
+      },
+      "score": 6750.0,
+      "name": "pillow_opt",
+      "encoder": "pillow",
+      "note": "Pillow save() with optimize=True"
+    },
+    {
+      "same_sampling": true,
+      "same_quant_tables": true,
+      "same_quant_slots": true,
+      "same_progressive_flag": true,
+      "components": {
+        "Cb": {
+          "same_shape": true,
+          "shape": [
+            64,
+            64,
+            8,
+            8
+          ],
+          "coeff_count": 262144,
+          "exact_ratio": 1.0,
+          "mae": 0.0,
+          "rmse": 0.0,
+          "max_abs": 0,
+          "dc_exact_ratio": 1.0,
+          "dc_mae": 0.0,
+          "ac_exact_ratio": 1.0,
+          "ac_mae": 0.0
+        },
+        "Cr": {
+          "same_shape": true,
+          "shape": [
+            64,
+            64,
+            8,
+            8
+          ],
+          "coeff_count": 262144,
+          "exact_ratio": 1.0,
+          "mae": 0.0,
+          "rmse": 0.0,
+          "max_abs": 0,
+          "dc_exact_ratio": 1.0,
+          "dc_mae": 0.0,
+          "ac_exact_ratio": 1.0,
+          "ac_mae": 0.0
+        },
+        "Y": {
+          "same_shape": true,
+          "shape": [
+            128,
+            128,
+            8,
+            8
+          ],
+          "coeff_count": 1048576,
+          "exact_ratio": 1.0,
+          "mae": 0.0,
+          "rmse": 0.0,
+          "max_abs": 0,
+          "dc_exact_ratio": 1.0,
+          "dc_mae": 0.0,
+          "ac_exact_ratio": 1.0,
+          "ac_mae": 0.0
+        }
+      },
+      "overall": {
+        "coeff_count": 1572864,
+        "exact_ratio": 1.0,
+        "mae": 0.0,
+        "rmse": 0.0
+      },
+      "score": 6750.0,
+      "name": "vips",
+      "encoder": "vips",
+      "note": "libvips jpegsave"
+    },
+    {
+      "same_sampling": true,
+      "same_quant_tables": true,
+      "same_quant_slots": true,
+      "same_progressive_flag": true,
+      "components": {
+        "Cb": {
+          "same_shape": true,
+          "shape": [
+            64,
+            64,
+            8,
+            8
+          ],
+          "coeff_count": 262144,
+          "exact_ratio": 0.9984321594238281,
+          "mae": 0.001567840576171875,
+          "rmse": 0.03959596666545565,
+          "max_abs": 1,
+          "dc_exact_ratio": 0.99267578125,
+          "dc_mae": 0.00732421875,
+          "ac_exact_ratio": 0.9985235305059523,
+          "ac_mae": 0.001476469494047619
+        },
+        "Cr": {
+          "same_shape": true,
+          "shape": [
+            64,
+            64,
+            8,
+            8
+          ],
+          "coeff_count": 262144,
+          "exact_ratio": 0.9969711303710938,
+          "mae": 0.00302886962890625,
+          "rmse": 0.05503516720158348,
+          "max_abs": 1,
+          "dc_exact_ratio": 0.929443359375,
+          "dc_mae": 0.070556640625,
+          "ac_exact_ratio": 0.9980429997519841,
+          "ac_mae": 0.001957000248015873
+        },
+        "Y": {
+          "same_shape": true,
+          "shape": [
+            128,
+            128,
+            8,
+            8
+          ],
+          "coeff_count": 1048576,
+          "exact_ratio": 0.9963922500610352,
+          "mae": 0.0036077499389648438,
+          "rmse": 0.06006454810422571,
+          "max_abs": 1,
+          "dc_exact_ratio": 0.988037109375,
+          "dc_mae": 0.011962890625,
+          "ac_exact_ratio": 0.9965248713417659,
+          "ac_mae": 0.003475128658234127
+        }
+      },
+      "overall": {
+        "coeff_count": 1572864,
+        "exact_ratio": 0.9968287150065104,
+        "mae": 0.0031712849934895835,
+        "rmse": 0.05631416334715081
+      },
+      "score": 6746.765289306641,
+      "name": "cjpeg_float",
+      "encoder": "cjpeg",
+      "note": "libjpeg-turbo float FDCT"
+    },
+    {
+      "same_sampling": true,
+      "same_quant_tables": true,
+      "same_quant_slots": true,
+      "same_progressive_flag": true,
+      "components": {
+        "Cb": {
+          "same_shape": true,
+          "shape": [
+            64,
+            64,
+            8,
+            8
+          ],
+          "coeff_count": 262144,
+          "exact_ratio": 0.9928741455078125,
+          "mae": 0.0073699951171875,
+          "rmse": 0.08864691967117357,
+          "max_abs": 2,
+          "dc_exact_ratio": 1.0,
+          "dc_mae": 0.0,
+          "ac_exact_ratio": 0.9927610367063492,
+          "ac_mae": 0.007486979166666667
+        },
+        "Cr": {
+          "same_shape": true,
+          "shape": [
+            64,
+            64,
+            8,
+            8
+          ],
+          "coeff_count": 262144,
+          "exact_ratio": 0.99371337890625,
+          "mae": 0.006317138671875,
+          "rmse": 0.07986346992289403,
+          "max_abs": 2,
+          "dc_exact_ratio": 1.0,
+          "dc_mae": 0.0,
+          "ac_exact_ratio": 0.9936135912698413,
+          "ac_mae": 0.006417410714285714
+        },
+        "Y": {
+          "same_shape": true,
+          "shape": [
+            128,
+            128,
+            8,
+            8
+          ],
+          "coeff_count": 1048576,
+          "exact_ratio": 0.9817495346069336,
+          "mae": 0.018294334411621094,
+          "rmse": 0.1355805017276838,
+          "max_abs": 2,
+          "dc_exact_ratio": 1.0,
+          "dc_mae": 0.0,
+          "ac_exact_ratio": 0.9814598446800595,
+          "ac_mae": 0.018584720672123016
+        }
+      },
+      "overall": {
+        "coeff_count": 1572864,
+        "exact_ratio": 0.9855976104736328,
+        "mae": 0.014477411905924479,
+        "rmse": 0.12094402285784553
+      },
+      "score": 6735.308062235515,
+      "name": "cjpeg_fast",
+      "encoder": "cjpeg",
+      "note": "libjpeg-turbo fast integer FDCT"
+    }
+  ]
+}

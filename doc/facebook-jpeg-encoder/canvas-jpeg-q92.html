@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Canvas JPEG Q92 Export</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f1e8;
+      --panel: #fffaf2;
+      --ink: #1f1a14;
+      --muted: #6c6257;
+      --accent: #a44b1a;
+      --border: #d8c7b2;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
+      background:
+        radial-gradient(circle at top left, #fff8ef 0, transparent 28rem),
+        linear-gradient(180deg, #efe5d8 0, var(--bg) 30rem);
+      color: var(--ink);
+    }
+
+    main {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 32px 20px 48px;
+    }
+
+    .panel {
+      background: color-mix(in srgb, var(--panel) 94%, white);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 22px;
+      box-shadow: 0 20px 50px rgba(84, 54, 24, 0.08);
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: clamp(2rem, 5vw, 3.25rem);
+      line-height: 0.95;
+      letter-spacing: -0.04em;
+    }
+
+    p {
+      margin: 0 0 14px;
+      line-height: 1.5;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin: 18px 0 18px;
+    }
+
+    button,
+    a.button {
+      appearance: none;
+      border: 0;
+      border-radius: 999px;
+      padding: 12px 18px;
+      font: inherit;
+      text-decoration: none;
+      cursor: pointer;
+      color: white;
+      background: linear-gradient(135deg, #b44d18, var(--accent));
+      box-shadow: 0 10px 22px rgba(164, 75, 26, 0.25);
+    }
+
+    button:disabled,
+    a.button.disabled {
+      cursor: default;
+      opacity: 0.45;
+      box-shadow: none;
+    }
+
+    .facts {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin: 18px 0 24px;
+    }
+
+    .fact {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      background: rgba(255, 255, 255, 0.55);
+    }
+
+    .fact strong {
+      display: block;
+      font-size: 0.82rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    canvas {
+      display: block;
+      width: min(100%, 768px);
+      height: auto;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: white;
+      margin-top: 18px;
+    }
+
+    code {
+      font-family: "Iosevka Term", "Cascadia Code", monospace;
+      font-size: 0.95em;
+    }
+
+    .status {
+      min-height: 1.5em;
+      color: var(--muted);
+    }
+
+    .warning {
+      margin: 0 0 18px;
+      padding: 14px 16px;
+      border-radius: 14px;
+      border: 1px solid #e3b79f;
+      background: #fff0e6;
+      color: #6f2f10;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="panel">
+      <h1>Canvas JPEG Export</h1>
+      <p>This page loads <code>../artifacts/facebook-jpeg-encoder/probe.png</code> into a canvas and exports it as JPEG with browser quality <code>0.92</code>.</p>
+      <p class="muted">Browsers do not provide a standard API to force JPEG chroma subsampling, so <code>4:2:0</code> is not directly specifiable here. Most browsers use their built-in JPEG encoder defaults.</p>
+      <p id="protocol-warning" class="warning" hidden>Open this page through a local HTTP server, not via <code>file://</code>. Direct file access often taints the canvas and causes “The operation is insecure.”</p>
+
+      <div class="facts">
+        <div class="fact">
+          <strong>Source</strong>
+          <span><code>../artifacts/facebook-jpeg-encoder/probe.png</code></span>
+        </div>
+        <div class="fact">
+          <strong>Quality</strong>
+          <span><code>0.92</code> via <code>canvas.toBlob()</code></span>
+        </div>
+        <div class="fact">
+          <strong>Subsampling</strong>
+          <span>Not exposed by standard canvas APIs</span>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button id="reload" type="button">Reload Probe</button>
+        <button id="export" type="button" disabled>Export JPEG</button>
+        <a id="download" class="button disabled" aria-disabled="true">Download JPEG</a>
+      </div>
+
+      <p id="status" class="status">Loading probe image...</p>
+      <canvas id="canvas" width="1024" height="1024"></canvas>
+    </section>
+  </main>
+
+  <script>
+    const probeUrl = "../artifacts/facebook-jpeg-encoder/probe.png";
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d", { alpha: false, colorSpace: "srgb" });
+    const reloadButton = document.getElementById("reload");
+    const exportButton = document.getElementById("export");
+    const downloadLink = document.getElementById("download");
+    const statusEl = document.getElementById("status");
+    const protocolWarning = document.getElementById("protocol-warning");
+
+    let currentBlob = null;
+
+    if (location.protocol === "file:") {
+      protocolWarning.hidden = false;
+    }
+
+    function setStatus(message) {
+      statusEl.textContent = message;
+    }
+
+    function clearDownload() {
+      if (downloadLink.href) {
+        URL.revokeObjectURL(downloadLink.href);
+      }
+      downloadLink.removeAttribute("href");
+      downloadLink.classList.add("disabled");
+      downloadLink.setAttribute("aria-disabled", "true");
+      currentBlob = null;
+    }
+
+    async function loadProbe() {
+      clearDownload();
+      exportButton.disabled = true;
+      setStatus("Loading probe image...");
+
+      const image = new Image();
+      image.decoding = "async";
+      image.src = probeUrl + "?t=" + Date.now();
+
+      await image.decode();
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(image, 0, 0);
+
+      exportButton.disabled = false;
+      setStatus(`Loaded ${image.naturalWidth}x${image.naturalHeight} probe into canvas.`);
+    }
+
+    async function exportJpeg() {
+      clearDownload();
+      setStatus("Encoding JPEG via canvas.toBlob()...");
+
+      const blob = await new Promise((resolve, reject) => {
+        canvas.toBlob((result) => {
+          if (!result) {
+            reject(new Error("canvas.toBlob() returned null"));
+            return;
+          }
+          resolve(result);
+        }, "image/jpeg", 0.92);
+      });
+
+      currentBlob = blob;
+      const url = URL.createObjectURL(blob);
+      downloadLink.href = url;
+      downloadLink.download = "canvas-q92.jpg";
+      downloadLink.classList.remove("disabled");
+      downloadLink.setAttribute("aria-disabled", "false");
+      setStatus(`JPEG ready: ${blob.size.toLocaleString()} bytes.`);
+    }
+
+    reloadButton.addEventListener("click", () => {
+      loadProbe().catch((error) => {
+        exportButton.disabled = true;
+        setStatus("Failed to load probe: " + error.message);
+      });
+    });
+
+    exportButton.addEventListener("click", () => {
+      exportJpeg().catch((error) => {
+        clearDownload();
+        setStatus("Failed to export JPEG: " + error.message);
+      });
+    });
+
+    loadProbe().catch((error) => {
+      exportButton.disabled = true;
+      setStatus("Failed to load probe: " + error.message);
+    });
+  </script>
+</body>
+</html>

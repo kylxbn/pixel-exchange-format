@@ -1,0 +1,237 @@
+{
+  "image_size": [
+    1024,
+    1024
+  ],
+  "tile_size": 256,
+  "jpeg_assumptions": {
+    "target_sampling": "4:2:0",
+    "known_quantization_family": "libjpeg Q92"
+  },
+  "tiles": [
+    {
+      "name": "y_basis_low",
+      "description": "Repeated 8x8 luma blocks with low-frequency single-coefficient basis patterns.",
+      "grid_position": [
+        0,
+        0
+      ],
+      "pixel_bounds": {
+        "left": 0,
+        "top": 0,
+        "right_exclusive": 256,
+        "bottom_exclusive": 256
+      }
+    },
+    {
+      "name": "y_basis_high",
+      "description": "Repeated 8x8 luma blocks with higher-frequency single-coefficient basis patterns.",
+      "grid_position": [
+        0,
+        1
+      ],
+      "pixel_bounds": {
+        "left": 256,
+        "top": 0,
+        "right_exclusive": 512,
+        "bottom_exclusive": 256
+      }
+    },
+    {
+      "name": "cb_basis_low",
+      "description": "Repeated 8x8 chroma-Cb basis patterns at constant luma.",
+      "grid_position": [
+        0,
+        2
+      ],
+      "pixel_bounds": {
+        "left": 512,
+        "top": 0,
+        "right_exclusive": 768,
+        "bottom_exclusive": 256
+      }
+    },
+    {
+      "name": "cr_basis_low",
+      "description": "Repeated 8x8 chroma-Cr basis patterns at constant luma.",
+      "grid_position": [
+        0,
+        3
+      ],
+      "pixel_bounds": {
+        "left": 768,
+        "top": 0,
+        "right_exclusive": 1024,
+        "bottom_exclusive": 256
+      }
+    },
+    {
+      "name": "y_chirp_horizontal",
+      "description": "Continuous horizontal luma chirp with mild chroma motion to expose non-block-aligned energy handling.",
+      "grid_position": [
+        1,
+        0
+      ],
+      "pixel_bounds": {
+        "left": 0,
+        "top": 256,
+        "right_exclusive": 256,
+        "bottom_exclusive": 512
+      }
+    },
+    {
+      "name": "y_chirp_vertical",
+      "description": "Continuous vertical luma chirp with mild chroma motion to expose non-block-aligned energy handling.",
+      "grid_position": [
+        1,
+        1
+      ],
+      "pixel_bounds": {
+        "left": 256,
+        "top": 256,
+        "right_exclusive": 512,
+        "bottom_exclusive": 512
+      }
+    },
+    {
+      "name": "chroma_bars_vertical",
+      "description": "One-pixel vertical chroma bars at constant luma to stress 4:2:0 downsampling and chroma phase.",
+      "grid_position": [
+        1,
+        2
+      ],
+      "pixel_bounds": {
+        "left": 512,
+        "top": 256,
+        "right_exclusive": 768,
+        "bottom_exclusive": 512
+      }
+    },
+    {
+      "name": "chroma_bars_horizontal",
+      "description": "One-pixel horizontal chroma bars at constant luma to stress 4:2:0 downsampling and chroma phase.",
+      "grid_position": [
+        1,
+        3
+      ],
+      "pixel_bounds": {
+        "left": 768,
+        "top": 256,
+        "right_exclusive": 1024,
+        "bottom_exclusive": 512
+      }
+    },
+    {
+      "name": "cb_only_bars",
+      "description": "One-pixel vertical Cb-only bars with neutral Cr to isolate blue-difference chroma handling.",
+      "grid_position": [
+        2,
+        0
+      ],
+      "pixel_bounds": {
+        "left": 0,
+        "top": 512,
+        "right_exclusive": 256,
+        "bottom_exclusive": 768
+      }
+    },
+    {
+      "name": "mcu_phase_edges",
+      "description": "Sharp chroma transitions stepped through all 16 horizontal phases inside 16x16 MCUs.",
+      "grid_position": [
+        2,
+        1
+      ],
+      "pixel_bounds": {
+        "left": 256,
+        "top": 512,
+        "right_exclusive": 512,
+        "bottom_exclusive": 768
+      }
+    },
+    {
+      "name": "chroma_impulses",
+      "description": "Single-pixel chroma impulses at varying offsets within each 8x8 block.",
+      "grid_position": [
+        2,
+        2
+      ],
+      "pixel_bounds": {
+        "left": 512,
+        "top": 512,
+        "right_exclusive": 768,
+        "bottom_exclusive": 768
+      }
+    },
+    {
+      "name": "luma_impulses",
+      "description": "Single-pixel luma impulses at varying offsets within each 8x8 block.",
+      "grid_position": [
+        2,
+        3
+      ],
+      "pixel_bounds": {
+        "left": 768,
+        "top": 512,
+        "right_exclusive": 1024,
+        "bottom_exclusive": 768
+      }
+    },
+    {
+      "name": "saturated_quads",
+      "description": "Large saturated color fields, hard edges, and diagonal seams for color conversion and clipping behavior.",
+      "grid_position": [
+        3,
+        0
+      ],
+      "pixel_bounds": {
+        "left": 0,
+        "top": 768,
+        "right_exclusive": 256,
+        "bottom_exclusive": 1024
+      }
+    },
+    {
+      "name": "smooth_ramps",
+      "description": "Smooth RGB ramps with gentle periodic modulation to reveal rounding and low-amplitude bias.",
+      "grid_position": [
+        3,
+        1
+      ],
+      "pixel_bounds": {
+        "left": 256,
+        "top": 768,
+        "right_exclusive": 512,
+        "bottom_exclusive": 1024
+      }
+    },
+    {
+      "name": "zone_plate",
+      "description": "Radial zone-plate style luma/chroma pattern to distribute energy across many frequencies.",
+      "grid_position": [
+        3,
+        2
+      ],
+      "pixel_bounds": {
+        "left": 512,
+        "top": 768,
+        "right_exclusive": 768,
+        "bottom_exclusive": 1024
+      }
+    },
+    {
+      "name": "deterministic_noise",
+      "description": "Deterministic pseudo-random texture with structured low-frequency content for realistic coefficient distributions.",
+      "grid_position": [
+        3,
+        3
+      ],
+      "pixel_bounds": {
+        "left": 768,
+        "top": 768,
+        "right_exclusive": 1024,
+        "bottom_exclusive": 1024
+      }
+    }
+  ]
+}
