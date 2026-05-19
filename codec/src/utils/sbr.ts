@@ -39,6 +39,8 @@ export const PROCESSING_MODE_NAMES = [
 const STEREO_COHERENCE_AMOUNTS = [0.0, 0.33, 0.67, 1.0] as const;
 const STEREO_COHERENCE_THRESHOLDS = [0.20, 0.50, 0.80] as const;
 const STEREO_RESIDUAL_SCALES = [1.0, 0.7, 0.35, 0.0] as const;
+const SBR_SILENCE_RMS_THRESHOLD = 1e-4;
+const SBR_SILENCE_ENERGY_PER_BIN = SBR_SILENCE_RMS_THRESHOLD * SBR_SILENCE_RMS_THRESHOLD;
 
 // Normal Mode: 6 bits = 64 steps, 1dB each (-48 to +15)
 const GAIN_STEP_DB_NORMAL = 1.0;
@@ -556,6 +558,7 @@ function synthesizeBlock(
     // 1. Calculate source RMS and target gains for each band
     const bandGainsDb = new Float32Array(4);
     const bandSourceRMS = new Float32Array(4);
+    const bandActualSourceRMS = new Float32Array(4);
 
     for (let b = 0; b < 4; b++) {
         const bandStart = b * 8;
@@ -569,8 +572,10 @@ function synthesizeBlock(
             }
             srcEnergy += mdctFull[srcIdx] ** 2;
         }
+        const actualSourceRMS = Math.sqrt(srcEnergy / 8);
         const floor = (noiseRatio > 0.5) ? 0.001 : 1e-9;
-        bandSourceRMS[b] = Math.sqrt(srcEnergy / 8) + floor;
+        bandActualSourceRMS[b] = actualSourceRMS;
+        bandSourceRMS[b] = actualSourceRMS + floor;
 
         // Total gain for this band in dB
         bandGainsDb[b] = params.hfGain + params.bandEnvelope[b];
@@ -610,6 +615,7 @@ function synthesizeBlock(
     for (let b = 0; b < 4; b++) {
         const bandStart = b * 8;
         const srcRMS = bandSourceRMS[b]; // Still use band RMS for noise/mix logic
+        const actualSrcRMS = bandActualSourceRMS[b];
         const floor = (noiseRatio > 0.5) ? 0.001 : 1e-9;
 
         for (let i = 0; i < 8; i++) {
@@ -626,6 +632,11 @@ function synthesizeBlock(
             }
 
             const finalGainLin = Math.pow(10, interpolatedGainDb / 20) * temporalMult;
+
+            if (actualSrcRMS <= SBR_SILENCE_RMS_THRESHOLD) {
+                mdctFull[destIdx] = 0;
+                continue;
+            }
 
             const j = bandStart + i;
             let srcReadIdx = srcOffset + j;
@@ -822,6 +833,8 @@ function analyzeHalfSubgroup(
     let prevEnergy = 0;
     let energyRise = 0;
     let energyFall = 0;
+    const blockCount = end - start;
+    const numHfBins = Math.max(1, blockCount * SBR_NUM_BINS);
 
     for (let b = start; b < end; b++) {
         const bins = mdctCoeffsArray[b];
@@ -857,6 +870,23 @@ function analyzeHalfSubgroup(
         prevEnergy = blockTargetEnergy;
     }
 
+    const avgTargetEnergyPerBin = totalTargetEnergy / numHfBins;
+    const avgSourceEnergyPerBin = totalSourceEnergy / numHfBins;
+    const isTargetSilent = avgTargetEnergyPerBin <= SBR_SILENCE_ENERGY_PER_BIN;
+    const isSourceSilent = avgSourceEnergyPerBin <= SBR_SILENCE_ENERGY_PER_BIN;
+
+    if (isTargetSilent && isSourceSilent) {
+        return {
+            hfGain: MIN_GAIN_DB,
+            bandEnvelope: [0, 0, 0, 0],
+            noiseFloorRatio: 0,
+            tonality: 0,
+            patchMode: 0,
+            transientShape: 0,
+            totalEnergy: totalTargetEnergy
+        };
+    }
+
     // Transient shape detection
     let transientShape = 0;
     const maxDelta = Math.max(energyRise, energyFall);
@@ -869,8 +899,10 @@ function analyzeHalfSubgroup(
 
     // HF gain calculation
     // Base gain from average energy ratio
-    let hfGain = 0;
-    if (totalSourceEnergy > 1e-9 && totalTargetEnergy > 1e-9) {
+    let hfGain = MIN_GAIN_DB;
+    if (isTargetSilent) {
+        hfGain = MIN_GAIN_DB;
+    } else if (totalSourceEnergy > 1e-9 && totalTargetEnergy > 1e-9) {
         const ratio = Math.sqrt(totalTargetEnergy / totalSourceEnergy);
         hfGain = 20 * Math.log10(ratio);
     }
@@ -879,8 +911,7 @@ function analyzeHalfSubgroup(
 
     // Tonality from spectral flatness
     let spectralFlatness = 0;
-    const blockCount = end - start;
-    if (blockCount > 0) {
+    if (!isTargetSilent && blockCount > 0) {
         let geomMean = 0;
         let arithMean = 0;
         let count = 0;
@@ -900,8 +931,8 @@ function analyzeHalfSubgroup(
         }
     }
 
-    const tonality = Math.round((1.0 - Math.min(1.0, spectralFlatness)) * 7);
-    const noiseFloorRatio = Math.round(spectralFlatness * 15);
+    const tonality = isTargetSilent ? 0 : Math.round((1.0 - Math.min(1.0, spectralFlatness)) * 7);
+    const noiseFloorRatio = isTargetSilent ? 0 : Math.round(spectralFlatness * 15);
 
     // Patch mode selection
     let bestPatchMode = 0;

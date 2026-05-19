@@ -5,7 +5,9 @@ import { describe, expect, it } from 'vitest';
 import {
     SBR_END_BIN,
     SBR_START_BIN,
+    analyzeRowSBR,
     analyzeStereoRowSbrCues,
+    applySBRSynthesis,
     decodeSBRWord,
     lockStereoRowPatchModes,
     projectStereoCueToHighFrequencies,
@@ -245,6 +247,44 @@ describe('Stereo SBR Cue Analysis', () => {
         for (const subgroup of locked.side.subgroups) {
             expect(subgroup.patchMode).toBe(2);
             expect(subgroup.bandEnvelope.every(v => Math.abs(v) < 0.1)).toBe(true);
+        }
+    });
+});
+
+describe('SBR Silence Handling', () => {
+    it('does not classify silent HF as noisy content', () => {
+        const blocks: Float32Array[] = [];
+        for (let block = 0; block < 4; block++) {
+            blocks.push(new Float32Array(128));
+        }
+
+        const row = analyzeRowSBR(blocks, 4);
+        const subgroup = row.subgroups[0];
+
+        expect(subgroup.temporalMode).toBe(false);
+        expect(subgroup.hfGain).toBeLessThanOrEqual(-47);
+        expect(subgroup.noiseFloorRatio).toBe(0);
+        expect(subgroup.tonality).toBe(0);
+    });
+
+    it('does not synthesize HF noise from a silent source band', () => {
+        const coeffs = new Float32Array(128);
+        const params: SBRParams = {
+            temporalMode: false,
+            hfGain: 0,
+            bandEnvelope: [0, 0, 0, 0],
+            noiseFloorRatio: 15,
+            tonality: 0,
+            patchMode: 0,
+            procMode: 0,
+            stereoCue: 0,
+            transientShape: 0
+        };
+
+        applySBRSynthesis(coeffs, params, 0, 1, 12345, 301);
+
+        for (let bin = SBR_START_BIN; bin < SBR_END_BIN; bin++) {
+            expect(coeffs[bin]).toBe(0);
         }
     });
 });
