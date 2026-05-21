@@ -1,0 +1,1080 @@
+{
+  "meta": {
+    "generated_at": "2026-05-21T15:49:42+08:00",
+    "mode": "advanced",
+    "input_dir": "/mnt/dev/personal/projects/active/codec-bench-framework/input",
+    "report_dir": "/tmp/pxf-pre-61e86ba/doc/artifacts/peaq-reports/20260521-153719",
+    "cli_entry": "/tmp/pxf-pre-61e86ba/cli/dist/index.cjs",
+    "keep_work": false,
+    "transport_recipe": "magick <png> ppm:- | cjpeg -quality 92 -sample 2x2,1x1,1x1 -dct int -optimize > <jpg>"
+  },
+  "summary": {
+    "file_count": 25,
+    "success_count": 25,
+    "failure_count": 0,
+    "avg_odg": -1.4011600000000002,
+    "median_odg": -1.248,
+    "min_odg": -3.144,
+    "max_odg": -0.463,
+    "avg_di": 0.49815999999999994,
+    "avg_effective_bitrate_kbps": 212.3824757983878,
+    "avg_pcm_snr_db": 18.352509038804122,
+    "total_duration_seconds": 6414.401473922902,
+    "total_source_bytes": 1131507154,
+    "total_encoded_bytes": 171021029,
+    "encoded_to_source_ratio": 0.15114445224267667,
+    "overall_effective_bitrate_kbps": 213.29632040684527
+  },
+  "files": [
+    {
+      "name": "Air Supply - Making Love Out Of Nothing At All (Digitally Remastered 1999).wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/Air Supply - Making Love Out Of Nothing At All (Digitally Remastered 1999).wav",
+      "source_size_bytes": 60270270,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 15067500,
+        "duration_seconds": 341.6666666666667,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 4,
+      "png_total_bytes": 45736323,
+      "transport_count": 4,
+      "transport_total_bytes": 9795926,
+      "effective_bitrate_kbps": 229.36802341463414,
+      "decoded_size_bytes": 60270044,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 15067500,
+        "duration_seconds": 341.6666666666667,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -0.951,
+        "di": 0.95
+      },
+      "pcm_stats": {
+        "sample_count": 30135000,
+        "rmse_pcm16": 646.0096059609032,
+        "mae_pcm16": 448.650543454455,
+        "max_abs_error_pcm16": 14129,
+        "snr_db_pcm16": 19.115964070450538
+      }
+    },
+    {
+      "name": "Bad Bunny - Tití Me Preguntó.wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/Bad Bunny - Tití Me Preguntó.wav",
+      "source_size_bytes": 42991864,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 10747905,
+        "duration_seconds": 243.71666666666667,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 4,
+      "png_total_bytes": 31854889,
+      "transport_count": 4,
+      "transport_total_bytes": 6211366,
+      "effective_bitrate_kbps": 203.88809956917183,
+      "decoded_size_bytes": 42991664,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 10747905,
+        "duration_seconds": 243.71666666666667,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -1.612,
+        "di": 0.257
+      },
+      "pcm_stats": {
+        "sample_count": 21495810,
+        "rmse_pcm16": 873.6196669404915,
+        "mae_pcm16": 571.4912285231401,
+        "max_abs_error_pcm16": 14196,
+        "snr_db_pcm16": 20.499737403065343
+      }
+    },
+    {
+      "name": "Belphegor - Baphomet.wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/Belphegor - Baphomet.wav",
+      "source_size_bytes": 50699926,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 12674928,
+        "duration_seconds": 287.41333333333336,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 4,
+      "png_total_bytes": 38328293,
+      "transport_count": 4,
+      "transport_total_bytes": 8174589,
+      "effective_bitrate_kbps": 227.5354147337168,
+      "decoded_size_bytes": 50699756,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 12674928,
+        "duration_seconds": 287.41333333333336,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -0.521,
+        "di": 1.54
+      },
+      "pcm_stats": {
+        "sample_count": 25349856,
+        "rmse_pcm16": 1414.9504748950596,
+        "mae_pcm16": 1084.0669111493178,
+        "max_abs_error_pcm16": 28427,
+        "snr_db_pcm16": 19.098077338827807
+      }
+    },
+    {
+      "name": "Chamillionaire - Ridin' (Album Version).wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/Chamillionaire - Ridin' (Album Version).wav",
+      "source_size_bytes": 53458928,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 13364652,
+        "duration_seconds": 303.05333333333334,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 4,
+      "png_total_bytes": 39586316,
+      "transport_count": 4,
+      "transport_total_bytes": 7742629,
+      "effective_bitrate_kbps": 204.3898719697303,
+      "decoded_size_bytes": 53458652,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 13364652,
+        "duration_seconds": 303.05333333333334,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -0.463,
+        "di": 1.638
+      },
+      "pcm_stats": {
+        "sample_count": 26729304,
+        "rmse_pcm16": 1051.8582144795507,
+        "mae_pcm16": 739.0964939453717,
+        "max_abs_error_pcm16": 14839,
+        "snr_db_pcm16": 19.085218524464203
+      }
+    },
+    {
+      "name": "Chief Keef - Love Sosa.wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/Chief Keef - Love Sosa.wav",
+      "source_size_bytes": 43432240,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 10858008,
+        "duration_seconds": 246.21333333333334,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 4,
+      "png_total_bytes": 32467336,
+      "transport_count": 4,
+      "transport_total_bytes": 6410218,
+      "effective_bitrate_kbps": 208.2817502436911,
+      "decoded_size_bytes": 43432076,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 10858008,
+        "duration_seconds": 246.21333333333334,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -1.342,
+        "di": 0.524
+      },
+      "pcm_stats": {
+        "sample_count": 21716016,
+        "rmse_pcm16": 834.5198725588725,
+        "mae_pcm16": 594.8586123716248,
+        "max_abs_error_pcm16": 23031,
+        "snr_db_pcm16": 23.890553764230894
+      }
+    },
+    {
+      "name": "Depeche Mode - People Are People (2006 Remaster).wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/Depeche Mode - People Are People (2006 Remaster).wav",
+      "source_size_bytes": 40939492,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 10234728,
+        "duration_seconds": 232.08,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 4,
+      "png_total_bytes": 30222011,
+      "transport_count": 4,
+      "transport_total_bytes": 5987367,
+      "effective_bitrate_kbps": 206.3897621509824,
+      "decoded_size_bytes": 40938956,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 10234728,
+        "duration_seconds": 232.08,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -1.248,
+        "di": 0.621
+      },
+      "pcm_stats": {
+        "sample_count": 20469456,
+        "rmse_pcm16": 945.7289375209252,
+        "mae_pcm16": 652.0556291285905,
+        "max_abs_error_pcm16": 22743,
+        "snr_db_pcm16": 16.600265202209446
+      }
+    },
+    {
+      "name": "Dragonforce - Through The Fire And Flames.wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/Dragonforce - Through The Fire And Flames.wav",
+      "source_size_bytes": 77461008,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 19365192,
+        "duration_seconds": 439.12,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 6,
+      "png_total_bytes": 58740352,
+      "transport_count": 6,
+      "transport_total_bytes": 12635856,
+      "effective_bitrate_kbps": 230.20324284933506,
+      "decoded_size_bytes": 77460812,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 19365192,
+        "duration_seconds": 439.12,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -0.71,
+        "di": 1.257
+      },
+      "pcm_stats": {
+        "sample_count": 38730384,
+        "rmse_pcm16": 1215.9253832164748,
+        "mae_pcm16": 938.3081683620798,
+        "max_abs_error_pcm16": 20136,
+        "snr_db_pcm16": 17.427433844556194
+      }
+    },
+    {
+      "name": "Eagles - Hotel California (2013 Remaster).wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/Eagles - Hotel California (2013 Remaster).wav",
+      "source_size_bytes": 69035688,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 17258838,
+        "duration_seconds": 391.35687074829934,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 6,
+      "png_total_bytes": 50916939,
+      "transport_count": 6,
+      "transport_total_bytes": 9941420,
+      "effective_bitrate_kbps": 203.21953169732515,
+      "decoded_size_bytes": 69035396,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 17258838,
+        "duration_seconds": 391.35687074829934,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -2.384,
+        "di": -0.489
+      },
+      "pcm_stats": {
+        "sample_count": 34517676,
+        "rmse_pcm16": 516.7626649879107,
+        "mae_pcm16": 329.22420060956597,
+        "max_abs_error_pcm16": 17428,
+        "snr_db_pcm16": 17.79436316790498
+      }
+    },
+    {
+      "name": "Fearofdark - Rolling Down The Street, In My Katamari.wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/Fearofdark - Rolling Down The Street, In My Katamari.wav",
+      "source_size_bytes": 48629002,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 12157186,
+        "duration_seconds": 275.67315192743763,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 4,
+      "png_total_bytes": 35908364,
+      "transport_count": 4,
+      "transport_total_bytes": 7044339,
+      "effective_bitrate_kbps": 204.42582676616118,
+      "decoded_size_bytes": 48628788,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 12157186,
+        "duration_seconds": 275.67315192743763,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -2.258,
+        "di": -0.364
+      },
+      "pcm_stats": {
+        "sample_count": 24314372,
+        "rmse_pcm16": 870.8923944873304,
+        "mae_pcm16": 605.703644905984,
+        "max_abs_error_pcm16": 10858,
+        "snr_db_pcm16": 16.600211633368296
+      }
+    },
+    {
+      "name": "Fearofdark - Surfing on a Sine Wave.wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/Fearofdark - Surfing on a Sine Wave.wav",
+      "source_size_bytes": 53459994,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 13364938,
+        "duration_seconds": 303.0598185941043,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 4,
+      "png_total_bytes": 39267782,
+      "transport_count": 4,
+      "transport_total_bytes": 7864302,
+      "effective_bitrate_kbps": 207.59735253541768,
+      "decoded_size_bytes": 53459796,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 13364938,
+        "duration_seconds": 303.0598185941043,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -2.034,
+        "di": -0.147
+      },
+      "pcm_stats": {
+        "sample_count": 26729876,
+        "rmse_pcm16": 892.0359724955645,
+        "mae_pcm16": 648.9538470735891,
+        "max_abs_error_pcm16": 11923,
+        "snr_db_pcm16": 17.006953429505003
+      }
+    },
+    {
+      "name": "Luis Fonsi & Daddy Yankee - Despacito.wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/Luis Fonsi & Daddy Yankee - Despacito.wav",
+      "source_size_bytes": 40849732,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 10212384,
+        "duration_seconds": 231.57333333333332,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 4,
+      "png_total_bytes": 30291967,
+      "transport_count": 4,
+      "transport_total_bytes": 6058207,
+      "effective_bitrate_kbps": 209.28858820819897,
+      "decoded_size_bytes": 40849580,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 10212384,
+        "duration_seconds": 231.57333333333332,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -1.149,
+        "di": 0.727
+      },
+      "pcm_stats": {
+        "sample_count": 20424768,
+        "rmse_pcm16": 1044.7720472601304,
+        "mae_pcm16": 740.927777539505,
+        "max_abs_error_pcm16": 28013,
+        "snr_db_pcm16": 18.846678659600073
+      }
+    },
+    {
+      "name": "Mariah Carey - All I Want for Christmas Is You.wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/Mariah Carey - All I Want for Christmas Is You.wav",
+      "source_size_bytes": 42611820,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 10652899,
+        "duration_seconds": 241.56233560090703,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 4,
+      "png_total_bytes": 32472198,
+      "transport_count": 4,
+      "transport_total_bytes": 6946754,
+      "effective_bitrate_kbps": 230.06083237999346,
+      "decoded_size_bytes": 42611640,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 10652899,
+        "duration_seconds": 241.56233560090703,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -1.279,
+        "di": 0.589
+      },
+      "pcm_stats": {
+        "sample_count": 21305798,
+        "rmse_pcm16": 956.3766433708914,
+        "mae_pcm16": 668.2766738424912,
+        "max_abs_error_pcm16": 27628,
+        "snr_db_pcm16": 16.95603290417568
+      }
+    },
+    {
+      "name": "New Order - Regret.wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/New Order - Regret.wav",
+      "source_size_bytes": 44201360,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 11050284,
+        "duration_seconds": 250.57333333333332,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 4,
+      "png_total_bytes": 33003237,
+      "transport_count": 4,
+      "transport_total_bytes": 6875612,
+      "effective_bitrate_kbps": 219.51616027244185,
+      "decoded_size_bytes": 44201180,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 11050284,
+        "duration_seconds": 250.57333333333332,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -0.932,
+        "di": 0.973
+      },
+      "pcm_stats": {
+        "sample_count": 22100568,
+        "rmse_pcm16": 881.03051364559,
+        "mae_pcm16": 649.4986493559803,
+        "max_abs_error_pcm16": 10349,
+        "snr_db_pcm16": 17.960909401607225
+      }
+    },
+    {
+      "name": "Orchestre de Paris - Le Sacre du Printemps - Pt. 1: L'Adoration de la Terre: I. Introduction.wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/Orchestre de Paris - Le Sacre du Printemps - Pt. 1: L'Adoration de la Terre: I. Introduction.wav",
+      "source_size_bytes": 37695872,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 9423876,
+        "duration_seconds": 213.69333333333333,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 4,
+      "png_total_bytes": 28953439,
+      "transport_count": 4,
+      "transport_total_bytes": 4901821,
+      "effective_bitrate_kbps": 183.50861670930306,
+      "decoded_size_bytes": 37695548,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 9423876,
+        "duration_seconds": 213.69333333333333,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -3.144,
+        "di": -1.393
+      },
+      "pcm_stats": {
+        "sample_count": 18847752,
+        "rmse_pcm16": 63.71882728816818,
+        "mae_pcm16": 33.11758314731645,
+        "max_abs_error_pcm16": 1420,
+        "snr_db_pcm16": 20.81515944330667
+      }
+    },
+    {
+      "name": "Orchestre de Paris - Le Sacre du Printemps - Pt. 1: L'Adoration de la Terre: II. Les augures printaniers.wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/Orchestre de Paris - Le Sacre du Printemps - Pt. 1: L'Adoration de la Terre: II. Les augures printaniers.wav",
+      "source_size_bytes": 34805276,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 8701224,
+        "duration_seconds": 197.30666666666667,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 4,
+      "png_total_bytes": 26286419,
+      "transport_count": 4,
+      "transport_total_bytes": 4938399,
+      "effective_bitrate_kbps": 200.23242330044602,
+      "decoded_size_bytes": 34804940,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 8701224,
+        "duration_seconds": 197.30666666666667,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -1.612,
+        "di": 0.256
+      },
+      "pcm_stats": {
+        "sample_count": 17402448,
+        "rmse_pcm16": 165.98598088381794,
+        "mae_pcm16": 97.66055350373695,
+        "max_abs_error_pcm16": 4089,
+        "snr_db_pcm16": 19.887093251552518
+      }
+    },
+    {
+      "name": "Samantha James - Rise.wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/Samantha James - Rise.wav",
+      "source_size_bytes": 46541448,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 11635321,
+        "duration_seconds": 263.8394784580499,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 4,
+      "png_total_bytes": 34422647,
+      "transport_count": 4,
+      "transport_total_bytes": 6470109,
+      "effective_bitrate_kbps": 196.18319556460884,
+      "decoded_size_bytes": 46541328,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 11635321,
+        "duration_seconds": 263.8394784580499,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -1.048,
+        "di": 0.839
+      },
+      "pcm_stats": {
+        "sample_count": 23270642,
+        "rmse_pcm16": 1098.1639843980781,
+        "mae_pcm16": 744.0498833680653,
+        "max_abs_error_pcm16": 16582,
+        "snr_db_pcm16": 18.98680233143464
+      }
+    },
+    {
+      "name": "Scorpions - Always Somewhere.wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/Scorpions - Always Somewhere.wav",
+      "source_size_bytes": 52482572,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 13120632,
+        "duration_seconds": 297.52,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 4,
+      "png_total_bytes": 39661490,
+      "transport_count": 4,
+      "transport_total_bytes": 8227640,
+      "effective_bitrate_kbps": 221.23258940575425,
+      "decoded_size_bytes": 52482572,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 13120632,
+        "duration_seconds": 297.52,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -1.285,
+        "di": 0.583
+      },
+      "pcm_stats": {
+        "sample_count": 26241264,
+        "rmse_pcm16": 1283.2869376386732,
+        "mae_pcm16": 843.2842776552227,
+        "max_abs_error_pcm16": 22633,
+        "snr_db_pcm16": 16.073644301590978
+      }
+    },
+    {
+      "name": "Sergio Mendes & Brasil 66 - Batucada.wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/Sergio Mendes & Brasil 66 - Batucada.wav",
+      "source_size_bytes": 25241946,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 6310416,
+        "duration_seconds": 143.09333333333333,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 2,
+      "png_total_bytes": 17886164,
+      "transport_count": 2,
+      "transport_total_bytes": 3550718,
+      "effective_bitrate_kbps": 198.5120014908684,
+      "decoded_size_bytes": 25241708,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 6310416,
+        "duration_seconds": 143.09333333333333,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -2.083,
+        "di": -0.194
+      },
+      "pcm_stats": {
+        "sample_count": 12620832,
+        "rmse_pcm16": 393.69719178025605,
+        "mae_pcm16": 272.1070845408607,
+        "max_abs_error_pcm16": 5688,
+        "snr_db_pcm16": 17.566933577736904
+      }
+    },
+    {
+      "name": "Sergio Mendes & Brasil 66 - The Look Of Love (Album Version).wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/Sergio Mendes & Brasil 66 - The Look Of Love (Album Version).wav",
+      "source_size_bytes": 29294466,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 7323540,
+        "duration_seconds": 166.06666666666666,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 2,
+      "png_total_bytes": 21178558,
+      "transport_count": 2,
+      "transport_total_bytes": 4114309,
+      "effective_bitrate_kbps": 198.2003532717784,
+      "decoded_size_bytes": 29294204,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 7323540,
+        "duration_seconds": 166.06666666666666,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -2.271,
+        "di": -0.376
+      },
+      "pcm_stats": {
+        "sample_count": 14647080,
+        "rmse_pcm16": 461.85678908937234,
+        "mae_pcm16": 285.10606332456706,
+        "max_abs_error_pcm16": 10152,
+        "snr_db_pcm16": 16.24527085255901
+      }
+    },
+    {
+      "name": "The Winstons - Amen Brother.wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/The Winstons - Amen Brother.wav",
+      "source_size_bytes": 27617646,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 6904296,
+        "duration_seconds": 156.56,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 2,
+      "png_total_bytes": 20529039,
+      "transport_count": 2,
+      "transport_total_bytes": 4399145,
+      "effective_bitrate_kbps": 224.7902401635156,
+      "decoded_size_bytes": 27617228,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 6904296,
+        "duration_seconds": 156.56,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -1.17,
+        "di": 0.704
+      },
+      "pcm_stats": {
+        "sample_count": 13808592,
+        "rmse_pcm16": 807.859980731844,
+        "mae_pcm16": 594.1440062824653,
+        "max_abs_error_pcm16": 7705,
+        "snr_db_pcm16": 18.587701585846197
+      }
+    },
+    {
+      "name": "キャラメル - ウッーウッーウマウマ(ﾟ∀ﾟ) (Speedycake Remix).wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/キャラメル - ウッーウッーウマウマ(ﾟ∀ﾟ) (Speedycake Remix).wav",
+      "source_size_bytes": 30874952,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 7718676,
+        "duration_seconds": 175.02666666666667,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 2,
+      "png_total_bytes": 23404174,
+      "transport_count": 2,
+      "transport_total_bytes": 4965084,
+      "effective_bitrate_kbps": 226.94068713338922,
+      "decoded_size_bytes": 30874748,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 7718676,
+        "duration_seconds": 175.02666666666667,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -0.683,
+        "di": 1.295
+      },
+      "pcm_stats": {
+        "sample_count": 15437352,
+        "rmse_pcm16": 1727.3296124334224,
+        "mae_pcm16": 1293.6108055319332,
+        "max_abs_error_pcm16": 18425,
+        "snr_db_pcm16": 16.512341106750416
+      }
+    },
+    {
+      "name": "山下達郎 - RIDE ON TIME (シングル・ヴァージョン).wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/山下達郎 - RIDE ON TIME (シングル・ヴァージョン).wav",
+      "source_size_bytes": 46746216,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 11686500,
+        "duration_seconds": 265.0,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 4,
+      "png_total_bytes": 34647934,
+      "transport_count": 4,
+      "transport_total_bytes": 7161157,
+      "effective_bitrate_kbps": 216.1858716981132,
+      "decoded_size_bytes": 46746044,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 11686500,
+        "duration_seconds": 265.0,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -1.169,
+        "di": 0.705
+      },
+      "pcm_stats": {
+        "sample_count": 23373000,
+        "rmse_pcm16": 682.3067272471528,
+        "mae_pcm16": 499.17576939203354,
+        "max_abs_error_pcm16": 8414,
+        "snr_db_pcm16": 19.00869361368415
+      }
+    },
+    {
+      "name": "広瀬香美 - Groovy!.wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/広瀬香美 - Groovy!.wav",
+      "source_size_bytes": 46216992,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 11554200,
+        "duration_seconds": 262.0,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 4,
+      "png_total_bytes": 34068097,
+      "transport_count": 4,
+      "transport_total_bytes": 7015631,
+      "effective_bitrate_kbps": 214.21774045801527,
+      "decoded_size_bytes": 46216844,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 11554200,
+        "duration_seconds": 262.0,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -1.505,
+        "di": 0.361
+      },
+      "pcm_stats": {
+        "sample_count": 23108400,
+        "rmse_pcm16": 1052.3829372834798,
+        "mae_pcm16": 725.7987429246508,
+        "max_abs_error_pcm16": 13389,
+        "snr_db_pcm16": 17.217250756634396
+      }
+    },
+    {
+      "name": "日向めぐみ (グミ) - Catch You Catch Me.wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/日向めぐみ (グミ) - Catch You Catch Me.wav",
+      "source_size_bytes": 40090068,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 10022460,
+        "duration_seconds": 227.26666666666668,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 4,
+      "png_total_bytes": 29573995,
+      "transport_count": 4,
+      "transport_total_bytes": 6150822,
+      "effective_bitrate_kbps": 216.51470812555002,
+      "decoded_size_bytes": 40089884,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 10022460,
+        "duration_seconds": 227.26666666666668,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -0.936,
+        "di": 0.968
+      },
+      "pcm_stats": {
+        "sample_count": 20044920,
+        "rmse_pcm16": 1100.053492416911,
+        "mae_pcm16": 802.9296396293923,
+        "max_abs_error_pcm16": 26534,
+        "snr_db_pcm16": 18.235064866129306
+      }
+    },
+    {
+      "name": "石川さゆり - 女人荒野.wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/石川さゆり - 女人荒野.wav",
+      "source_size_bytes": 45858376,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 11464522,
+        "duration_seconds": 259.966485260771,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 4,
+      "png_total_bytes": 34580594,
+      "transport_count": 4,
+      "transport_total_bytes": 7437609,
+      "effective_bitrate_kbps": 228.87901084755214,
+      "decoded_size_bytes": 45858132,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 11464522,
+        "duration_seconds": 259.966485260771,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -1.24,
+        "di": 0.63
+      },
+      "pcm_stats": {
+        "sample_count": 22929044,
+        "rmse_pcm16": 797.3766755598676,
+        "mae_pcm16": 565.6354544916918,
+        "max_abs_error_pcm16": 11947,
+        "snr_db_pcm16": 18.794370938912223
+      }
+    }
+  ]
+}
