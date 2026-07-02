@@ -28,6 +28,7 @@ import { decodeRGBToPoint } from '../utils/obb';
 const BAND_MAP = AUDIO_PSYCHOACOUSTICS.bandMap;
 const BLOCK_MAP_8X8 = AUDIO_PSYCHOACOUSTICS.blockMap.luma8x8;
 const BLOCK_MAP_4X4 = AUDIO_PSYCHOACOUSTICS.blockMap.chroma4x4;
+const BLOCK_MAP_CHROMA_8X8 = AUDIO_PSYCHOACOUSTICS.blockMap.chroma8x8;
 
 export interface DecodeBlockBuffers {
     spatialY: Float32Array;
@@ -65,7 +66,8 @@ export function decodeBlockToCoefficients(
     whiteningProfile: MdctWhiteningProfile,
     bandFactors: Float32Array, coeffBuffer: Float32Array,
     buffers: DecodeBlockBuffers,
-    debugCapture?: DecodeBlockDebugCapture
+    debugCapture?: DecodeBlockDebugCapture,
+    formatVersion: number = FORMAT_VERSION
 ): Float32Array {
     // Check for invalid scaling factors - output silence if any are zero
     if (maxY === 0 || maxC === 0 || bandFactors.some(f => f === 0)) {
@@ -73,6 +75,7 @@ export function decodeBlockToCoefficients(
         return coeffBuffer;
     }
 
+    const isV301 = formatVersion >= 301;
     const bx = (blockIndex % BLOCKS_PER_ROW) * 8;
     const by = Math.floor(blockIndex / BLOCKS_PER_ROW) * 8;
 
@@ -80,30 +83,63 @@ export function decodeBlockToCoefficients(
     buffers.spatialCb.fill(0);
     buffers.spatialCr.fill(0);
 
-    for (let y = 0; y < 8; y++) {
-        for (let x = 0; x < 8; x++) {
-            const off = ((by + y) * width + (bx + x)) * 4;
-            const idx = y * 8 + x;
-            const cIdx = (y >> 1) * 4 + (x >> 1);
+    if (isV301) {
+        // Chroma lives in a shared 8x8 block spanning the 2x2 luma group
+        // (16x16 px, NN-upsampled). The data area is 16px-aligned, so the
+        // superblock origin is the block position rounded down to 16.
+        const sbx = bx & ~15;
+        const sby = by & ~15;
+        const obx = bx - sbx;
+        const oby = by - sby;
 
-            const [p1, p2, p3] = decodeRGBToPoint(data[off], data[off + 1], data[off + 2]);
+        for (let y = 0; y < 16; y++) {
+            const ly = y - oby;
+            for (let x = 0; x < 16; x++) {
+                const off = ((sby + y) * width + (sbx + x)) * 4;
+                const cIdx = (y >> 1) * 8 + (x >> 1);
 
-            buffers.spatialY[idx] = p1;
-            buffers.spatialCb[cIdx] += p2;
-            buffers.spatialCr[cIdx] += p3;
+                const [p1, p2, p3] = decodeRGBToPoint(data[off], data[off + 1], data[off + 2]);
+
+                buffers.spatialCb[cIdx] += p2;
+                buffers.spatialCr[cIdx] += p3;
+
+                const lx = x - obx;
+                if (ly >= 0 && ly < 8 && lx >= 0 && lx < 8) {
+                    buffers.spatialY[ly * 8 + lx] = p1;
+                }
+            }
         }
-    }
 
-    for (let i = 0; i < 16; i++) {
-        buffers.spatialCb[i] /= 4.0;
-        buffers.spatialCr[i] /= 4.0;
+        for (let i = 0; i < 64; i++) {
+            buffers.spatialCb[i] /= 4.0;
+            buffers.spatialCr[i] /= 4.0;
+        }
+    } else {
+        for (let y = 0; y < 8; y++) {
+            for (let x = 0; x < 8; x++) {
+                const off = ((by + y) * width + (bx + x)) * 4;
+                const idx = y * 8 + x;
+                const cIdx = (y >> 1) * 4 + (x >> 1);
+
+                const [p1, p2, p3] = decodeRGBToPoint(data[off], data[off + 1], data[off + 2]);
+
+                buffers.spatialY[idx] = p1;
+                buffers.spatialCb[cIdx] += p2;
+                buffers.spatialCr[cIdx] += p3;
+            }
+        }
+
+        for (let i = 0; i < 16; i++) {
+            buffers.spatialCb[i] /= 4.0;
+            buffers.spatialCr[i] /= 4.0;
+        }
     }
 
     // CAPTURE: Raw Spatial Pixels
     if (debugCapture) {
         if (debugCapture.rawPixelsY) debugCapture.rawPixelsY.set(buffers.spatialY);
-        if (debugCapture.rawPixelsCb) debugCapture.rawPixelsCb.set(buffers.spatialCb.subarray(0, 16));
-        if (debugCapture.rawPixelsCr) debugCapture.rawPixelsCr.set(buffers.spatialCr.subarray(0, 16));
+        if (debugCapture.rawPixelsCb) debugCapture.rawPixelsCb.set(buffers.spatialCb.subarray(0, debugCapture.rawPixelsCb.length));
+        if (debugCapture.rawPixelsCr) debugCapture.rawPixelsCr.set(buffers.spatialCr.subarray(0, debugCapture.rawPixelsCr.length));
     }
 
     // Spatial Unscaling (with numerical stability)
@@ -112,26 +148,45 @@ export function decodeBlockToCoefficients(
         // Clamp extreme values to prevent numerical instability
         buffers.spatialY[k] = Math.max(-1e9, Math.min(1e9, buffers.spatialY[k]));
     }
-    for (let k = 0; k < 16; k++) {
-        buffers.spatialCb[k] /= maxC;
-        buffers.spatialCr[k] /= maxC;
-        // Clamp extreme values to prevent numerical instability
-        buffers.spatialCb[k] = Math.max(-1e9, Math.min(1e9, buffers.spatialCb[k]));
-        buffers.spatialCr[k] = Math.max(-1e9, Math.min(1e9, buffers.spatialCr[k]));
+    if (!isV301) {
+        // v301 unscales chroma per-coefficient after the DCT, because
+        // neighboring blocks in the shared superblock have their own scales
+        for (let k = 0; k < 16; k++) {
+            buffers.spatialCb[k] /= maxC;
+            buffers.spatialCr[k] /= maxC;
+            // Clamp extreme values to prevent numerical instability
+            buffers.spatialCb[k] = Math.max(-1e9, Math.min(1e9, buffers.spatialCb[k]));
+            buffers.spatialCr[k] = Math.max(-1e9, Math.min(1e9, buffers.spatialCr[k]));
+        }
     }
 
     // --- STEP 2: DCT TO FREQUENCY DOMAIN ---
     dct8x8(buffers.spatialY, buffers.dctY, buffers.temp);
-    dct4x4(buffers.spatialCb, buffers.dctCb, buffers.temp);
-    dct4x4(buffers.spatialCr, buffers.dctCr, buffers.temp);
+    if (isV301) {
+        dct8x8(buffers.spatialCb, buffers.dctCb, buffers.temp);
+        dct8x8(buffers.spatialCr, buffers.dctCr, buffers.temp);
+    } else {
+        dct4x4(buffers.spatialCb, buffers.dctCb, buffers.temp);
+        dct4x4(buffers.spatialCr, buffers.dctCr, buffers.temp);
+    }
 
     // --- STEP 3: APPLY LUMA/CHROMA SCALING (REVERSE) ---
     for (let k = 0; k < 64; k++) {
         coeffBuffer[k] = buffers.dctY[BLOCK_MAP_8X8[k]];
     }
-    for (let k = 0; k < 16; k++) {
-        coeffBuffer[64 + 2 * k] = buffers.dctCb[BLOCK_MAP_4X4[k]];
-        coeffBuffer[65 + 2 * k] = buffers.dctCr[BLOCK_MAP_4X4[k]];
+    if (isV301) {
+        // This block's bins sit at importance rank 4k + ordinal in the shared map
+        const ordinal = (Math.floor(blockIndex / BLOCKS_PER_ROW) & 1) * 2 + (blockIndex % 2);
+        for (let k = 0; k < 16; k++) {
+            const pos = BLOCK_MAP_CHROMA_8X8[4 * k + ordinal];
+            coeffBuffer[64 + 2 * k] = Math.max(-1e9, Math.min(1e9, buffers.dctCb[pos] / maxC));
+            coeffBuffer[65 + 2 * k] = Math.max(-1e9, Math.min(1e9, buffers.dctCr[pos] / maxC));
+        }
+    } else {
+        for (let k = 0; k < 16; k++) {
+            coeffBuffer[64 + 2 * k] = buffers.dctCb[BLOCK_MAP_4X4[k]];
+            coeffBuffer[65 + 2 * k] = buffers.dctCr[BLOCK_MAP_4X4[k]];
+        }
     }
 
     // CAPTURE: MDCT bins after flat-layout but BEFORE ANY SCALING
@@ -214,7 +269,7 @@ export function decodeBlock(
     formatVersion: number = FORMAT_VERSION
 ): Float32Array {
     decodeBlockToCoefficients(
-        data, width, blockIndex, maxY, maxC, whiteningProfile, bandFactors, coeffBuffer, buffers, debugCapture
+        data, width, blockIndex, maxY, maxC, whiteningProfile, bandFactors, coeffBuffer, buffers, debugCapture, formatVersion
     );
 
     const selection = selectSbrParamsForBlock(sbrBytes, colInAudioArea, formatVersion);
@@ -278,7 +333,9 @@ export function decodeStereoBlocks(
         midBlock.whiteningProfile,
         midBlock.bandFactors,
         midBlock.coeffBuffer,
-        buffers
+        buffers,
+        undefined,
+        formatVersion
     );
     decodeBlockToCoefficients(
         sideBlock.data,
@@ -289,7 +346,9 @@ export function decodeStereoBlocks(
         sideBlock.whiteningProfile,
         sideBlock.bandFactors,
         sideBlock.coeffBuffer,
-        buffers
+        buffers,
+        undefined,
+        formatVersion
     );
 
     const midSelection = selectSbrParamsForBlock(midBlock.sbrBytes, colInAudioArea, formatVersion);

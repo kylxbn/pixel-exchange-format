@@ -5,6 +5,37 @@ import { SILENCE_THRESHOLD, SUBGROUP_A_SIZE, SUBGROUP_X_SIZE } from '../constant
 
 export class ScalingUtils {
     /**
+     * Calculate luma-only scaling factors for a row of spatial data.
+     * Used by the v301 path where chroma scales are computed at row-pair level.
+     */
+    public static calculateLumaScalingFactors(
+        rowSpatialY: Float32Array,
+        rowDataCount: number
+    ): { scaleYA: number; scaleYB: number } {
+        let maxLumaA = 0;
+        let maxLumaB = 0;
+
+        for (let i = 0; i < rowDataCount; i++) {
+            const spatialOffsetY = i * 64;
+            const isA = i < SUBGROUP_A_SIZE;
+
+            for (let j = 0; j < 64; j++) {
+                const val = Math.abs(rowSpatialY[spatialOffsetY + j]);
+                if (isA) {
+                    maxLumaA = Math.max(maxLumaA, val);
+                } else {
+                    maxLumaB = Math.max(maxLumaB, val);
+                }
+            }
+        }
+
+        const scaleYA = maxLumaA > SILENCE_THRESHOLD ? Math.min(65504, 1.0 / maxLumaA) : 65504;
+        const scaleYB = maxLumaB > SILENCE_THRESHOLD ? Math.min(65504, 1.0 / maxLumaB) : 65504;
+
+        return { scaleYA, scaleYB };
+    }
+
+    /**
      * Calculate scaling factors for a row of spatial data to ensure no clipping.
      * Uses max-based scaling to prevent values from exceeding the representable range.
      */

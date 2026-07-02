@@ -31,6 +31,10 @@ import type { SimpleImageData } from './audio';
 const BAND_MAP = AUDIO_PSYCHOACOUSTICS.bandMap;
 const BLOCK_MAP_8X8 = AUDIO_PSYCHOACOUSTICS.blockMap.luma8x8;
 const BLOCK_MAP_4X4 = AUDIO_PSYCHOACOUSTICS.blockMap.chroma4x4;
+const BLOCK_MAP_CHROMA_8X8 = AUDIO_PSYCHOACOUSTICS.blockMap.chroma8x8;
+
+// v301: one 8x8 chroma block spans a 2x2 group of luma blocks (16x16 px)
+const SUPERBLOCK_COLS = DATA_BLOCKS_PER_ROW / 2; // 62
 
 export interface EncodeRowBuffers {
     winFrame: Float32Array;
@@ -63,8 +67,12 @@ export interface PreparedAudioRow {
     rowDataCount: number;
     rowMDCTCoeffs: Float32Array[];
     rowSpatialY: Float32Array;
+    // v300: per-block 4x4 chroma spatial samples (16 per block)
     rowSpatialCb: Float32Array;
     rowSpatialCr: Float32Array;
+    // v301: per-block chroma MDCT coefficients (16 per block, bins 64..95)
+    rowChromaCb: Float32Array;
+    rowChromaCr: Float32Array;
     scaleYA: number;
     scaleYB: number;
     scaleCAX: number;
@@ -85,14 +93,18 @@ export function prepareAudioRow(
     windowSize: number,
     mdctWindow: Float32Array,
     whiteningProfile: MdctWhiteningProfile | null,
-    buffers: EncodeRowBuffers
+    buffers: EncodeRowBuffers,
+    formatVersion: number = FORMAT_VERSION
 ): PreparedAudioRow {
+    const isV301 = formatVersion >= 301;
     const rowCoeffsBuffer = new Float32Array(rowDataCount * 96);
     const rowMDCTCoeffs: Float32Array[] = [];
 
     const rowSpatialY = new Float32Array(rowDataCount * 64);
-    const rowSpatialCb = new Float32Array(rowDataCount * 16);
-    const rowSpatialCr = new Float32Array(rowDataCount * 16);
+    const rowSpatialCb = new Float32Array(isV301 ? 0 : rowDataCount * 16);
+    const rowSpatialCr = new Float32Array(isV301 ? 0 : rowDataCount * 16);
+    const rowChromaCb = new Float32Array(isV301 ? rowDataCount * 16 : 0);
+    const rowChromaCr = new Float32Array(isV301 ? rowDataCount * 16 : 0);
 
     for (let i = 0; i < rowDataCount; i++) {
         const audioBlockIdx = firstImageBlockInRow + i;
@@ -179,31 +191,52 @@ export function prepareAudioRow(
             buffers.dctY[BLOCK_MAP_8X8[k]] = buffers.mdctCoeffs[k];
         }
 
-        for (let k = 0; k < 16; k++) {
-            const cbBin = 64 + 2 * k;
-            const crBin = 65 + 2 * k;
-            buffers.dctCb[BLOCK_MAP_4X4[k]] = buffers.mdctCoeffs[cbBin];
-            buffers.dctCr[BLOCK_MAP_4X4[k]] = buffers.mdctCoeffs[crBin];
-        }
-
         idct8x8(buffers.dctY, buffers.spatialY, buffers.temp);
-        idct4x4(buffers.dctCb, buffers.spatialCb, buffers.temp);
-        idct4x4(buffers.dctCr, buffers.spatialCr, buffers.temp);
 
         const spatialOffsetY = i * 64;
-        const spatialOffsetC = i * 16;
+        const offsetC = i * 16;
         for (let j = 0; j < 64; j++) {
             rowSpatialY[spatialOffsetY + j] = buffers.spatialY[j];
         }
-        for (let j = 0; j < 16; j++) {
-            rowSpatialCb[spatialOffsetC + j] = buffers.spatialCb[j];
-            rowSpatialCr[spatialOffsetC + j] = buffers.spatialCr[j];
+
+        if (isV301) {
+            // Chroma spatial samples are produced per superblock at row-pair
+            // level (prepareRowPairChroma); only keep the coefficients here.
+            for (let k = 0; k < 16; k++) {
+                rowChromaCb[offsetC + k] = buffers.mdctCoeffs[64 + 2 * k];
+                rowChromaCr[offsetC + k] = buffers.mdctCoeffs[65 + 2 * k];
+            }
+        } else {
+            for (let k = 0; k < 16; k++) {
+                buffers.dctCb[BLOCK_MAP_4X4[k]] = buffers.mdctCoeffs[64 + 2 * k];
+                buffers.dctCr[BLOCK_MAP_4X4[k]] = buffers.mdctCoeffs[65 + 2 * k];
+            }
+
+            idct4x4(buffers.dctCb, buffers.spatialCb, buffers.temp);
+            idct4x4(buffers.dctCr, buffers.spatialCr, buffers.temp);
+
+            for (let j = 0; j < 16; j++) {
+                rowSpatialCb[offsetC + j] = buffers.spatialCb[j];
+                rowSpatialCr[offsetC + j] = buffers.spatialCr[j];
+            }
         }
     }
 
-    const { scaleYA, scaleYB, scaleCAX, scaleCAY, scaleCBX, scaleCBY } = ScalingUtils.calculateRowScalingFactors(
-        rowSpatialY, rowSpatialCb, rowSpatialCr, rowDataCount
-    );
+    let scaleYA: number;
+    let scaleYB: number;
+    let scaleCAX = 65504;
+    let scaleCAY = 65504;
+    let scaleCBX = 65504;
+    let scaleCBY = 65504;
+
+    if (isV301) {
+        // Chroma scales are filled in by prepareRowPairChroma
+        ({ scaleYA, scaleYB } = ScalingUtils.calculateLumaScalingFactors(rowSpatialY, rowDataCount));
+    } else {
+        ({ scaleYA, scaleYB, scaleCAX, scaleCAY, scaleCBX, scaleCBY } = ScalingUtils.calculateRowScalingFactors(
+            rowSpatialY, rowSpatialCb, rowSpatialCr, rowDataCount
+        ));
+    }
 
     return {
         rowDataCount,
@@ -211,6 +244,8 @@ export function prepareAudioRow(
         rowSpatialY,
         rowSpatialCb,
         rowSpatialCr,
+        rowChromaCb,
+        rowChromaCr,
         scaleYA,
         scaleYB,
         scaleCAX,
@@ -223,6 +258,11 @@ export function prepareAudioRow(
     };
 }
 
+/**
+ * Writes a prepared row using the v300 layout (per-block 4x4 chroma).
+ * Only valid for rows prepared with formatVersion <= 300; the v301 path
+ * uses writePreparedAudioRowPair.
+ */
 export function writePreparedAudioRow(
     rowIndex: number,
     firstAudioBlockIndex: number,
@@ -324,10 +364,241 @@ export function writePreparedAudioRow(
     );
 }
 
-export function processRow(
-    rowIndex: number,
-    rowDataCount: number,
-    firstImageBlockInRow: number,
+export interface PreparedPairChroma {
+    // Combined 8x8 chroma spatial samples per superblock (SUPERBLOCK_COLS * 64)
+    superCb: Float32Array;
+    superCr: Float32Array;
+}
+
+function chromaGroupIndex(i: number): number {
+    const isA = i < SUBGROUP_A_SIZE;
+    const isX = (i % SUBGROUP_A_SIZE) < SUBGROUP_X_SIZE;
+    return (isA ? 0 : 2) + (isX ? 0 : 1); // 0=AX, 1=AY, 2=BX, 3=BY
+}
+
+/**
+ * v301 chroma preparation for a pair of rows. Each 2x2 group of luma blocks
+ * shares one 8x8 Cb and one 8x8 Cr coefficient block; importance rank 4k + o
+ * of the 8x8 chroma map holds bin k of block ordinal o = rowParity * 2 + colParity.
+ * Computes per-(row, quadrant) chroma scales (assigned back onto top/bottom)
+ * and returns the combined superblock spatial samples for pixel writing.
+ */
+export function prepareRowPairChroma(
+    top: PreparedAudioRow,
+    bottom: PreparedAudioRow,
+    buffers: EncodeRowBuffers
+): PreparedPairChroma {
+    const rows = [top, bottom];
+
+    // Per-block solo spatial contributions (IDCT is linear, so the combined
+    // superblock is the sum of individually scaled solo contributions)
+    const soloCb = rows.map(row => new Float32Array(row.rowDataCount * 64));
+    const soloCr = rows.map(row => new Float32Array(row.rowDataCount * 64));
+    const soloMax = rows.map(row => new Float32Array(row.rowDataCount));
+
+    for (let r = 0; r < 2; r++) {
+        const row = rows[r];
+        for (let i = 0; i < row.rowDataCount; i++) {
+            const ordinal = r * 2 + (i & 1);
+            buffers.dctCb.fill(0);
+            buffers.dctCr.fill(0);
+            for (let k = 0; k < 16; k++) {
+                const pos = BLOCK_MAP_CHROMA_8X8[4 * k + ordinal];
+                buffers.dctCb[pos] = row.rowChromaCb[i * 16 + k];
+                buffers.dctCr[pos] = row.rowChromaCr[i * 16 + k];
+            }
+            idct8x8(buffers.dctCb, buffers.spatialCb, buffers.temp);
+            idct8x8(buffers.dctCr, buffers.spatialCr, buffers.temp);
+
+            let m = 0;
+            const off = i * 64;
+            for (let j = 0; j < 64; j++) {
+                soloCb[r][off + j] = buffers.spatialCb[j];
+                soloCr[r][off + j] = buffers.spatialCr[j];
+                m = Math.max(m, Math.abs(buffers.spatialCb[j]), Math.abs(buffers.spatialCr[j]));
+            }
+            soloMax[r][i] = m;
+        }
+    }
+
+    // Candidate scales per (row, quadrant), same max-based semantics as v300
+    const groupMax = [
+        [0, 0, 0, 0],
+        [0, 0, 0, 0]
+    ];
+    for (let r = 0; r < 2; r++) {
+        for (let i = 0; i < rows[r].rowDataCount; i++) {
+            const g = chromaGroupIndex(i);
+            groupMax[r][g] = Math.max(groupMax[r][g], soloMax[r][i]);
+        }
+    }
+    const silent = groupMax.map(maxes => maxes.map(m => m <= SILENCE_THRESHOLD));
+    const scales = groupMax.map(maxes => maxes.map(m => m > SILENCE_THRESHOLD ? Math.min(65504, 1.0 / m) : 65504));
+
+    const superCb = new Float32Array(SUPERBLOCK_COLS * 64);
+    const superCr = new Float32Array(SUPERBLOCK_COLS * 64);
+
+    const computeCombined = () => {
+        superCb.fill(0);
+        superCr.fill(0);
+        for (let r = 0; r < 2; r++) {
+            const row = rows[r];
+            for (let i = 0; i < row.rowDataCount; i++) {
+                const s = scales[r][chromaGroupIndex(i)];
+                const src = i * 64;
+                const dst = (i >> 1) * 64;
+                for (let j = 0; j < 64; j++) {
+                    superCb[dst + j] += s * soloCb[r][src + j];
+                    superCr[dst + j] += s * soloCr[r][src + j];
+                }
+            }
+        }
+    };
+
+    // Up to 4 different scales mix inside one superblock, so the max-based
+    // candidates cannot guarantee |spatial| <= 1 by themselves. Shrink the
+    // participating (row, quadrant) groups until nothing clips.
+    const EPS = 1e-6;
+    for (let iter = 0; ; iter++) {
+        computeCombined();
+
+        const shrink = [
+            [1, 1, 1, 1],
+            [1, 1, 1, 1]
+        ];
+        let worst = 1;
+        for (let c = 0; c < SUPERBLOCK_COLS; c++) {
+            let m = 0;
+            const off = c * 64;
+            for (let j = 0; j < 64; j++) {
+                m = Math.max(m, Math.abs(superCb[off + j]), Math.abs(superCr[off + j]));
+            }
+            if (m > 1 + EPS) {
+                worst = Math.max(worst, m);
+                for (let r = 0; r < 2; r++) {
+                    for (let i = c * 2; i <= c * 2 + 1; i++) {
+                        if (i < rows[r].rowDataCount) {
+                            const g = chromaGroupIndex(i);
+                            shrink[r][g] = Math.max(shrink[r][g], m);
+                        }
+                    }
+                }
+            }
+        }
+        if (worst <= 1 + EPS) break;
+
+        if (iter >= 8) {
+            // Uniform fallback: shrinking every contributing group by the
+            // worst overshoot scales all superblocks linearly, so this is an
+            // exact fix in one step.
+            for (let r = 0; r < 2; r++) {
+                for (let g = 0; g < 4; g++) {
+                    if (!silent[r][g]) scales[r][g] /= worst;
+                }
+            }
+            computeCombined();
+            break;
+        }
+
+        for (let r = 0; r < 2; r++) {
+            for (let g = 0; g < 4; g++) {
+                if (!silent[r][g]) scales[r][g] /= shrink[r][g];
+            }
+        }
+    }
+
+    top.scaleCAX = scales[0][0];
+    top.scaleCAY = scales[0][1];
+    top.scaleCBX = scales[0][2];
+    top.scaleCBY = scales[0][3];
+    bottom.scaleCAX = scales[1][0];
+    bottom.scaleCAY = scales[1][1];
+    bottom.scaleCBX = scales[1][2];
+    bottom.scaleCBY = scales[1][3];
+
+    return { superCb, superCr };
+}
+
+/**
+ * Writes a prepared pair of rows using the v301 layout: per-block luma plus
+ * shared superblock chroma NN-upsampled to 16x16 px. Chroma pixels cover the
+ * full data extent of both rows (missing blocks get silent luma) because the
+ * superblock IDCT spreads energy across all four block areas.
+ */
+export function writePreparedAudioRowPair(
+    topRowIndex: number,
+    firstAudioBlockIndex: number,
+    top: PreparedAudioRow,
+    bottom: PreparedAudioRow,
+    pairChroma: PreparedPairChroma,
+    imageData: SimpleImageData,
+    writeRowMetadata: RowMetadataWriter,
+    formatVersion: number = FORMAT_VERSION
+): void {
+    const rows = [top, bottom];
+    const { superCb, superCr } = pairChroma;
+
+    for (let r = 0; r < 2; r++) {
+        const row = rows[r];
+        const rowIndex = topRowIndex + r;
+        const sbrBytes = AUDIO_PSYCHOACOUSTICS.enableSbr
+            ? encodeRowSBR(row.sbrParams, formatVersion)
+            : new Uint8Array(ROW_META_SBR_BYTES);
+
+        for (let i = 0; i < DATA_BLOCKS_PER_ROW; i++) {
+            const hasData = i < row.rowDataCount;
+            const scaleY = i < SUBGROUP_A_SIZE ? row.scaleYA : row.scaleYB;
+
+            const imgBlockIdx = firstAudioBlockIndex + rowIndex * BLOCKS_PER_ROW + i;
+            const bx = (imgBlockIdx % BLOCKS_PER_ROW) * 8;
+            const by = Math.floor(imgBlockIdx / BLOCKS_PER_ROW) * 8;
+
+            const superOff = (i >> 1) * 64;
+            const spatialOffsetY = i * 64;
+
+            for (let y = 0; y < 8; y++) {
+                const cy = (r * 8 + y) >> 1;
+                for (let x = 0; x < 8; x++) {
+                    const cx = ((i & 1) * 8 + x) >> 1;
+                    const cIdx = cy * 8 + cx;
+
+                    const [rr, gg, bb] = encodePointToRGB([
+                        hasData ? row.rowSpatialY[spatialOffsetY + y * 8 + x] * scaleY : 0,
+                        superCb[superOff + cIdx],
+                        superCr[superOff + cIdx]
+                    ]);
+
+                    const off = ((by + y) * IMAGE_WIDTH + (bx + x)) * 4;
+                    imageData.data[off] = Math.max(0, Math.min(255, Math.round(rr)));
+                    imageData.data[off + 1] = Math.max(0, Math.min(255, Math.round(gg)));
+                    imageData.data[off + 2] = Math.max(0, Math.min(255, Math.round(bb)));
+                    imageData.data[off + 3] = 255;
+                }
+            }
+        }
+
+        const metaBlockIdx = firstAudioBlockIndex + rowIndex * BLOCKS_PER_ROW + DATA_BLOCKS_PER_ROW;
+        writeRowMetadata(
+            rowIndex,
+            row.scaleYA,
+            row.scaleYB,
+            row.scaleCAX,
+            row.scaleCAY,
+            row.scaleCBX,
+            row.scaleCBY,
+            row.bandFactorsA,
+            row.bandFactorsB,
+            sbrBytes,
+            imageData,
+            metaBlockIdx
+        );
+    }
+}
+
+export function processRowPair(
+    topRowIndex: number,
+    topRowDataCount: number,
+    bottomRowDataCount: number,
     firstAudioBlockIndex: number,
     totalAudioBlocks: number,
     paddedAudio: Float32Array,
@@ -335,14 +606,24 @@ export function processRow(
     hopSize: number,
     windowSize: number,
     mdctWindow: Float32Array,
-    sampleRate: number,
     whiteningProfile: MdctWhiteningProfile | null,
     buffers: EncodeRowBuffers,
     writeRowMetadata: RowMetadataWriter
 ): void {
-    const preparedRow = prepareAudioRow(
-        rowDataCount,
-        firstImageBlockInRow,
+    const top = prepareAudioRow(
+        topRowDataCount,
+        topRowIndex * DATA_BLOCKS_PER_ROW,
+        totalAudioBlocks,
+        paddedAudio,
+        hopSize,
+        windowSize,
+        mdctWindow,
+        whiteningProfile,
+        buffers
+    );
+    const bottom = prepareAudioRow(
+        bottomRowDataCount,
+        (topRowIndex + 1) * DATA_BLOCKS_PER_ROW,
         totalAudioBlocks,
         paddedAudio,
         hopSize,
@@ -352,12 +633,15 @@ export function processRow(
         buffers
     );
 
-    writePreparedAudioRow(
-        rowIndex,
+    const pairChroma = prepareRowPairChroma(top, bottom, buffers);
+
+    writePreparedAudioRowPair(
+        topRowIndex,
         firstAudioBlockIndex,
-        preparedRow,
+        top,
+        bottom,
+        pairChroma,
         imageData,
-        buffers,
         writeRowMetadata
     );
 }

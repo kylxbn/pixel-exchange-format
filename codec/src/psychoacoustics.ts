@@ -63,6 +63,21 @@ export const Q92PM1_CHROMA_4X4_FLAT = new Uint8Array([
     11, 13, 14, 15
 ]);
 
+// Derived from the average of ImageMagick/libjpeg Q91/Q92/Q93 chroma tables
+// over all 64 JPEG chroma zigzag slots. Used by v301+ where one 8x8 chroma
+// block spans a 2x2 group of luma blocks (16x16 px at 4:2:0). The chroma
+// tables flatten beyond the early slots, so the tail resolves to zigzag order.
+export const Q92PM1_CHROMA_8X8_FLAT = new Uint8Array([
+    0, 1, 8, 9, 16, 2, 10, 17,
+    3, 24, 18, 25, 11, 32, 4, 5,
+    12, 19, 26, 33, 40, 48, 41, 34,
+    27, 20, 13, 6, 7, 14, 21, 28,
+    35, 42, 49, 56, 57, 50, 43, 36,
+    29, 22, 15, 23, 30, 37, 44, 51,
+    58, 59, 52, 45, 38, 31, 39, 46,
+    53, 60, 61, 54, 47, 55, 62, 63
+]);
+
 // Derived from weighted ImageMagick/libjpeg Q84..Q100 tables using triangular
 // weights centered on Q92. See:
 // doc/notes/jpeg-q84-q100-q92pm8-quant-rankings.txt
@@ -86,6 +101,20 @@ export const Q92PM8_CHROMA_4X4_FLAT = new Uint8Array([
     11, 13, 14, 15
 ]);
 
+// Derived from weighted ImageMagick/libjpeg Q84..Q100 chroma tables over all
+// 64 JPEG chroma zigzag slots using the same Q92-centered weighting. Equal to
+// the Q92PM1 ranking because the chroma tables flatten beyond the early slots.
+export const Q92PM8_CHROMA_8X8_FLAT = new Uint8Array([
+    0, 1, 8, 9, 16, 2, 10, 17,
+    3, 24, 18, 25, 11, 32, 4, 5,
+    12, 19, 26, 33, 40, 48, 41, 34,
+    27, 20, 13, 6, 7, 14, 21, 28,
+    35, 42, 49, 56, 57, 50, 43, 36,
+    29, 22, 15, 23, 30, 37, 44, 51,
+    58, 59, 52, 45, 38, 31, 39, 46,
+    53, 60, 61, 54, 47, 55, 62, 63
+]);
+
 const DEFAULT_BAND_MAP = new Int8Array(64);
 for (let k = 0; k < 64; k++) {
     if (k < 3) DEFAULT_BAND_MAP[k] = 0;
@@ -98,18 +127,22 @@ export const AUDIO_PIXEL_MAPPING_PRESETS = {
     zigzag: {
         luma8x8: ZIGZAG_8X8_FLAT,
         chroma4x4: ZIGZAG_4X4_FLAT,
+        chroma8x8: ZIGZAG_8X8_FLAT,
     },
     q92pm1: {
         luma8x8: Q92PM1_LUMA_8X8_FLAT,
         chroma4x4: Q92PM1_CHROMA_4X4_FLAT,
+        chroma8x8: Q92PM1_CHROMA_8X8_FLAT,
     },
     q92pm8: {
         luma8x8: Q92PM8_LUMA_8X8_FLAT,
         chroma4x4: Q92PM8_CHROMA_4X4_FLAT,
+        chroma8x8: Q92PM8_CHROMA_8X8_FLAT,
     },
     raster: {
         luma8x8: RASTER_8X8_FLAT,
         chroma4x4: RASTER_4X4_FLAT,
+        chroma8x8: RASTER_8X8_FLAT,
     },
 } as const;
 

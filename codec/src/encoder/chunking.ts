@@ -62,7 +62,9 @@ export class ChunkingUtils {
         const maxTotalBlocks = maxBlockRows * blocksPerRow;
         const firstAudioBlockIndex = 2 * blocksPerRow;
         const maxAudioBlocks = maxTotalBlocks - firstAudioBlockIndex;
-        const maxImageRows = Math.floor(maxAudioBlocks / blocksPerRow);
+        // v301: data rows come in pairs (16x16 chroma superblocks), so a chunk
+        // must fit after the encoder rounds its row count up to even
+        const maxImageRows = 2 * Math.floor(Math.floor(maxAudioBlocks / blocksPerRow) / 2);
         const maxTotalImageBlocks = maxImageRows * dataBlocksPerRow;
         const hopSize = MDCT_HOP_SIZE;
         return maxTotalImageBlocks * hopSize;

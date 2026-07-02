@@ -1,0 +1,114 @@
+{
+  "meta": {
+    "generated_at": "2026-07-02T21:00:03+08:00",
+    "mode": "advanced",
+    "input_dir": "/mnt/dev/personal/projects/active/codec-bench-framework/input",
+    "report_dir": "/mnt/dev/personal/projects/active/pixel-exchange-format/doc/artifacts/peaq-reports/20260702-205845",
+    "cli_entry": "/mnt/dev/personal/projects/active/pixel-exchange-format/cli/dist/index.cjs",
+    "keep_work": false,
+    "transport_recipe": "magick <png> ppm:- | cjpeg -quality 92 -sample 2x2,1x1,1x1 -dct int -optimize > <jpg>"
+  },
+  "summary": {
+    "file_count": 2,
+    "success_count": 2,
+    "failure_count": 0,
+    "avg_odg": -1.258,
+    "median_odg": -1.258,
+    "min_odg": -1.632,
+    "max_odg": -0.884,
+    "avg_di": 0.635,
+    "avg_effective_bitrate_kbps": 216.90886270482684,
+    "avg_pcm_snr_db": 20.216974122225658,
+    "total_duration_seconds": 585.3833333333333,
+    "total_source_bytes": 103262134,
+    "total_encoded_bytes": 16016457,
+    "encoded_to_source_ratio": 0.155104842206728,
+    "overall_effective_bitrate_kbps": 218.88504284941493
+  },
+  "files": [
+    {
+      "name": "Air Supply - Making Love Out Of Nothing At All (Digitally Remastered 1999).wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/Air Supply - Making Love Out Of Nothing At All (Digitally Remastered 1999).wav",
+      "source_size_bytes": 60270270,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 15067500,
+        "duration_seconds": 341.6666666666667,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 4,
+      "png_total_bytes": 46600623,
+      "transport_count": 4,
+      "transport_total_bytes": 9768216,
+      "effective_bitrate_kbps": 228.719203902439,
+      "decoded_size_bytes": 60270044,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 15067500,
+        "duration_seconds": 341.6666666666667,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -0.884,
+        "di": 1.032
+      },
+      "pcm_stats": {
+        "sample_count": 30135000,
+        "rmse_pcm16": 623.6192651805777,
+        "mae_pcm16": 431.7554349427576,
+        "max_abs_error_pcm16": 13883,
+        "snr_db_pcm16": 19.42235312413739
+      }
+    },
+    {
+      "name": "Bad Bunny - Tití Me Preguntó.wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/Bad Bunny - Tití Me Preguntó.wav",
+      "source_size_bytes": 42991864,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 10747905,
+        "duration_seconds": 243.71666666666667,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 4,
+      "png_total_bytes": 32999303,
+      "transport_count": 4,
+      "transport_total_bytes": 6248241,
+      "effective_bitrate_kbps": 205.09852150721466,
+      "decoded_size_bytes": 42991664,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 10747905,
+        "duration_seconds": 243.71666666666667,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -1.632,
+        "di": 0.238
+      },
+      "pcm_stats": {
+        "sample_count": 21495810,
+        "rmse_pcm16": 823.6249922193654,
+        "mae_pcm16": 534.4724743101098,
+        "max_abs_error_pcm16": 13848,
+        "snr_db_pcm16": 21.011595120313924
+      }
+    }
+  ]
+}

@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PXF PEAQ Report</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f1e8;
+      --panel: #fffdf8;
+      --ink: #1f2933;
+      --muted: #5f6c7b;
+      --accent: #8a4f2d;
+      --accent-soft: #e8d7c8;
+      --line: #ddd2c5;
+      --ok: #1d6b49;
+      --fail: #9d2f2f;
+    }
+    body {
+      margin: 0;
+      font-family: "Iosevka Etoile", "IBM Plex Sans", sans-serif;
+      background: radial-gradient(circle at top, #fff7ec 0%, var(--bg) 55%, #efe6d8 100%);
+      color: var(--ink);
+    }
+    main {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 32px 24px 48px;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 2.2rem;
+      letter-spacing: -0.04em;
+    }
+    p {
+      margin: 6px 0;
+      color: var(--muted);
+    }
+    .meta {
+      margin-top: 20px;
+      padding: 18px 20px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: 0 12px 40px rgba(74, 45, 24, 0.08);
+    }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+      margin: 24px 0;
+    }
+    .card {
+      background: linear-gradient(180deg, var(--panel), #f8f3eb);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px;
+    }
+    .label {
+      color: var(--muted);
+      font-size: 0.88rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .value {
+      margin-top: 8px;
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow: 0 12px 40px rgba(74, 45, 24, 0.08);
+    }
+    th, td {
+      padding: 12px 10px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+      text-align: left;
+      font-size: 0.94rem;
+    }
+    th {
+      background: var(--accent-soft);
+      position: sticky;
+      top: 0;
+    }
+    tr:last-child td {
+      border-bottom: 0;
+    }
+    .footer {
+      margin-top: 18px;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>PXF ODG Report</h1>
+    <p>Generated with GstPEAQ in <strong>advanced</strong> mode.</p>
+    <div class="meta">
+      <p><strong>Generated:</strong> 2026-07-02T21:00:03+08:00</p>
+      <p><strong>Input directory:</strong> /mnt/dev/personal/projects/active/codec-bench-framework/input</p>
+      <p><strong>Report directory:</strong> /mnt/dev/personal/projects/active/pixel-exchange-format/doc/artifacts/peaq-reports/20260702-205845</p>
+      <p><strong>Transport path:</strong> magick &lt;png&gt; ppm:- | cjpeg -quality 92 -sample 2x2,1x1,1x1 -dct int -optimize &gt; &lt;jpg&gt;</p>
+    </div>
+    <section class="cards"><div class='card'><div class='label'>Files</div><div class='value'>2</div></div><div class='card'><div class='label'>Succeeded</div><div class='value'>2</div></div><div class='card'><div class='label'>Failed</div><div class='value'>0</div></div><div class='card'><div class='label'>Avg ODG</div><div class='value'>-1.258</div></div><div class='card'><div class='label'>Median ODG</div><div class='value'>-1.258</div></div><div class='card'><div class='label'>Avg DI</div><div class='value'>0.635</div></div><div class='card'><div class='label'>Avg kbps</div><div class='value'>216.909</div></div><div class='card'><div class='label'>Overall kbps</div><div class='value'>218.885</div></div><div class='card'><div class='label'>Avg PCM SNR</div><div class='value'>20.217</div></div><div class='card'><div class='label'>JPEG / Source</div><div class='value'>0.155</div></div></section>
+    <table>
+      <thead>
+        <tr>
+          <th>File</th>
+          <th>Status</th>
+          <th>Ch</th>
+          <th>Hz</th>
+          <th>Bits</th>
+          <th>Sec</th>
+          <th>Source</th>
+          <th>JPEG</th>
+          <th>JPEG Total</th>
+          <th>Eff. kbps</th>
+          <th>ODG</th>
+          <th>DI</th>
+          <th>PCM SNR</th>
+          <th>RMSE</th>
+          <th>Max Err</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Air Supply - Making Love Out Of Nothing At All (Digitally Remastered 1999).wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>341.67</td><td>57.48 MiB</td><td>4</td><td>9.32 MiB</td><td>228.719</td><td>-0.884</td><td>1.032</td><td>19.422</td><td>623.619</td><td>13883</td><td></td></tr><tr><td>Bad Bunny - Tití Me Preguntó.wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>243.72</td><td>41.00 MiB</td><td>4</td><td>5.96 MiB</td><td>205.099</td><td>-1.632</td><td>0.238</td><td>21.012</td><td>823.625</td><td>13848</td><td></td></tr>
+      </tbody>
+    </table>
+    <div class="footer">
+      CLI round-trip path: encode WAV to PXF PNG(s), convert each PNG through the documented Facebook-like JPEG path, decode back to WAV, then compare with GstPEAQ.
+    </div>
+  </main>
+</body>
+</html>

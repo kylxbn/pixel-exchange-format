@@ -14,6 +14,7 @@ import {
     MDCT_HOP_SIZE,
     SILENCE_THRESHOLD,
     BLOCK_SIZE,
+    FORMAT_VERSION,
 } from '../constants';
 import { rowMetaLdpc } from '../constants';
 import { decodeRGBToPoint } from '../utils/obb';
@@ -279,7 +280,7 @@ export class StreamingAudioDecoder {
      * @param blockIndex - Absolute index of the metadata block to decode
      * @returns {AudioRowMetadata} Decoded metadata including scaling factors and SBR data
      */
-    public static decodeRowMetadata(data: Uint8ClampedArray, width: number, blockIndex: number): AudioRowMetadata {
+    public static decodeRowMetadata(data: Uint8ClampedArray, width: number, blockIndex: number, formatVersion: number = FORMAT_VERSION): AudioRowMetadata {
         // Calculate row index from block index
         // metaBlockAbsIdx = (absRow * BLOCKS_PER_ROW) + DATA_BLOCKS_PER_ROW
         // absRow = 2 + rowInAudioArea
@@ -340,50 +341,59 @@ export class StreamingAudioDecoder {
         // Validate decoded values are finite and not NaN
         const scales = [halfToFloat(p1), halfToFloat(p2), halfToFloat(p3), halfToFloat(p4), halfToFloat(p5), halfToFloat(p6)];
 
-        // Compensate for chroma attenuation by scanning the row's chroma values
-        let maxChromaAX = 0, maxChromaAY = 0, maxChromaBX = 0, maxChromaBY = 0;
-        const dataStartBlock = absRow * BLOCKS_PER_ROW;
-        const dataEndBlock = dataStartBlock + DATA_BLOCKS_PER_ROW;
-        for (let blockIdx = dataStartBlock; blockIdx < dataEndBlock; blockIdx++) {
-            const bx = (blockIdx % BLOCKS_PER_ROW) * BLOCK_SIZE;
-            const by = Math.floor(blockIdx / BLOCKS_PER_ROW) * BLOCK_SIZE;
-            const colInRow = blockIdx - dataStartBlock;
-            const isA = colInRow < SUBGROUP_A_SIZE;
-            const isX = (colInRow % SUBGROUP_A_SIZE) < SUBGROUP_X_SIZE;
+        // v300 only: compensate for chroma attenuation by scanning the row's
+        // chroma values. This was a stopgap for improper nearest-neighbor
+        // chroma decoding of JPEG; v301+ relies on the custom JPEG decoder
+        // and uses the stored scales directly.
+        let maxChromaAX = 1, maxChromaAY = 1, maxChromaBX = 1, maxChromaBY = 1;
+        if (formatVersion < 301) {
+            maxChromaAX = 0;
+            maxChromaAY = 0;
+            maxChromaBX = 0;
+            maxChromaBY = 0;
+            const dataStartBlock = absRow * BLOCKS_PER_ROW;
+            const dataEndBlock = dataStartBlock + DATA_BLOCKS_PER_ROW;
+            for (let blockIdx = dataStartBlock; blockIdx < dataEndBlock; blockIdx++) {
+                const bx = (blockIdx % BLOCKS_PER_ROW) * BLOCK_SIZE;
+                const by = Math.floor(blockIdx / BLOCKS_PER_ROW) * BLOCK_SIZE;
+                const colInRow = blockIdx - dataStartBlock;
+                const isA = colInRow < SUBGROUP_A_SIZE;
+                const isX = (colInRow % SUBGROUP_A_SIZE) < SUBGROUP_X_SIZE;
 
-            let localMax = 0;
-            // Scan chroma values in the block (average each 2x2 group)
-            for (let yy = 0; yy < 8; yy += 2) {
-                for (let xx = 0; xx < 8; xx += 2) {
-                    let sumCb = 0, sumCr = 0;
-                    for (let dy = 0; dy < 2; dy++) {
-                        for (let dx = 0; dx < 2; dx++) {
-                            const x = bx + xx + dx;
-                            const y = by + yy + dy;
-                            const off = (y * width + x) * 4;
-                            const [, cb, cr] = decodeRGBToPoint(data[off], data[off + 1], data[off + 2]);
-                            sumCb += cb;
-                            sumCr += cr;
+                let localMax = 0;
+                // Scan chroma values in the block (average each 2x2 group)
+                for (let yy = 0; yy < 8; yy += 2) {
+                    for (let xx = 0; xx < 8; xx += 2) {
+                        let sumCb = 0, sumCr = 0;
+                        for (let dy = 0; dy < 2; dy++) {
+                            for (let dx = 0; dx < 2; dx++) {
+                                const x = bx + xx + dx;
+                                const y = by + yy + dy;
+                                const off = (y * width + x) * 4;
+                                const [, cb, cr] = decodeRGBToPoint(data[off], data[off + 1], data[off + 2]);
+                                sumCb += cb;
+                                sumCr += cr;
+                            }
                         }
+                        const avgCb = sumCb / 4;
+                        const avgCr = sumCr / 4;
+                        localMax = Math.max(localMax, Math.abs(avgCb), Math.abs(avgCr));
                     }
-                    const avgCb = sumCb / 4;
-                    const avgCr = sumCr / 4;
-                    localMax = Math.max(localMax, Math.abs(avgCb), Math.abs(avgCr));
                 }
-            }
 
-            // Accumulate max for the subgroup
-            if (isA) {
-                if (isX) {
-                    maxChromaAX = Math.max(maxChromaAX, localMax);
+                // Accumulate max for the subgroup
+                if (isA) {
+                    if (isX) {
+                        maxChromaAX = Math.max(maxChromaAX, localMax);
+                    } else {
+                        maxChromaAY = Math.max(maxChromaAY, localMax);
+                    }
                 } else {
-                    maxChromaAY = Math.max(maxChromaAY, localMax);
-                }
-            } else {
-                if (isX) {
-                    maxChromaBX = Math.max(maxChromaBX, localMax);
-                } else {
-                    maxChromaBY = Math.max(maxChromaBY, localMax);
+                    if (isX) {
+                        maxChromaBX = Math.max(maxChromaBX, localMax);
+                    } else {
+                        maxChromaBY = Math.max(maxChromaBY, localMax);
+                    }
                 }
             }
         }
@@ -427,7 +437,7 @@ export class StreamingAudioDecoder {
             return this.rowMetaCache.get(key)!;
         }
 
-        const data = StreamingAudioDecoder.decodeRowMetadata(src.data, src.width, metaBlockAbsIdx);
+        const data = StreamingAudioDecoder.decodeRowMetadata(src.data, src.width, metaBlockAbsIdx, src.visualizationMetadata.version);
         this.rowMetaCache.set(key, data);
         return data;
     }

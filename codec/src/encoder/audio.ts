@@ -20,7 +20,7 @@ import { rowMetaLdpc } from '../constants';
 import { ChunkingUtils } from './chunking';
 import { HeaderEncoder } from './header';
 import { TextRenderer } from './text';
-import { prepareAudioRow, processRow, writePreparedAudioRow } from './audioMath';
+import { prepareAudioRow, prepareRowPairChroma, processRowPair, writePreparedAudioRowPair } from './audioMath';
 import type { EncodeRowBuffers } from './audioMath';
 import { analyzeStereoRowSbrCues, applyStereoCuesToRowSBR, lockStereoRowPatchModes } from '../utils/sbr';
 
@@ -48,7 +48,8 @@ export class AudioEncoder {
         const totalAudioBlocks = Math.ceil(totalSamples / hopSize);
         const firstAudioBlockIndex = 2 * BLOCKS_PER_ROW;
         const totalImageBlocksForAudio = totalAudioBlocks; // 1:1 mapping
-        const numImageRows = Math.ceil(totalImageBlocksForAudio / DATA_BLOCKS_PER_ROW);
+        // v301: chroma superblocks span row pairs, so data rows come in pairs
+        const numImageRows = 2 * Math.ceil(Math.ceil(totalImageBlocksForAudio / DATA_BLOCKS_PER_ROW) / 2);
         const totalDataAndMetaBlocks = numImageRows * BLOCKS_PER_ROW;
         const totalBlocks = firstAudioBlockIndex + totalDataAndMetaBlocks;
         const numBlockRows = Math.ceil(totalBlocks / BLOCKS_PER_ROW);
@@ -161,7 +162,7 @@ export class AudioEncoder {
         paddedAudio.set(channelData);
 
         const totalImageBlocksForAudio = totalAudioBlocks;
-        const numImageRows = Math.ceil(totalImageBlocksForAudio / DATA_BLOCKS_PER_ROW);
+        const numImageRows = 2 * Math.ceil(Math.ceil(totalImageBlocksForAudio / DATA_BLOCKS_PER_ROW) / 2);
         const firstAudioBlockIndex = 2 * BLOCKS_PER_ROW;
         const whiteningProfile = getMdctWhiteningProfile(sampleRate);
 
@@ -179,19 +180,22 @@ export class AudioEncoder {
             temp: new Float32Array(64)
         };
 
-        for (let rowIndex = 0; rowIndex < numImageRows; rowIndex++) {
-            if (rowIndex % 5 === 0) {
+        const rowDataCountAt = (rowIndex: number) => Math.max(0, Math.min(
+            DATA_BLOCKS_PER_ROW,
+            totalImageBlocksForAudio - rowIndex * DATA_BLOCKS_PER_ROW
+        ));
+
+        for (let rowIndex = 0; rowIndex < numImageRows; rowIndex += 2) {
+            if (rowIndex % 4 === 0) {
                 if (onProgress) onProgress((rowIndex / numImageRows) * 100);
                 await new Promise(resolve => setTimeout(resolve, 0));
             }
 
-            const firstImageBlockInRow = rowIndex * DATA_BLOCKS_PER_ROW;
-            const rowDataCount = Math.min(DATA_BLOCKS_PER_ROW, totalImageBlocksForAudio - firstImageBlockInRow);
-
-            processRow(
-                rowIndex, rowDataCount, firstImageBlockInRow, firstAudioBlockIndex, totalAudioBlocks,
+            processRowPair(
+                rowIndex, rowDataCountAt(rowIndex), rowDataCountAt(rowIndex + 1),
+                firstAudioBlockIndex, totalAudioBlocks,
                 paddedAudio,
-                imageData, hopSize, windowSize, mdctWindow, sampleRate,
+                imageData, hopSize, windowSize, mdctWindow,
                 whiteningProfile,
                 buffers,
                 AudioEncoder.encodeRowMetadata,
@@ -244,7 +248,7 @@ export class AudioEncoder {
         paddedMid.set(midData);
         paddedSide.set(sideData);
 
-        const numImageRows = Math.ceil(totalAudioBlocks / DATA_BLOCKS_PER_ROW);
+        const numImageRows = 2 * Math.ceil(Math.ceil(totalAudioBlocks / DATA_BLOCKS_PER_ROW) / 2);
         const firstAudioBlockIndex = 2 * BLOCKS_PER_ROW;
         const whiteningProfile = getMdctWhiteningProfile(sampleRate);
 
@@ -260,14 +264,9 @@ export class AudioEncoder {
             temp: new Float32Array(64)
         };
 
-        for (let rowIndex = 0; rowIndex < numImageRows; rowIndex++) {
-            if (rowIndex % 5 === 0) {
-                if (onProgress) onProgress((rowIndex / numImageRows) * 100);
-                await new Promise(resolve => setTimeout(resolve, 0));
-            }
-
+        const prepareStereoRow = (rowIndex: number) => {
             const firstImageBlockInRow = rowIndex * DATA_BLOCKS_PER_ROW;
-            const rowDataCount = Math.min(DATA_BLOCKS_PER_ROW, totalAudioBlocks - firstImageBlockInRow);
+            const rowDataCount = Math.max(0, Math.min(DATA_BLOCKS_PER_ROW, totalAudioBlocks - firstImageBlockInRow));
             const midPrepared = prepareAudioRow(
                 rowDataCount,
                 firstImageBlockInRow,
@@ -299,21 +298,39 @@ export class AudioEncoder {
                 sidePrepared.rowMDCTCoeffs,
                 rowDataCount
             );
+            midPrepared.sbrParams = applyStereoCuesToRowSBR(lockedRows.mid, stereoCues);
+            sidePrepared.sbrParams = applyStereoCuesToRowSBR(lockedRows.side, stereoCues);
+            return { midPrepared, sidePrepared };
+        };
 
-            writePreparedAudioRow(
+        for (let rowIndex = 0; rowIndex < numImageRows; rowIndex += 2) {
+            if (rowIndex % 4 === 0) {
+                if (onProgress) onProgress((rowIndex / numImageRows) * 100);
+                await new Promise(resolve => setTimeout(resolve, 0));
+            }
+
+            const top = prepareStereoRow(rowIndex);
+            const bottom = prepareStereoRow(rowIndex + 1);
+
+            const midPairChroma = prepareRowPairChroma(top.midPrepared, bottom.midPrepared, buffers);
+            const sidePairChroma = prepareRowPairChroma(top.sidePrepared, bottom.sidePrepared, buffers);
+
+            writePreparedAudioRowPair(
                 rowIndex,
                 firstAudioBlockIndex,
-                { ...midPrepared, sbrParams: applyStereoCuesToRowSBR(lockedRows.mid, stereoCues) },
+                top.midPrepared,
+                bottom.midPrepared,
+                midPairChroma,
                 midImageData,
-                buffers,
                 AudioEncoder.encodeRowMetadata
             );
-            writePreparedAudioRow(
+            writePreparedAudioRowPair(
                 rowIndex,
                 firstAudioBlockIndex,
-                { ...sidePrepared, sbrParams: applyStereoCuesToRowSBR(lockedRows.side, stereoCues) },
+                top.sidePrepared,
+                bottom.sidePrepared,
+                sidePairChroma,
                 sideImageData,
-                buffers,
                 AudioEncoder.encodeRowMetadata
             );
         }

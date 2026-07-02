@@ -180,6 +180,8 @@ def build_report(
     luma_order: list[int],
     chroma_rows: list[dict[str, object]],
     chroma_order: list[int],
+    chroma8_rows: list[dict[str, object]],
+    chroma8_order: list[int],
     sampling_factor: str,
 ) -> str:
     lines: list[str] = []
@@ -232,6 +234,20 @@ def build_report(
     lines.append("Derived chroma preset natural-index order")
     lines.append(str(chroma_order))
     lines.append("")
+
+    lines.append("Derived chroma ranking over all 64 JPEG chroma zigzag slots")
+    lines.append("rank slot natural_index (x,y) center weighted_average values")
+    for rank, row in enumerate(chroma8_rows):
+        values = " ".join(f"Q{quality}={int(row['values'][quality])}" for quality in qualities)
+        lines.append(
+            f"{rank:>2} {int(row['slot']):>2} {int(row['natural']):>2} "
+            f"({int(row['x'])},{int(row['y'])}) {int(row['center_value']):>2} "
+            f"{float(row['weighted_average']):.6f} {values}"
+        )
+    lines.append("")
+    lines.append("Derived chroma 8x8 preset natural-index order")
+    lines.append(str(chroma8_order))
+    lines.append("")
     lines.append("As Uint8Array literals")
     lines.append("luma8x8 = [")
     for offset in range(0, len(luma_order), 8):
@@ -242,6 +258,12 @@ def build_report(
     lines.append("chroma4x4 = [")
     for offset in range(0, len(chroma_order), 4):
         chunk = ", ".join(f"{value:>2}" for value in chroma_order[offset:offset + 4])
+        lines.append(f"    {chunk},")
+    lines.append("]")
+    lines.append("")
+    lines.append("chroma8x8 = [")
+    for offset in range(0, len(chroma8_order), 8):
+        chunk = ", ".join(f"{value:>2}" for value in chroma8_order[offset:offset + 8])
         lines.append(f"    {chunk},")
     lines.append("]")
     lines.append("")
@@ -283,6 +305,16 @@ def main() -> None:
         row_width=4,
         center_quality=args.center,
     )
+    chroma8_rows, chroma8_order = rank_component(
+        tables_by_quality=tables_by_quality,
+        qualities=qualities,
+        weights=weights,
+        table_index=1,
+        slot_count=64,
+        natural_order=ZIGZAG_8X8_FLAT,
+        row_width=8,
+        center_quality=args.center,
+    )
 
     report = build_report(
         preset_name=args.preset_name,
@@ -293,6 +325,8 @@ def main() -> None:
         luma_order=luma_order,
         chroma_rows=chroma_rows,
         chroma_order=chroma_order,
+        chroma8_rows=chroma8_rows,
+        chroma8_order=chroma8_order,
         sampling_factor=args.sampling_factor,
     )
     args.report_out.write_text(report + "\n", encoding="utf-8")
@@ -303,6 +337,7 @@ def main() -> None:
         "weights": weights,
         "luma8x8": luma_order,
         "chroma4x4": chroma_order,
+        "chroma8x8": chroma8_order,
     }
     if args.json_out is not None:
         args.json_out.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")

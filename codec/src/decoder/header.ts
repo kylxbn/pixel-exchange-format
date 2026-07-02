@@ -148,9 +148,13 @@ export class HeaderDecoder {
         const totalAudioBlocks = Math.ceil(totalSamples / hopSize);
 
         // Validate minimum height based on content
+        // v301+ audio pads data rows to an even count (16x16 chroma superblocks)
+        const audioDataRows = version >= 301
+            ? 2 * Math.ceil(Math.ceil(totalAudioBlocks / DATA_BLOCKS_PER_ROW) / 2)
+            : Math.ceil(totalAudioBlocks / DATA_BLOCKS_PER_ROW);
         const minRows = channelMode === CHANNEL_MODE.BINARY
             ? 2 + Math.ceil(totalSamples / BINARY_ROW_DATA_CAPACITY)
-            : 2 + Math.ceil(totalAudioBlocks / DATA_BLOCKS_PER_ROW);
+            : 2 + audioDataRows;
         const expectedMinHeight = minRows * BLOCK_SIZE;
 
         if (height < expectedMinHeight) {
