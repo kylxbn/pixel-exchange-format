@@ -6,8 +6,9 @@ Copyright (c) 2026 Kyle Alexander Buan
 <script lang="ts">
     import { browser } from '$app/environment';
     import { goto } from '$app/navigation';
+    import { resolve } from '$app/paths';
 
     if (browser) {
-        goto('/decode', { replaceState: true });
+        goto(resolve('/decode'), { replaceState: true });
     }
 </script>

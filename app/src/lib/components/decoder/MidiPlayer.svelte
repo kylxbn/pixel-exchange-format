@@ -13,6 +13,7 @@ Copyright (c) 2026 Kyle Alexander Buan
     import DownloadIcon from '../icons/DownloadIcon.svelte';
     import Button from '../Button.svelte';
     import Slider from '../Slider.svelte';
+    import { asset } from '$app/paths';
     import { extractMidiInfo, type MidiInfo } from '../../midiLoader';
     import * as m from '$lib/paraglide/messages';
 
@@ -127,7 +128,7 @@ Copyright (c) 2026 Kyle Alexander Buan
             synth.connect(analyser); // Synth -> Analyser -> Gain -> Destination
 
             // Load SoundFont
-            const sfResponse = await fetch('/GeneralUser-GS.sf2');
+            const sfResponse = await fetch(asset('/GeneralUser-GS.sf2'));
             if (!sfResponse.ok) throw new Error(`Failed to load SoundFont: ${sfResponse.statusText}`);
             const sfArrayBuffer = await sfResponse.arrayBuffer();
 

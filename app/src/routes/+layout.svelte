@@ -5,14 +5,29 @@ Copyright (c) 2026 Kyle Alexander Buan
 
 <script lang="ts">
     import './app.css';
+    import { browser } from '$app/environment';
+    import { asset, base } from '$app/paths';
     import { page } from '$app/state';
     import * as m from '$lib/paraglide/messages';
-    import { getLocale, locales, setLocale, localizeHref, deLocalizeHref } from '$lib/paraglide/runtime';
+    import { getLocale, locales, localizeHref, deLocalizeHref, type Locale } from '$lib/paraglide/runtime';
 	import { VERSION } from '@pixel-exchange-format/codec';
     
     let { children } = $props();
     
-    let activePath = $derived(deLocalizeHref(page.url.pathname));
+    let pathWithoutBase = $derived(base && page.url.pathname.startsWith(base)
+        ? page.url.pathname.slice(base.length) || '/'
+        : page.url.pathname);
+    let activePath = $derived(deLocalizeHref(pathWithoutBase));
+
+    function localizeRoute(path: string, options?: Parameters<typeof localizeHref>[1]) {
+        return `${base}${localizeHref(path, options)}`;
+    }
+
+    function switchLocale(locale: Locale) {
+        if (browser) {
+            window.location.href = localizeRoute(pathWithoutBase, { locale });
+        }
+    }
 
     function isActive(path: string) {
         if (path === '/decode' && (activePath === '/decode' || activePath === '/')) return true;
@@ -30,7 +45,7 @@ Copyright (c) 2026 Kyle Alexander Buan
 			<div class="w-6 h-6 flex items-center justify-center">
 				<img
 					class="w-full h-full object-contain filter drop-shadow-sm"
-					src="/favicon/favicon.png"
+					src={asset('/favicon/favicon.png')}
 					alt={m.app_name()}
 				/>
 			</div>
@@ -46,7 +61,7 @@ Copyright (c) 2026 Kyle Alexander Buan
 		<nav class="flex items-center justify-center flex-1">
 			<div class="flex items-center bg-gray-900/50 rounded p-1 border border-gray-700/50 gap-1">
 				<a
-					href={localizeHref('/decode')}
+					href={localizeRoute('/decode')}
 					class={`px-4 py-1 text-xs font-medium rounded transition-all duration-150 ${
 						isActive('/decode')
 							? 'bg-gray-800 text-white shadow-sm ring-1 ring-white/5'
@@ -57,7 +72,7 @@ Copyright (c) 2026 Kyle Alexander Buan
 				</a>
 				<div class="w-px h-3 bg-gray-700/50"></div>
 				<a
-					href={localizeHref('/encode')}
+					href={localizeRoute('/encode')}
 					class={`px-4 py-1 text-xs font-medium rounded transition-all duration-150 ${
 						isActive('/encode')
 							? 'bg-gray-800 text-white shadow-sm ring-1 ring-white/5'
@@ -75,7 +90,7 @@ Copyright (c) 2026 Kyle Alexander Buan
 				class="flex items-center bg-gray-900/50 rounded border border-gray-700/50 overflow-hidden"
 			>
 				<button
-					onclick={() => setLocale('en')}
+					onclick={() => switchLocale('en')}
 					class={`px-2 py-1 text-xs font-bold uppercase transition-colors min-w-7.5 ${
 						getLocale() === 'en'
 							? 'bg-gray-700 text-white'
@@ -86,7 +101,7 @@ Copyright (c) 2026 Kyle Alexander Buan
 				</button>
 				<div class="w-px h-full bg-gray-700/50"></div>
 				<button
-					onclick={() => setLocale('ja')}
+					onclick={() => switchLocale('ja')}
 					class={`px-2 py-1 text-xs font-bold uppercase transition-colors min-w-7.5 ${
 						getLocale() === 'ja'
 							? 'bg-gray-700 text-white'
@@ -106,8 +121,10 @@ Copyright (c) 2026 Kyle Alexander Buan
 	</main>
 </div>
 
-<div style="display:none">
-	{#each locales as locale}
-		<a href={localizeHref(page.url.pathname, { locale })} data-sveltekit-reload>{locale}</a>
-	{/each}
-</div>
+{#if browser}
+	<div style="display:none">
+		{#each locales as locale (locale)}
+			<a href={localizeRoute(pathWithoutBase, { locale })} data-sveltekit-reload>{locale}</a>
+		{/each}
+	</div>
+{/if}

@@ -1,6 +1,9 @@
 import adapter from '@sveltejs/adapter-static';
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 
+const base = process.env.BASE_PATH ?? '';
+const entries = base ? [] : ['/', '/decode', '/encode', '/ja', '/ja/decode', '/ja/encode'];
+
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
     // Consult https://svelte.dev/docs/kit/integrations
@@ -15,9 +18,11 @@ const config = {
             fallback: 'app.html',
         }),
         prerender: {
-            entries: ['/', '/decode', '/encode', '/ja', '/ja/decode', '/ja/encode'],
+            entries,
+            handleUnseenRoutes: base ? 'ignore' : 'fail',
         },
         paths: {
+            base,
             relative: false,
         }
     }
