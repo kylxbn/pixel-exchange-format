@@ -17,7 +17,7 @@ import {
     FORMAT_VERSION,
 } from '../constants';
 import { rowMetaLdpc } from '../constants';
-import { audioBlockToImageBlock, chromaGroupIndex, isLumaSubgroupA } from '../audioLayout';
+import { audioBlockToImageBlock, chromaGroupIndex, isLumaSubgroupA, leadInSamples } from '../audioLayout';
 import { decodeRGBToPoint } from '../utils/obb';
 import { PxfDecoder } from '.';
 import { decodeBlock, decodeStereoBlocks } from './audioMath';
@@ -31,6 +31,7 @@ export class StreamingAudioDecoder {
     /** Mono images, or the mid images of a stereo set, sorted by image index. */
     readonly primarySources: ImageSource[];
 
+    // Next stored block to decode
     private currentAudioBlock: number = 0;
     private overlapL: Float32Array;
     private overlapR: Float32Array;
@@ -177,15 +178,37 @@ export class StreamingAudioDecoder {
         return this.totalSamples / this.sampleRate;
     }
 
+    /** Stored blocks of an image, including its lead-in block if it has one. */
     private blocksInSource(src: ImageSource): number {
-        return Math.ceil(src.totalSamples / this.visualizationMetadata.hopSize);
+        const leadIn = leadInSamples(src.visualizationMetadata.version, src.channelMode, src.imageIndex);
+        return Math.ceil((src.totalSamples + leadIn) / this.visualizationMetadata.hopSize);
     }
 
     /**
-     * Maps a global audio block index onto the primary image that holds it.
-     * Returns null when the index is past the end of the available images.
+     * Stored blocks ahead of the first audio sample. With a lead-in block,
+     * hop n of the audio is the overlap of stored blocks n and n + 1, and
+     * stored block n + 1 is the one centred on it.
+     */
+    private get leadInBlocks(): number {
+        const first = this.primarySources[0];
+        const leadIn = leadInSamples(first.visualizationMetadata.version, first.channelMode, first.imageIndex);
+        return leadIn / this.visualizationMetadata.hopSize;
+    }
+
+    private get totalStoredBlocks(): number {
+        return this.primarySources.reduce((sum, src) => sum + this.blocksInSource(src), 0);
+    }
+
+    /**
+     * Maps a global audio block index (sample position / hop size) onto the
+     * primary image that holds it. localBlockIdx counts the image's stored
+     * blocks. Returns null when the index is past the end of the available images.
      */
     locateBlock(audioBlockIdx: number): { src: ImageSource; localBlockIdx: number } | null {
+        return this.locateStoredBlock(audioBlockIdx + this.leadInBlocks);
+    }
+
+    private locateStoredBlock(audioBlockIdx: number): { src: ImageSource; localBlockIdx: number } | null {
         let accumulated = 0;
         for (const src of this.primarySources) {
             const blocks = this.blocksInSource(src);
@@ -204,7 +227,7 @@ export class StreamingAudioDecoder {
      * @param sampleIndex - The sample index to seek to (0-based)
      */
     seek(sampleIndex: number) {
-        const targetBlock = Math.floor(sampleIndex / this.visualizationMetadata.hopSize);
+        const targetBlock = Math.floor(sampleIndex / this.visualizationMetadata.hopSize) + this.leadInBlocks;
         this.currentAudioBlock = Math.max(0, targetBlock - 1);
         this.overlapL.fill(0);
         this.overlapR.fill(0);
@@ -496,14 +519,14 @@ export class StreamingAudioDecoder {
         const outR = isStereo ? new Float32Array(totalOutSamples) : null;
 
         // Clamp count to available blocks to prevent over-allocation
-        const maxAvailableBlocks = Math.max(0, this.visualizationMetadata.totalAudioBlocks - this.currentAudioBlock);
+        const maxAvailableBlocks = Math.max(0, this.totalStoredBlocks - this.currentAudioBlock);
         const actualCount = Math.min(count, maxAvailableBlocks);
 
         for (let i = 0; i < actualCount; i++) {
             let winL: Float32Array;
             let winR: Float32Array | null = null;
 
-            const located = this.locateBlock(this.currentAudioBlock);
+            const located = this.locateStoredBlock(this.currentAudioBlock);
             const sideSrc = located && isStereo
                 ? sideSrcs.find(s => s.imageIndex === located.src.imageIndex + 1) ?? null
                 : null;

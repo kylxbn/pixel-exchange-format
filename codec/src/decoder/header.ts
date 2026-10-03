@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Kyle Alexander Buan
 
+import { leadInSamples } from "../audioLayout";
 import { BINARY_ROW_DATA_CAPACITY, BLOCK_SIZE, BLOCKS_PER_ROW, CHANNEL_MODE, DATA_BLOCKS_PER_ROW, FORMAT_VERSION, HEADER_PAYLOAD_BYTES, HEADER_TOTAL_BYTES, HEADER_XOR_MASK_SEED, headerLdpc, IMAGE_WIDTH, isSupportedFormatVersion, MDCT_HOP_SIZE, SUPPORTED_FORMAT_VERSIONS } from "../constants";
 import { PxfDecoder } from ".";
 import { bytesToNumber, decodeBytesFromBlocks } from "../utils/audioUtils";
@@ -117,7 +118,7 @@ export class HeaderDecoder {
         }
 
         const hopSize = MDCT_HOP_SIZE; // 128 with SBR
-        const totalAudioBlocks = Math.ceil(totalSamples / hopSize);
+        const totalAudioBlocks = Math.ceil((totalSamples + leadInSamples(version, channelMode, imageIndex)) / hopSize);
 
         // Validate minimum height based on content
         // v301+ audio pads data rows to an even count (16x16 chroma superblocks)

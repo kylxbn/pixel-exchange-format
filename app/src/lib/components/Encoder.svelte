@@ -61,7 +61,7 @@ Copyright (c) 2026 Kyle Alexander Buan
 	function getRecommendedSampleRate(): number | null {
 		const duration = getDetectedDuration();
 		if (!detectedSampleRate || !duration) return null;
-		const maxSamples = ChunkingUtils.calculateMaxSamplesPerImage();
+		const maxSamples = ChunkingUtils.calculateMaxSamplesForFirstImage();
 		const rate = Math.floor(maxSamples / duration);
 		if (!Number.isFinite(rate) || rate <= 0) return null;
 		return Math.min(detectedSampleRate, rate);
@@ -77,7 +77,7 @@ Copyright (c) 2026 Kyle Alexander Buan
 	function getFitsInOneChunk(): boolean {
 		const estimated = getEstimatedSamplesAtTargetRate();
 		if (!estimated) return false;
-		return estimated <= ChunkingUtils.calculateMaxSamplesPerImage();
+		return estimated <= ChunkingUtils.calculateMaxSamplesForFirstImage();
 	}
 
 	// Initialize filename when file is selected

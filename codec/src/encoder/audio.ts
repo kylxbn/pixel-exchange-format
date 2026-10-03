@@ -17,6 +17,7 @@ import {
     MDCT_HOP_SIZE, MDCT_WINDOW_SIZE,
 } from '../constants';
 import { rowMetaLdpc } from '../constants';
+import { leadInSamples } from '../audioLayout';
 import { ChunkingUtils } from './chunking';
 import { HeaderEncoder } from './header';
 import { TextRenderer } from './text';
@@ -26,9 +27,13 @@ import { analyzeStereoRowSbrCues, applyStereoCuesToRowSBR, lockStereoRowPatchMod
 import type { EncodedImageResult, SimpleImageData } from './types';
 
 export class AudioEncoder {
-    public static calculateDimensions(totalSamples: number): { width: number; height: number } {
+    /**
+     * Image size for a chunk of audio. leadIn is the number of lead-in
+     * samples the image stores ahead of the chunk (see leadInSamples).
+     */
+    public static calculateDimensions(totalSamples: number, leadIn: number = 0): { width: number; height: number } {
         const hopSize = MDCT_HOP_SIZE; // 128
-        const totalAudioBlocks = Math.ceil(totalSamples / hopSize);
+        const totalAudioBlocks = Math.ceil((totalSamples + leadIn) / hopSize);
         const firstAudioBlockIndex = 2 * BLOCKS_PER_ROW;
         const totalImageBlocksForAudio = totalAudioBlocks; // 1:1 mapping
         // v301: chroma superblocks span row pairs, so data rows come in pairs
@@ -131,7 +136,8 @@ export class AudioEncoder {
         lookahead: Float32Array | null = null,
         onProgress?: (p: number) => void
     ): Promise<EncodedImageResult> {
-        const dims = this.calculateDimensions(channelData.length);
+        const leadIn = leadInSamples(FORMAT_VERSION, channelMode, imageIndex);
+        const dims = this.calculateDimensions(channelData.length, leadIn);
         const buffer = new Uint8ClampedArray(dims.width * dims.height * 4);
         const imageData: SimpleImageData = { data: buffer, width: dims.width, height: dims.height };
 
@@ -150,11 +156,11 @@ export class AudioEncoder {
         const windowSize = MDCT_WINDOW_SIZE; // 256
         const mdctWindow = getSineWindow(windowSize);
 
-        const totalAudioBlocks = Math.ceil(channelData.length / hopSize);
+        const totalAudioBlocks = Math.ceil((channelData.length + leadIn) / hopSize);
         const paddedLength = (totalAudioBlocks + 1) * hopSize * 2;
         const paddedAudio = new Float32Array(paddedLength);
-        paddedAudio.set(channelData);
-        if (lookahead) paddedAudio.set(lookahead, channelData.length);
+        paddedAudio.set(channelData, leadIn);
+        if (lookahead) paddedAudio.set(lookahead, leadIn + channelData.length);
 
         const totalImageBlocksForAudio = totalAudioBlocks;
         const numImageRows = 2 * Math.ceil(Math.ceil(totalImageBlocksForAudio / DATA_BLOCKS_PER_ROW) / 2);
@@ -218,7 +224,8 @@ export class AudioEncoder {
         sideLookahead: Float32Array | null = null,
         onProgress?: (p: number) => void
     ): Promise<[EncodedImageResult, EncodedImageResult]> {
-        const dims = this.calculateDimensions(midData.length);
+        const leadIn = leadInSamples(FORMAT_VERSION, CHANNEL_MODE.STEREO_MID, midImageIndex);
+        const dims = this.calculateDimensions(midData.length, leadIn);
         const midBuffer = new Uint8ClampedArray(dims.width * dims.height * 4);
         const sideBuffer = new Uint8ClampedArray(dims.width * dims.height * 4);
         const midImageData: SimpleImageData = { data: midBuffer, width: dims.width, height: dims.height };
@@ -238,14 +245,14 @@ export class AudioEncoder {
         const hopSize = MDCT_HOP_SIZE;
         const windowSize = MDCT_WINDOW_SIZE;
         const mdctWindow = getSineWindow(windowSize);
-        const totalAudioBlocks = Math.ceil(midData.length / hopSize);
+        const totalAudioBlocks = Math.ceil((midData.length + leadIn) / hopSize);
         const paddedLength = (totalAudioBlocks + 1) * hopSize * 2;
         const paddedMid = new Float32Array(paddedLength);
         const paddedSide = new Float32Array(paddedLength);
-        paddedMid.set(midData);
-        paddedSide.set(sideData);
-        if (midLookahead) paddedMid.set(midLookahead, midData.length);
-        if (sideLookahead) paddedSide.set(sideLookahead, sideData.length);
+        paddedMid.set(midData, leadIn);
+        paddedSide.set(sideData, leadIn);
+        if (midLookahead) paddedMid.set(midLookahead, leadIn + midData.length);
+        if (sideLookahead) paddedSide.set(sideLookahead, leadIn + sideData.length);
 
         const numImageRows = 2 * Math.ceil(Math.ceil(totalAudioBlocks / DATA_BLOCKS_PER_ROW) / 2);
         const firstAudioBlockIndex = 2 * BLOCKS_PER_ROW;

@@ -207,6 +207,8 @@ describe('Integration Pipeline', () => {
         const sampleRate = 44100;
         const maxHeight = 256;
         const samplesPerImage = ChunkingUtils.calculateMaxSamplesPerImage(maxHeight);
+        // The first image also stores the lead-in block
+        const firstBoundary = ChunkingUtils.calculateMaxSamplesForFirstImage(maxHeight);
         const length = samplesPerImage * 2 + 5000;
 
         const hopRmse = (original: Float32Array, decoded: Float32Array, start: number) => {
@@ -233,7 +235,11 @@ describe('Integration Pipeline', () => {
 
             for (let c = 0; c < channels.length; c++) {
                 const interior = hopRmse(channels[c], decodedResult.channels[c], Math.floor(samplesPerImage / 2));
-                for (const boundary of [samplesPerImage, samplesPerImage * 2]) {
+                // The first hop of the file needs the lead-in block to cancel its aliasing
+                expect(hopRmse(channels[c], decodedResult.channels[c], 0)).toBeLessThan(Math.max(0.01, interior * 3));
+                expect(decodedResult.channels[c].length).toBe(length);
+
+                for (const boundary of [firstBoundary, firstBoundary + samplesPerImage]) {
                     // The first hop of an image must reconstruct as well as any other hop
                     expect(hopRmse(channels[c], decodedResult.channels[c], boundary)).toBeLessThan(Math.max(0.01, interior * 3));
                     expect(hopRmse(channels[c], decodedResult.channels[c], boundary - MDCT_HOP_SIZE)).toBeLessThan(Math.max(0.01, interior * 3));

@@ -3,7 +3,9 @@
 
 import {
     BLOCKS_PER_ROW,
+    CHANNEL_MODE,
     DATA_BLOCKS_PER_ROW,
+    MDCT_HOP_SIZE,
     SUBGROUP_A_SIZE,
     SUBGROUP_X_SIZE,
 } from './constants';
@@ -23,6 +25,17 @@ export const MCUS_PER_AUDIO_ROW = DATA_BLOCKS_PER_ROW / BLOCKS_PER_MCU; // 31
 // AX/AY/BX/BY = 8/8/8/7 MCUs
 const V301_SUBGROUP_A_SIZE = 16 * BLOCKS_PER_MCU; // 64
 const V301_CHROMA_GROUP_SIZE = 8 * BLOCKS_PER_MCU; // 32
+
+/**
+ * Silent samples stored ahead of the audio in the first image of a v301 file
+ * (and its side image). The extra block gives the first hop of audio the
+ * overlapping window it needs for alias cancellation; the header sample count
+ * does not include it and the decoder drops it.
+ */
+export function leadInSamples(formatVersion: number, channelMode: number, imageIndex: number): number {
+    const firstImageIndex = channelMode === CHANNEL_MODE.STEREO_SIDE ? 2 : 1;
+    return formatVersion >= 301 && imageIndex === firstImageIndex ? MDCT_HOP_SIZE : 0;
+}
 
 function usesMcuOrder(formatVersion: number): boolean {
     return formatVersion >= 301;

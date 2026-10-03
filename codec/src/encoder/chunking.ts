@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Kyle Alexander Buan
 
-import { MDCT_HOP_SIZE, BLOCK_SIZE, BLOCKS_PER_ROW, BINARY_ROW_DATA_CAPACITY, DATA_BLOCKS_PER_ROW } from '../constants';
+import { MDCT_HOP_SIZE, BLOCK_SIZE, BLOCKS_PER_ROW, BINARY_ROW_DATA_CAPACITY, CHANNEL_MODE, DATA_BLOCKS_PER_ROW, FORMAT_VERSION } from '../constants';
+import { leadInSamples } from '../audioLayout';
 
 export class ChunkingUtils {
     public static splitAudioForMultiImage(
         channels: Float32Array[],
-        maxHeight: number = 4096
+        maxHeight: number = 4096,
+        formatVersion: number = FORMAT_VERSION
     ): Float32Array[][] {
         const maxSamplesPerImage = this.calculateMaxSamplesPerImage(maxHeight);
         const totalSamples = channels[0].length;
@@ -20,7 +22,9 @@ export class ChunkingUtils {
 
         while (currentSample < totalSamples) {
             const remainingSamples = totalSamples - currentSample;
-            const chunkSize = Math.min(maxSamplesPerImageAligned, remainingSamples);
+            // The first image also stores the lead-in block
+            const leadIn = currentSample === 0 ? leadInSamples(formatVersion, CHANNEL_MODE.MONO, 1) : 0;
+            const chunkSize = Math.min(maxSamplesPerImageAligned - leadIn, remainingSamples);
 
             const chunkChannels: Float32Array[] = [];
             for (const channel of channels) {
@@ -53,6 +57,15 @@ export class ChunkingUtils {
         return chunks;
     }
 
+    /**
+     * Audio samples that fit in a file made of a single image (or the first
+     * image of a longer file), which also has to store the lead-in block.
+     */
+    public static calculateMaxSamplesForFirstImage(maxHeight: number = 4096, formatVersion: number = FORMAT_VERSION): number {
+        return this.calculateMaxSamplesPerImage(maxHeight) - leadInSamples(formatVersion, CHANNEL_MODE.MONO, 1);
+    }
+
+    /** Audio samples that fit in every image after the first. */
     public static calculateMaxSamplesPerImage(maxHeight: number = 4096): number {
         const blockSize = BLOCK_SIZE;
         const blocksPerRow = BLOCKS_PER_ROW;
