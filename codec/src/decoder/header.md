@@ -19,7 +19,7 @@ The first image row contains the header data encoded as 1 bit per pixel (1024 by
 ## Header Payload Structure
 
 ### Fixed Fields (21 bytes)
-- Bytes 0-1: format version (uint16, little-endian)
+- Bytes 0-1: format version (uint16, little-endian); anything other than `301` is rejected with an unsupported format version error
 - Bytes 2-5: sample rate (uint32, little-endian); `0` for binary
 - Bytes 6-9: total samples (audio) or chunk byte size (binary), uint32 little-endian
 - Bytes 10-11: metadata length (uint16, little-endian)

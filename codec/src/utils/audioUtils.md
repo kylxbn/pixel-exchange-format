@@ -37,18 +37,6 @@ Where C(w) = 1/sqrt(2) for w=0, 1 otherwise, and overall scale sqrt(2/8)
 ### Inverse DCT
 Similar separable application in reverse order.
 
-## 2D Discrete Cosine Transform (4*4)
-
-### Forward DCT
-For 4*4 chroma blocks:
-
-F[u,v] = sum(x=0 to 3) sum(y=0 to 3) f[x,y] * C(u) * C(v) * cos(pi * u * (2x+1)/8) * cos(pi * v * (2y+1)/8)
-
-With C(w) = 1/sqrt(2) for w=0, 1 otherwise, scale sqrt(2/4)
-
-### Inverse DCT
-Symmetric inverse transform.
-
 ## Pixel Data Encoding
 
 Header and metadata bitstreams are encoded into image pixels at block level:

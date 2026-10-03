@@ -39,4 +39,25 @@ describe('Oriented Bounding Box', () => {
             expect(diff).toBeLessThan(0.0004);
         });
     });
+
+    describe('Zero point', () => {
+        it('should survive pixel rounding exactly', () => {
+            const [r, g, b] = encodePointToRGB([0, 0, 0]).map(Math.round);
+            expect([r, g, b]).toEqual([128, 128, 128]);
+            expect(Math.abs(decodeRGBToPoint(r, g, b)[0])).toBeLessThan(1e-12);
+        });
+
+        it('should stay within pixel rounding of the RGB range', () => {
+            for (const x of [-1, 1]) {
+                for (const y of [-1, 1]) {
+                    for (const z of [-1, 1]) {
+                        for (const c of encodePointToRGB([x, y, z])) {
+                            expect(c).toBeGreaterThan(-0.5);
+                            expect(c).toBeLessThan(255.5);
+                        }
+                    }
+                }
+            }
+        });
+    });
 });

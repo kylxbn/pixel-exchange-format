@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Kyle Alexander Buan
 
 import { leadInSamples } from "../audioLayout";
-import { BINARY_ROW_DATA_CAPACITY, BLOCK_SIZE, BLOCKS_PER_ROW, CHANNEL_MODE, DATA_BLOCKS_PER_ROW, FORMAT_VERSION, HEADER_PAYLOAD_BYTES, HEADER_TOTAL_BYTES, HEADER_XOR_MASK_SEED, headerLdpc, IMAGE_WIDTH, isSupportedFormatVersion, MDCT_HOP_SIZE, SUPPORTED_FORMAT_VERSIONS } from "../constants";
+import { BINARY_ROW_DATA_CAPACITY, BLOCK_SIZE, BLOCKS_PER_ROW, CHANNEL_MODE, DATA_BLOCKS_PER_ROW, FORMAT_VERSION, HEADER_PAYLOAD_BYTES, HEADER_TOTAL_BYTES, HEADER_XOR_MASK_SEED, headerLdpc, IMAGE_WIDTH, MDCT_HOP_SIZE } from "../constants";
 import { PxfDecoder } from ".";
 import { bytesToNumber, decodeBytesFromBlocks } from "../utils/audioUtils";
 import { MurmurHash3_x64_128 } from "../utils/murmurHash";
@@ -73,8 +73,8 @@ export class HeaderDecoder {
         let offset = 0;
         const version = bytesToNumber(fullPayload.slice(offset, offset + 2)); offset += 2;
 
-        if (!isSupportedFormatVersion(version)) {
-            throw new Error(`Unsupported version: ${version}. This decoder supports ${SUPPORTED_FORMAT_VERSIONS.join(', ')} and encodes ${FORMAT_VERSION}.`);
+        if (version !== FORMAT_VERSION) {
+            throw new Error(`Unsupported format version: ${version}. This decoder only supports version ${FORMAT_VERSION}.`);
         }
 
         const sampleRate = bytesToNumber(fullPayload.slice(offset, offset + 4)); offset += 4;
@@ -118,14 +118,15 @@ export class HeaderDecoder {
         }
 
         const hopSize = MDCT_HOP_SIZE; // 128 with SBR
-        const totalAudioBlocks = Math.ceil((totalSamples + leadInSamples(version, channelMode, imageIndex)) / hopSize);
+        const isBinary = channelMode === CHANNEL_MODE.BINARY;
+        // totalSamples is a byte count for binary images
+        const totalAudioBlocks = isBinary ? 0 : Math.ceil(totalSamples / hopSize);
 
         // Validate minimum height based on content
-        // v301+ audio pads data rows to an even count (16x16 chroma superblocks)
-        const audioDataRows = version >= 301
-            ? 2 * Math.ceil(Math.ceil(totalAudioBlocks / DATA_BLOCKS_PER_ROW) / 2)
-            : Math.ceil(totalAudioBlocks / DATA_BLOCKS_PER_ROW);
-        const minRows = channelMode === CHANNEL_MODE.BINARY
+        // Audio pads data rows to an even count (16x16 chroma superblocks)
+        const storedBlocks = Math.ceil((totalSamples + leadInSamples(channelMode, imageIndex)) / hopSize);
+        const audioDataRows = 2 * Math.ceil(Math.ceil(storedBlocks / DATA_BLOCKS_PER_ROW) / 2);
+        const minRows = isBinary
             ? 2 + Math.ceil(totalSamples / BINARY_ROW_DATA_CAPACITY)
             : 2 + audioDataRows;
         const expectedMinHeight = minRows * BLOCK_SIZE;

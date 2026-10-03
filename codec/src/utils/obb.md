@@ -8,10 +8,12 @@ The format uses an optimized oriented bounding box (OBB) mapping to encode three
 ## OBB Parameters
 
 Precomputed optimal bounding box for RGB color space utilization:
-- **Center**: [127.426, 128.000, 128.000] in YCbCr space
+- **Center**: [128.000, 128.000, 128.000] in YCbCr space
 - **Extents**: [41.159, 61.527, 48.638] (half-widths in YCbCr)
 - **Rotation Matrix**: X axis fixed, Y/Z plane rotated by ~90.005deg for fit
 - **Inverse Rotation**: Transpose for decoding
+
+The center is an integer on every axis so that the zero point maps to an exact pixel value (gray 128, a zero DC term in JPEG). With a fractional luma center, silent blocks decode to a constant non-zero luma, which lands in the block's DC coefficient and becomes a steady tone in the MDCT bin mapped to it. The box reaches at most 0.42 past 255 in R and 0.35 in B at its extreme corners, which is within pixel rounding.
 
 ## Encoding Process
 

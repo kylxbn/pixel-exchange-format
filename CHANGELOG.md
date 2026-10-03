@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-04 - Integer luma centre
+
+The luma centre of the OBB pixel mapping moved from 127.426 to 128 (extents and rotation unchanged). With the fractional centre a zero luma sample was written as gray 127 and read back as about -0.0034, so every silent block that shared a scale group with loud audio carried a constant offset in its DC coefficient. The v300 zigzag map put DC in MDCT bin 0, where it was an inaudible DC offset; the JPEG-tuned maps put it in bin 8, where it became a steady tone at 8 x fs/256 (1000 Hz at 32 kHz, about -54 dBFS before a loud onset). Zero is now gray 128, which is exact in the pixels and a zero DC term in JPEG. The box reaches at most 0.42 past 255 at its extreme corners, within pixel rounding. This changes the pixel values of both audio and binary images, so images from earlier v301 builds decode with a small luma offset.
+
+## 2026-10-04 - v300 decode support removed
+
+The decoder no longer reads format version 300. Any image whose header version is not `301` is rejected at header parse with `Unsupported format version: N. This decoder only supports version 301.`, audio and binary alike. Everything that existed only for v300 is gone: the raster block layout and 62/62, 31/31 scale groups, per-block 4x4 chroma (with its maps, 4x4 DCT and decoder-side chroma row scan), the v300 SBR word layouts, processing modes and synthesis, independent mid/side SBR noise for stereo pairs, and the zigzag-for-v300 map selection. The `formatVersion` parameters on the layout, block-math, SBR and chunking functions were dropped along with `SUPPORTED_FORMAT_VERSIONS`, `isSupportedFormatVersion`, `getBlockMapForVersion`, `PROCESSING_MODE_NAMES` and the `procMode` field of the SBR parameter types. The removal itself does not change the v301 format, the encoder output or the decode of v301 images. Alongside it, the unused per-block decode debug capture was removed, and the header's `totalAudioBlocks` now counts audio hops (it included the lead-in block) and is `0` for binary images, where it used to be derived from the byte count.
+
 ## 2026-10-03 - PXF v301 release cleanup (`65763e1545408aedadf4454f230d5a5bd08eb059` -> HEAD)
 
 The format itself is unchanged in this range (still `301`, and `300` files still decode), but the audio layout gained one structural change and the whole repository got a pre-release pass.

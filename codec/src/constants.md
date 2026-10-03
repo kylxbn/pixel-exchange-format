@@ -43,10 +43,6 @@ Row metadata:
 - `ROW_META_SBR_BYTES = 8`
 - `ROW_META_AUDIO_BYTES = 20`
 
-Subgroup constants (v300; v301 uses MCU-aligned groups, see Row Scaling Strategy):
-- `SUBGROUP_A_SIZE = 62` (A/B split per row)
-- `SUBGROUP_X_SIZE = 31` (X/Y split inside each half)
-
 Band mapping for bins `0..63`:
 - Band 0: bins `0..2`
 - Band 1: bins `3..8`
@@ -88,13 +84,11 @@ Whitening/permutation seeds:
 
 Implemented coefficient orders:
 - `ZIGZAG_8X8_FLAT`
-- `ZIGZAG_4X4_FLAT`
 - `RASTER_8X8_FLAT`
-- `RASTER_4X4_FLAT`
 - `Q92PM1_LUMA_8X8_FLAT`
-- `Q92PM1_CHROMA_4X4_FLAT`
+- `Q92PM1_CHROMA_8X8_FLAT`
 - `Q92PM8_LUMA_8X8_FLAT`
-- `Q92PM8_CHROMA_4X4_FLAT`
+- `Q92PM8_CHROMA_8X8_FLAT`
 
 Preset selection and active block maps are configured in `psychoacoustics.ts`:
 - `AUDIO_PIXEL_MAPPING_PRESETS.zigzag`
@@ -106,8 +100,7 @@ Preset selection and active block maps are configured in `psychoacoustics.ts`:
 Band-map assignment and active coefficient placement are configured in `psychoacoustics.ts`:
 - `AUDIO_PSYCHOACOUSTICS.bandMap`
 - `AUDIO_PSYCHOACOUSTICS.blockMap.luma8x8`
-- `AUDIO_PSYCHOACOUSTICS.blockMap.chroma8x8` (v301+ superblock chroma)
-- `AUDIO_PSYCHOACOUSTICS.blockMap.chroma4x4` (v300 per-block chroma)
+- `AUDIO_PSYCHOACOUSTICS.blockMap.chroma8x8` (superblock chroma)
 
 The `q92pm1` and `q92pm8` presets are JPEG-tuned permutations derived from
 ImageMagick/libjpeg quantization tables. `q92pm8` uses weighted Q84..Q100

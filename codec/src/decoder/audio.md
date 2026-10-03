@@ -23,7 +23,7 @@ For each data row, decoders must:
 3. Extract RGB pixel values from 8*8 blocks
 4. Apply inverse OBB mapping to recover YCbCr coefficients
 5. Apply mu-law expansion (audio mode path)
-6. Perform 8\*8 IDCT on luma and 4\*4 IDCT on chroma
+6. Perform 8\*8 DCT on luma and on the MCU's shared 8\*8 chroma block
 7. Reverse spatial scaling and band factors
 8. Reverse static MDCT bin whitening (bins 0-95)
 9. Synthesize bins 96-127 using SBR row data
@@ -36,16 +36,14 @@ If row metadata decode fails (or yields invalid values), decoder falls back to n
 ### Spatial to Frequency Domain
 - RGB pixels are mapped back to YCbCr coefficients using inverse OBB transform
 - Mu-law expansion restores linear point-space values
-- IDCT converts spatial blocks to frequency domain coefficients
+- DCT converts spatial blocks to frequency domain coefficients
 - Adaptive scaling compensates for quantization effects
-- Chroma scaling includes a row scan compensation step in the implementation to counter chroma attenuation from RGB round-trip effects
 
 ### Frequency Domain Processing
 - Band factors restore original coefficient magnitudes
 - SBR synthesizes bins 96-127 from source tiles in lower bands
 - Deterministic noise generation ensures reproducible high frequencies
-- Stereo `v300` decoding uses channel-specific SBR seeds so synthesized noise is decorrelated between mid and side channels
-- Stereo `v301+` decoding can instead use a subgroup stereo cue to couple the stochastic HF reconstruction between mid and side
+- Stereo decoding synthesizes mid and side jointly: a subgroup stereo cue couples the stochastic HF reconstruction between the two channels. A mid image decoded without its side image uses its own channel-specific SBR seed
 
 ## Time Domain Reconstruction
 
@@ -53,7 +51,7 @@ If row metadata decode fails (or yields invalid values), decoder falls back to n
 - 128-point IMDCT produces 256 samples per transform
 - Sine windowing with 50% overlap (TDAC)
 - Overlap-add combines adjacent windows
-- When the first image of a v301 file is present, its first stored block is the lead-in block: audio hop `n` is the overlap of stored blocks `n` and `n + 1`, and the first 128 overlap-add output samples are dropped. A set that starts at a later image has no lead-in and starts at its first stored block.
+- When the first image of a file is present, its first stored block is the lead-in block: audio hop `n` is the overlap of stored blocks `n` and `n + 1`, and the first 128 overlap-add output samples are dropped. A set that starts at a later image has no lead-in and starts at its first stored block.
 
 ### Channel Reconstruction
 - Mono: single channel output

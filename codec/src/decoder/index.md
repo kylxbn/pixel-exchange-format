@@ -10,7 +10,7 @@ Decoders must support both audio and binary mode decoding from PXF images, inclu
 Decoders must:
 - Parse the header from the first image row of each image
 - Extract format metadata, parameters, and integrity checks
-- Validate format version compatibility
+- Reject images whose header format version is not `301`
 - Reject mixed audio+binary source sets in one decode call
 - Group multi-image sequences by random seed
 - Sort images by index within each sequence

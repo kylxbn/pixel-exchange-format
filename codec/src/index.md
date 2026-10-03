@@ -46,4 +46,4 @@ Stereo decoding behavior:
 
 ## Versioning and Compatibility
 
-The implementation uses `FORMAT_VERSION = 301` with deterministic seeded whitening/permutation and precomputed LDPC graphs so encoder and decoder remain bit-compatible.
+The implementation uses `FORMAT_VERSION = 301`, the only version the decoder accepts, with deterministic seeded whitening/permutation and precomputed LDPC graphs so encoder and decoder remain bit-compatible.

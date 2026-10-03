@@ -3,13 +3,6 @@
 
 import { LdpcCode } from "./ldpc";
 import type { LDPCGraphData } from "./ldpc";
-import {
-    AUDIO_PSYCHOACOUSTICS,
-    RASTER_4X4_FLAT,
-    RASTER_8X8_FLAT,
-    ZIGZAG_4X4_FLAT,
-    ZIGZAG_8X8_FLAT
-} from './psychoacoustics';
 
 // // --- Physical & Algorithmic Constants ---
 
@@ -56,11 +49,6 @@ export const ROW_META_AUDIO_BYTES = 20;
 export const ROW_META_SBR_BYTES = 8;
 export const ROW_META_PAYLOAD_BYTES = ROW_META_SBR_BYTES + ROW_META_AUDIO_BYTES; // 28
 
-// // A row is split into two subgroups for adaptive quantization.
-// // These are the v300 sizes; v301 groups are MCU-aligned (see audioLayout.ts).
-export const SUBGROUP_A_SIZE = 62;
-export const SUBGROUP_X_SIZE = 31;
-
 // // --- Binary Mode Constants (Stream Mode) ---
 export const BINARY_DATA_BLOCKS_PER_ROW = 124;
 export const BINARY_BYTES_PER_BLOCK = 20; // 160 bits: 128 bits Y (64 pixels * 2) + 16 bits Cb (16 pixels) + 16 bits Cr (16 pixels)
@@ -79,23 +67,13 @@ export const BINARY_ROW_CRC_BYTES = 4;
 export const LDPC_BINARY_K = BINARY_ROW_DATA_CAPACITY * 8; // 19840
 export const LDPC_BINARY_N = (BINARY_ROW_DATA_CAPACITY + BINARY_ROW_PARITY_BYTES) * 8; // 20064
 
-// Backward-compatible aliases; source of truth lives in psychoacoustics.ts
-export const BAND_MAP = AUDIO_PSYCHOACOUSTICS.bandMap;
-export { ZIGZAG_4X4_FLAT, RASTER_4X4_FLAT, ZIGZAG_8X8_FLAT, RASTER_8X8_FLAT };
-
 // // --- Protocol & Format Identifiers ---
 
 export const FORMAT_VERSION = 301;
-export const SUPPORTED_FORMAT_VERSIONS = [300, 301] as const;
-export function isSupportedFormatVersion(version: number): boolean {
-    return SUPPORTED_FORMAT_VERSIONS.includes(version as typeof SUPPORTED_FORMAT_VERSIONS[number]);
-}
 
-// These protocol seeds are intentionally preserved from v300 so that the
-// v301 encoder remains layout-compatible with the existing decoder pipeline.
-export const HEADER_XOR_MASK_SEED = 0xe5b4d3bd; // Legacy seed from SHA256("PXF:v300:Main header whitening seed")[0:4]
-export const ROW_META_XOR_SEED_BASE = 0xc4396125; // Legacy seed from SHA256("PXF:v300:Audio row metadata whitening seed")[0:4]
-export const BINARY_PERMUTATION_SEED = 0xbf4d0153; // Legacy seed from SHA256("PXF:v300:Binary mode byte pair permutation seed")[0:4]
+export const HEADER_XOR_MASK_SEED = 0xe5b4d3bd; // SHA256("PXF:v300:Main header whitening seed")[0:4]
+export const ROW_META_XOR_SEED_BASE = 0xc4396125; // SHA256("PXF:v300:Audio row metadata whitening seed")[0:4]
+export const BINARY_PERMUTATION_SEED = 0xbf4d0153; // SHA256("PXF:v300:Binary mode byte pair permutation seed")[0:4]
 
 // // Seeds for LDPC Matrix Generation (ensures decoder matches encoder)
 // export const LDPC_SEED_HEADER = 0x46a11d63; // SHA256("PXF:v300:Binary mode byte pair permutation seed")[0:4]

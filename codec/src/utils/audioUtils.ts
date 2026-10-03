@@ -11,7 +11,6 @@ let MDCT_TABLE_128: Float32Array | null = null;
 let IMDCT_TABLE_128: Float32Array | null = null;
 
 let DCT_8_TABLE: Float32Array | null = null;
-let DCT_4_TABLE: Float32Array | null = null;
 
 let SINE_WINDOW_256: Float32Array | null = null;
 
@@ -73,15 +72,6 @@ function initTables() {
         }
     }
 
-    // DCT Type-II 4x4 Matrix (Flattened 16 elements)
-    DCT_4_TABLE = new Float32Array(16);
-    for (let k = 0; k < 4; k++) {
-        const alpha = k === 0 ? 1 / Math.sqrt(2) : 1;
-        const s = Math.sqrt(2 / 4) * alpha;
-        for (let n = 0; n < 4; n++) {
-            DCT_4_TABLE[k * 4 + n] = s * Math.cos((Math.PI * k * (2 * n + 1)) / 8);
-        }
-    }
 }
 
 // Initialize tables immediately
@@ -234,60 +224,6 @@ export function idct8x8(src: Float32Array, dest: Float32Array, temp: Float32Arra
             let sum = 0;
             for (let k = 0; k < 8; k++) {
                 sum += temp[rowOff + k] * table[k * 8 + n];
-            }
-            dest[rowOff + n] = sum;
-        }
-    }
-}
-
-// Optimized 4x4 DCT
-export function dct4x4(src: Float32Array, dest: Float32Array, temp: Float32Array) {
-    const table = DCT_4_TABLE!;
-    // Rows
-    for (let i = 0; i < 4; i++) {
-        const rowOff = i * 4;
-        for (let k = 0; k < 4; k++) {
-            let sum = 0;
-            const tableRow = k * 4;
-            for (let n = 0; n < 4; n++) {
-                sum += src[rowOff + n] * table[tableRow + n];
-            }
-            temp[rowOff + k] = sum;
-        }
-    }
-    // Cols
-    for (let j = 0; j < 4; j++) {
-        for (let k = 0; k < 4; k++) {
-            let sum = 0;
-            const tableRow = k * 4;
-            for (let i = 0; i < 4; i++) {
-                sum += table[tableRow + i] * temp[i * 4 + j];
-            }
-            dest[k * 4 + j] = sum;
-        }
-    }
-}
-
-// Optimized 4x4 IDCT
-export function idct4x4(src: Float32Array, dest: Float32Array, temp: Float32Array) {
-    const table = DCT_4_TABLE!;
-    // Cols
-    for (let j = 0; j < 4; j++) {
-        for (let i = 0; i < 4; i++) {
-            let sum = 0;
-            for (let k = 0; k < 4; k++) {
-                sum += table[k * 4 + i] * src[k * 4 + j];
-            }
-            temp[i * 4 + j] = sum;
-        }
-    }
-    // Rows
-    for (let i = 0; i < 4; i++) {
-        const rowOff = i * 4;
-        for (let n = 0; n < 4; n++) {
-            let sum = 0;
-            for (let k = 0; k < 4; k++) {
-                sum += temp[rowOff + k] * table[k * 4 + n];
             }
             dest[rowOff + n] = sum;
         }

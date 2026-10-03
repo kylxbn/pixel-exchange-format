@@ -40,7 +40,7 @@ export class AudioEncoder {
         const totalAudioBlocks = Math.ceil((totalSamples + leadIn) / hopSize);
         const firstAudioBlockIndex = 2 * BLOCKS_PER_ROW;
         const totalImageBlocksForAudio = totalAudioBlocks; // 1:1 mapping
-        // v301: chroma superblocks span row pairs, so data rows come in pairs
+        // Chroma superblocks span row pairs, so data rows come in pairs
         const numImageRows = 2 * Math.ceil(Math.ceil(totalImageBlocksForAudio / DATA_BLOCKS_PER_ROW) / 2);
         const totalDataAndMetaBlocks = numImageRows * BLOCKS_PER_ROW;
         const totalBlocks = firstAudioBlockIndex + totalDataAndMetaBlocks;
@@ -140,7 +140,7 @@ export class AudioEncoder {
         lookahead: Float32Array | null = null,
         onProgress?: (p: number) => void
     ): Promise<EncodedImageResult> {
-        const leadIn = leadInSamples(FORMAT_VERSION, channelMode, imageIndex);
+        const leadIn = leadInSamples(channelMode, imageIndex);
         const dims = this.calculateDimensions(channelData.length, leadIn);
         const buffer = new Uint8ClampedArray(dims.width * dims.height * 4);
         const imageData: SimpleImageData = { data: buffer, width: dims.width, height: dims.height };
@@ -228,7 +228,7 @@ export class AudioEncoder {
         sideLookahead: Float32Array | null = null,
         onProgress?: (p: number) => void
     ): Promise<[EncodedImageResult, EncodedImageResult]> {
-        const leadIn = leadInSamples(FORMAT_VERSION, CHANNEL_MODE.STEREO_MID, midImageIndex);
+        const leadIn = leadInSamples(CHANNEL_MODE.STEREO_MID, midImageIndex);
         const dims = this.calculateDimensions(midData.length, leadIn);
         const midBuffer = new Uint8ClampedArray(dims.width * dims.height * 4);
         const sideBuffer = new Uint8ClampedArray(dims.width * dims.height * 4);

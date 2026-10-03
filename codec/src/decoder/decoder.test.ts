@@ -2,10 +2,14 @@
 // Copyright (c) 2026 Kyle Alexander Buan
 
 import { describe, it, expect } from 'vitest';
-import { CHANNEL_MODE, FORMAT_VERSION, isSupportedFormatVersion } from '../constants';
+import { CHANNEL_MODE, FORMAT_VERSION, HEADER_PAYLOAD_BYTES, HEADER_XOR_MASK_SEED, IMAGE_WIDTH, headerLdpc } from '../constants';
 import { StreamingAudioDecoder } from './audio';
 import { PxfEncoder } from '../encoder';
 import { PxfDecoder } from '.';
+import type { RawImageData } from '.';
+import { encodeBytesToBlocks, numberToBytes } from '../utils/audioUtils';
+import { MurmurHash3_x64_128 } from '../utils/murmurHash';
+import { createRNG } from '../utils/rng';
 
 // Helper to create a small valid encoded image
 async function createEncodedAudioImage(sampleRate = 44100, duration = 0.1, metadata: Record<string, string> = {}) {
@@ -28,19 +32,58 @@ async function createEncodedBinaryImage(size = 100, metadata: Record<string, str
     return results[0];
 }
 
+// Rewrites the header of an encoded image (no metadata) with another version field
+function withHeaderVersion(img: RawImageData, version: number): RawImageData {
+    const src = PxfDecoder.load(img);
+    const payload = new Uint8Array(HEADER_PAYLOAD_BYTES);
+    let offset = 0;
+    payload.set(numberToBytes(version, 2), offset); offset += 2;
+    payload.set(numberToBytes(src.sampleRate, 4), offset); offset += 4;
+    payload.set(numberToBytes(src.totalSamples, 4), offset); offset += 4;
+    payload.set(numberToBytes(1, 2), offset); offset += 2;
+    payload.set(numberToBytes(src.channelMode, 1), offset); offset += 1;
+    payload.set(src.randomBytes, offset); offset += 4;
+    payload.set(numberToBytes(src.imageIndex, 2), offset); offset += 2;
+    payload.set(numberToBytes(src.totalImages, 2), offset);
+
+    const row = headerLdpc.encode(payload);
+    const maskGen = createRNG(HEADER_XOR_MASK_SEED);
+    for (let i = 0; i < row.length; i++) {
+        row[i] ^= maskGen.nextByte();
+        row[i] ^= maskGen.nextByte();
+    }
+
+    const data = new Uint8ClampedArray(img.data);
+    encodeBytesToBlocks(row, data, IMAGE_WIDTH, 0);
+    const checksum = new Uint8Array(32);
+    checksum.set(MurmurHash3_x64_128.hash(payload.slice(0, 21)), 0);
+    checksum.set(MurmurHash3_x64_128.hash(payload.slice(21)), 16);
+    encodeBytesToBlocks(checksum, data, IMAGE_WIDTH, 128 * 2 - 4);
+    return { data, width: img.width, height: img.height };
+}
+
 describe('PxfDecoder', () => {
 
     describe('General API', () => {
-        it('should encode with version 301 and keep 300/301 decode support configured', async () => {
+        it('should encode with the current format version', async () => {
             const img = await createEncodedAudioImage();
             const src = PxfDecoder.load(img);
 
             expect(src.visualizationMetadata.version).toBe(FORMAT_VERSION);
             expect(FORMAT_VERSION).toBe(301);
-            expect(isSupportedFormatVersion(300)).toBe(true);
-            expect(isSupportedFormatVersion(301)).toBe(true);
-            expect(isSupportedFormatVersion(299)).toBe(false);
-            expect(isSupportedFormatVersion(302)).toBe(false);
+        });
+
+        it('should reject any other format version when parsing the header', async () => {
+            const audio = await createEncodedAudioImage();
+            const binary = await createEncodedBinaryImage();
+
+            for (const img of [audio, binary]) {
+                expect(PxfDecoder.load(withHeaderVersion(img, FORMAT_VERSION)).visualizationMetadata.version).toBe(FORMAT_VERSION);
+                for (const version of [300, 302]) {
+                    expect(() => PxfDecoder.load(withHeaderVersion(img, version)))
+                        .toThrow(`Unsupported format version: ${version}`);
+                }
+            }
         });
 
         it('should throw error if sources array is empty', async () => {

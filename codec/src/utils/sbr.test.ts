@@ -16,41 +16,16 @@ import {
     projectStereoCueToHighFrequencies,
     readSourceTile,
     encodeSBRWord,
+    type RowSBRParams,
     type SBRParams,
     type SBRParamsTemporal,
 } from './sbr';
 import { selectSbrParamsForBlock } from '../decoder/audioMath';
-import { DATA_BLOCKS_PER_ROW, FORMAT_VERSION } from '../constants';
+import { DATA_BLOCKS_PER_ROW } from '../constants';
 import { createRNG } from './rng';
 
 describe('SBR Bitfields', () => {
-    it('preserves the legacy v300 normal layout', () => {
-        const params: SBRParams = {
-            temporalMode: false,
-            hfGain: -12,
-            bandEnvelope: [-6, -4, 0, 8],
-            noiseFloorRatio: 9,
-            tonality: 6,
-            patchMode: 2,
-            procMode: 3,
-            stereoCue: 0,
-            transientShape: 2
-        };
-
-        const decoded = decodeSBRWord(encodeSBRWord(params, 300), 300) as SBRParams;
-
-        expect(decoded.temporalMode).toBe(false);
-        expect(decoded.hfGain).toBe(-12);
-        expect(decoded.bandEnvelope).toEqual([-6, -4, 0, 8]);
-        expect(decoded.noiseFloorRatio).toBe(9);
-        expect(decoded.tonality).toBe(6);
-        expect(decoded.patchMode).toBe(2);
-        expect(decoded.procMode).toBe(3);
-        expect(decoded.stereoCue).toBe(0);
-        expect(decoded.transientShape).toBe(2);
-    });
-
-    it('round-trips the v301 normal layout with stereo cue bits', () => {
+    it('round-trips the normal layout with stereo cue bits', () => {
         const params: SBRParams = {
             temporalMode: false,
             hfGain: -6,
@@ -58,12 +33,11 @@ describe('SBR Bitfields', () => {
             noiseFloorRatio: 11,
             tonality: 3,
             patchMode: 1,
-            procMode: 2,
             stereoCue: 5,
             transientShape: 1
         };
 
-        const decoded = decodeSBRWord(encodeSBRWord(params, 301), 301) as SBRParams;
+        const decoded = decodeSBRWord(encodeSBRWord(params)) as SBRParams;
 
         expect(decoded.temporalMode).toBe(false);
         expect(decoded.hfGain).toBe(-6);
@@ -71,16 +45,14 @@ describe('SBR Bitfields', () => {
         expect(decoded.noiseFloorRatio).toBe(11);
         expect(decoded.tonality).toBe(3);
         expect(decoded.patchMode).toBe(1);
-        expect(decoded.procMode).toBe(0);
         expect(decoded.stereoCue).toBe(5);
         expect(decoded.transientShape).toBe(1);
     });
 
-    it('round-trips the v301 temporal layout with stereo cue bits', () => {
+    it('round-trips the temporal layout with stereo cue bits', () => {
         const params: SBRParamsTemporal = {
             temporalMode: true,
             patchMode: 3,
-            procMode: 1,
             tonality: 2,
             stereoCue: 6,
             bandEnvelope: [-4.5, -1.5, 1.5, 4.5],
@@ -92,11 +64,10 @@ describe('SBR Bitfields', () => {
             transientB: 0
         };
 
-        const decoded = decodeSBRWord(encodeSBRWord(params, 301), 301) as SBRParamsTemporal;
+        const decoded = decodeSBRWord(encodeSBRWord(params)) as SBRParamsTemporal;
 
         expect(decoded.temporalMode).toBe(true);
         expect(decoded.patchMode).toBe(3);
-        expect(decoded.procMode).toBe(0);
         expect(decoded.tonality).toBe(2);
         expect(decoded.stereoCue).toBe(6);
         expect(decoded.bandEnvelope).toEqual([-4.5, -1.5, 1.5, 4.5]);
@@ -195,7 +166,7 @@ describe('Stereo SBR Cue Analysis', () => {
     });
 
     it('recomputes band envelopes after stereo patch locking', () => {
-        const rowParams = {
+        const rowParams: RowSBRParams = {
             subgroups: [
                 {
                     temporalMode: false as const,
@@ -204,7 +175,6 @@ describe('Stereo SBR Cue Analysis', () => {
                     noiseFloorRatio: 4,
                     tonality: 2,
                     patchMode: 0,
-                    procMode: 0,
                     stereoCue: 0,
                     transientShape: 0
                 },
@@ -215,7 +185,6 @@ describe('Stereo SBR Cue Analysis', () => {
                     noiseFloorRatio: 4,
                     tonality: 2,
                     patchMode: 0,
-                    procMode: 0,
                     stereoCue: 0,
                     transientShape: 0
                 }
@@ -268,7 +237,7 @@ describe('SBR Silence Handling', () => {
         const row = analyzeRowSBR(blocks, 4);
         const subgroup = row.subgroups[0];
 
-        expect(subgroup.temporalMode).toBe(false);
+        if (subgroup.temporalMode) throw new Error('silent row must not use temporal mode');
         expect(subgroup.hfGain).toBeLessThanOrEqual(-47);
         expect(subgroup.noiseFloorRatio).toBe(0);
         expect(subgroup.tonality).toBe(0);
@@ -283,12 +252,11 @@ describe('SBR Silence Handling', () => {
             noiseFloorRatio: 15,
             tonality: 0,
             patchMode: 0,
-            procMode: 0,
             stereoCue: 0,
             transientShape: 0
         };
 
-        applySBRSynthesis(coeffs, params, 0, 1, 12345, 301);
+        applySBRSynthesis(coeffs, params, 0, 1, 12345);
 
         for (let bin = SBR_START_BIN; bin < SBR_END_BIN; bin++) {
             expect(coeffs[bin]).toBe(0);
@@ -324,7 +292,7 @@ describe('SBR Subgroup Partition', () => {
                 expect(col).toBeGreaterThanOrEqual(start);
                 expect(col).toBeLessThan(end);
 
-                const selection = selectSbrParamsForBlock(sbrBytes, col, FORMAT_VERSION, rowDataCount);
+                const selection = selectSbrParamsForBlock(sbrBytes, col, rowDataCount);
                 expect(selection).not.toBeNull();
                 expect(selection!.params.patchMode).toBe(rowParams.subgroups[expectedIdx].patchMode);
                 expect(selection!.params.temporalMode).toBe(rowParams.subgroups[expectedIdx].temporalMode);
@@ -343,7 +311,7 @@ describe('SBR Subgroup Partition', () => {
     });
 });
 
-describe('SBR Analysis and Synthesis (v301)', () => {
+describe('SBR Analysis and Synthesis', () => {
     function noiseBlocks(count: number, seed: number, amplitude: (bin: number, block: number) => number): Float32Array[] {
         const rng = createRNG(seed);
         const blocks: Float32Array[] = [];
@@ -370,7 +338,7 @@ describe('SBR Analysis and Synthesis (v301)', () => {
         return source.map((bins, col) => {
             const out = new Float32Array(bins);
             out.fill(0, SBR_START_BIN);
-            const selection = selectSbrParamsForBlock(sbrBytes, col, FORMAT_VERSION, count)!;
+            const selection = selectSbrParamsForBlock(sbrBytes, col, count)!;
             applySBRSynthesis(out, selection.params, selection.blockIdxInSubgroup, selection.subgroupSize, 1000 + col);
             return out;
         });
@@ -450,7 +418,6 @@ describe('SBR Analysis and Synthesis (v301)', () => {
         const params: SBRParamsTemporal = {
             temporalMode: true,
             patchMode: 0,
-            procMode: 0,
             tonality: 3,
             stereoCue: 0,
             bandEnvelope: [0, 0, 0, 0],
@@ -469,17 +436,12 @@ describe('SBR Analysis and Synthesis (v301)', () => {
 
         // First half: all noise. Second half: the source tile as is.
         const noisy = new Float32Array(source);
-        applySBRSynthesis(noisy, params, 0, 8, 99, 301);
+        applySBRSynthesis(noisy, params, 0, 8, 99);
         expect(Math.abs(correlation(noisy))).toBeLessThan(0.5);
 
         const tonal = new Float32Array(source);
-        applySBRSynthesis(tonal, params, 7, 8, 99, 301);
+        applySBRSynthesis(tonal, params, 7, 8, 99);
         expect(correlation(tonal)).toBeCloseTo(1, 3);
-
-        // v300 read the same field against 15
-        const legacy = new Float32Array(source);
-        applySBRSynthesis(legacy, params, 0, 8, 99, 300);
-        expect(Math.abs(correlation(legacy))).toBeGreaterThan(0.5);
     });
 
     it('transient shapes move energy in time without changing the total', () => {
@@ -492,7 +454,6 @@ describe('SBR Analysis and Synthesis (v301)', () => {
                 noiseFloorRatio: 0,
                 tonality: 3,
                 patchMode: 0,
-                procMode: 0,
                 stereoCue: 0,
                 transientShape
             };
@@ -502,8 +463,8 @@ describe('SBR Analysis and Synthesis (v301)', () => {
                 const bins = new Float32Array(128);
                 for (let k = 56; k < 96; k++) bins[k] = k % 2 === 0 ? 0.5 : -0.5;
                 const reference = new Float32Array(bins);
-                applySBRSynthesis(bins, params, b, size, 5, 301);
-                applySBRSynthesis(reference, { ...params, transientShape: 0 }, b, size, 5, 301);
+                applySBRSynthesis(bins, params, b, size, 5);
+                applySBRSynthesis(reference, { ...params, transientShape: 0 }, b, size, 5);
                 shaped += hfEnergy([bins]);
                 flat += hfEnergy([reference]);
             }

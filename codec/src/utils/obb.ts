@@ -10,7 +10,9 @@ import { MuLaw } from "./mulaw";
 export type Vec3 = [number, number, number];
 
 // ---------- Constants ----------
-const OBB_CENTER: Vec3 = [127.426429853651, 128.000000000000, 128.000000000000];
+// The luma centre is an integer so that a zero coefficient is an exact pixel
+// value; a fractional centre leaves a constant offset in every silent block.
+const OBB_CENTER: Vec3 = [128.000000000000, 128.000000000000, 128.000000000000];
 const OBB_EXTENTS: Vec3 = [41.159043640701, 61.527423138263, 48.637958664678]; // hx, hy, hz (half-extents)
 const OBB_ROT: number[][] = [
   [1.000000000000, 0.000000000000, 0.000000000000],

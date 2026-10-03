@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Kyle Alexander Buan
 
-import { FORMAT_VERSION } from '../constants';
-
 // Constants
 
 export const SBR_START_BIN = 96;
@@ -36,16 +34,6 @@ export const TRANSIENT_SHAPE_NAMES = [
     'Impulse'
 ];
 
-/**
- * Processing Mode Names
- */
-export const PROCESSING_MODE_NAMES = [
-    'Normal',     // Standard tonal/noise mixing
-    'Transient',  // Preserve transients, noise only in silence
-    'Harmonic',   // Cubic shaping for harmonic enhancement
-    'Inverse'     // Invert odd samples for decorrelation
-];
-
 const STEREO_COHERENCE_AMOUNTS = [0.0, 0.33, 0.67, 1.0] as const;
 const STEREO_COHERENCE_THRESHOLDS = [0.20, 0.50, 0.80] as const;
 const STEREO_RESIDUAL_SCALES = [1.0, 0.7, 0.35, 0.0] as const;
@@ -76,10 +64,9 @@ export interface SBRParams {
     hfGain: number;           // dB (-48 to +15)
     bandEnvelope: number[];   // 4 bands, each in dB relative adjustment
     noiseFloorRatio: number;  // 0-15 (0 = pure tone, 15 = pure noise)
-    tonality: number;         // 0-7 in v300, 0-3 in v301+
+    tonality: number;         // 0-3 (source tile whitening, 3 = untouched)
     patchMode: number;        // 0-3 (source frequency selection)
-    procMode: number;         // 0-3 (legacy v300 processing mode)
-    stereoCue: number;        // 0-7 (v301+ stereo HF cue)
+    stereoCue: number;        // 0-7 (stereo HF cue)
     transientShape: number;   // 0-3 (temporal envelope) - Normal only
 }
 
@@ -90,9 +77,8 @@ export interface SBRParamsTemporal {
     temporalMode: true;
     // Shared (slow-changing) parameters
     patchMode: number;        // 0-3
-    procMode: number;         // 0-3 (legacy v300 processing mode)
-    tonality: number;         // 0-3 (reduced precision)
-    stereoCue: number;        // 0-7 (v301+ stereo HF cue)
+    tonality: number;         // 0-3
+    stereoCue: number;        // 0-7 (stereo HF cue)
     bandEnvelope: number[];   // 4 bands * 2 bits each (reduced precision)
 
     // Fast parameters (first half of subgroup)
@@ -148,33 +134,9 @@ export function getSbrSubgroupIndexForBlock(rowDataCount: number, colInRow: numb
 // Encoding / Decoding
 
 /**
- * v300 Normal Mode Bit Layout (32 bits, flag=0):
+ * Normal Mode Bit Layout (32 bits, flag=0):
  *   [31:26] hfGain        - 6 bits  (1dB steps, -48 to +15)
  *   [25:14] bandEnvelope  - 12 bits (4 bands * 3 bits)
- *   [13:10] noiseFloor    - 4 bits
- *   [9:7]   tonality      - 3 bits
- *   [6:5]   patchMode     - 2 bits
- *   [4:3]   procMode      - 2 bits
- *   [2:1]   transient     - 2 bits
- *   [0]     mode flag     - 1 bit = 0
- * 
- * v300 Temporal Mode Bit Layout (32 bits, flag=1):
- *   [31:30] patchMode     - 2 bits (shared)
- *   [29:28] procMode      - 2 bits (shared)
- *   [27:26] tonality      - 2 bits (shared, reduced)
- *   [25:18] bandEnvelope  - 8 bits (4 bands * 2 bits, shared, reduced)
- *   [17:13] hfGainA       - 5 bits (first half)
- *   [12:11] noiseFloorA   - 2 bits (first half)
- *   [10]    transientA    - 1 bit (first half)
- *   [9:5]   hfGainB       - 5 bits (second half)
- *   [4:3]   noiseFloorB   - 2 bits (second half)
- *   [2]     transientB    - 1 bit (second half)
- *   [1]     reserved      - 1 bit
- *   [0]     mode flag     - 1 bit = 1
- *
- * v301+ Normal Mode Bit Layout (32 bits, flag=0):
- *   [31:26] hfGain        - 6 bits
- *   [25:14] bandEnvelope  - 12 bits
  *   [13:10] noiseFloor    - 4 bits
  *   [9:8]   tonality      - 2 bits
  *   [7:5]   stereo cue    - 3 bits
@@ -182,88 +144,27 @@ export function getSbrSubgroupIndexForBlock(rowDataCount: number, colInRow: numb
  *   [2:1]   transient     - 2 bits
  *   [0]     mode flag     - 1 bit = 0
  *
- * v301+ Temporal Mode Bit Layout (32 bits, flag=1):
- *   [31:29] stereo cue    - 3 bits
- *   [28:27] patchMode     - 2 bits
- *   [26:25] tonality      - 2 bits
- *   [24:17] bandEnvelope  - 8 bits
- *   [16:12] hfGainA       - 5 bits
- *   [11:10] noiseFloorA   - 2 bits
- *   [9]     transientA    - 1 bit
- *   [8:4]   hfGainB       - 5 bits
- *   [3:2]   noiseFloorB   - 2 bits
- *   [1]     transientB    - 1 bit
+ * Temporal Mode Bit Layout (32 bits, flag=1):
+ *   [31:29] stereo cue    - 3 bits (shared)
+ *   [28:27] patchMode     - 2 bits (shared)
+ *   [26:25] tonality      - 2 bits (shared)
+ *   [24:17] bandEnvelope  - 8 bits (4 bands * 2 bits, shared, reduced)
+ *   [16:12] hfGainA       - 5 bits (first half)
+ *   [11:10] noiseFloorA   - 2 bits (first half)
+ *   [9]     transientA    - 1 bit (first half)
+ *   [8:4]   hfGainB       - 5 bits (second half)
+ *   [3:2]   noiseFloorB   - 2 bits (second half)
+ *   [1]     transientB    - 1 bit (second half)
  *   [0]     mode flag     - 1 bit = 1
  */
 
-export function encodeSBRWord(params: SBRParamsUnion, formatVersion: number = FORMAT_VERSION): number {
-    if (formatVersion >= 301) {
-        return params.temporalMode
-            ? encodeSBRWordTemporalV301(params as SBRParamsTemporal)
-            : encodeSBRWordNormalV301(params as SBRParams);
-    }
-
-    if (params.temporalMode) {
-        return encodeSBRWordTemporalLegacy(params as SBRParamsTemporal);
-    } else {
-        return encodeSBRWordNormalLegacy(params as SBRParams);
-    }
+export function encodeSBRWord(params: SBRParamsUnion): number {
+    return params.temporalMode
+        ? encodeSBRWordTemporal(params as SBRParamsTemporal)
+        : encodeSBRWordNormal(params as SBRParams);
 }
 
-function encodeSBRWordNormalLegacy(params: SBRParams): number {
-    // Quantize gain (6 bits)
-    let gainIdx = Math.round((params.hfGain - MIN_GAIN_DB) / GAIN_STEP_DB_NORMAL);
-    gainIdx = Math.max(0, Math.min(63, gainIdx));
-
-    // Quantize band envelopes (12 bits total)
-    let bandBits = 0;
-    for (let b = 0; b < 4; b++) {
-        let envIdx = Math.round((params.bandEnvelope[b] - BAND_ENV_MIN_DB) / BAND_ENV_STEP_DB_NORMAL);
-        envIdx = Math.max(0, Math.min(7, envIdx));
-        bandBits |= (envIdx << (b * 3));
-    }
-
-    return ((gainIdx & 0x3F) << 26) |
-        ((bandBits & 0xFFF) << 14) |
-        ((params.noiseFloorRatio & 0x0F) << 10) |
-        ((params.tonality & 0x07) << 7) |
-        ((params.patchMode & 0x03) << 5) |
-        ((params.procMode & 0x03) << 3) |
-        ((params.transientShape & 0x03) << 1) |
-        0; // mode flag = 0
-}
-
-function encodeSBRWordTemporalLegacy(params: SBRParamsTemporal): number {
-    // Quantize gains (5 bits each)
-    let gainIdxA = Math.round((params.hfGainA - MIN_GAIN_DB) / GAIN_STEP_DB_TEMPORAL);
-    gainIdxA = Math.max(0, Math.min(31, gainIdxA));
-
-    let gainIdxB = Math.round((params.hfGainB - MIN_GAIN_DB) / GAIN_STEP_DB_TEMPORAL);
-    gainIdxB = Math.max(0, Math.min(31, gainIdxB));
-
-    // Quantize band envelopes (8 bits total, 2 bits per band)
-    let bandBits = 0;
-    for (let b = 0; b < 4; b++) {
-        let envIdx = Math.round((params.bandEnvelope[b] - BAND_ENV_MIN_DB_TEMPORAL) / BAND_ENV_STEP_DB_TEMPORAL);
-        envIdx = Math.max(0, Math.min(3, envIdx));
-        bandBits |= (envIdx << (b * 2));
-    }
-
-    return ((params.patchMode & 0x03) << 30) |
-        ((params.procMode & 0x03) << 28) |
-        ((params.tonality & 0x03) << 26) |
-        ((bandBits & 0xFF) << 18) |
-        ((gainIdxA & 0x1F) << 13) |
-        ((params.noiseFloorRatioA & 0x03) << 11) |
-        ((params.transientA & 0x01) << 10) |
-        ((gainIdxB & 0x1F) << 5) |
-        ((params.noiseFloorRatioB & 0x03) << 3) |
-        ((params.transientB & 0x01) << 2) |
-        // bit 1 reserved
-        1; // mode flag = 1
-}
-
-function encodeSBRWordNormalV301(params: SBRParams): number {
+function encodeSBRWordNormal(params: SBRParams): number {
     let gainIdx = Math.round((params.hfGain - MIN_GAIN_DB) / GAIN_STEP_DB_NORMAL);
     gainIdx = Math.max(0, Math.min(63, gainIdx));
 
@@ -286,7 +187,7 @@ function encodeSBRWordNormalV301(params: SBRParams): number {
         ((params.transientShape & 0x03) << 1);
 }
 
-function encodeSBRWordTemporalV301(params: SBRParamsTemporal): number {
+function encodeSBRWordTemporal(params: SBRParamsTemporal): number {
     let gainIdxA = Math.round((params.hfGainA - MIN_GAIN_DB) / GAIN_STEP_DB_TEMPORAL);
     gainIdxA = Math.max(0, Math.min(31, gainIdxA));
 
@@ -316,68 +217,11 @@ function encodeSBRWordTemporalV301(params: SBRParamsTemporal): number {
         1;
 }
 
-export function decodeSBRWord(word: number, formatVersion: number = FORMAT_VERSION): SBRParamsUnion {
-    const modeFlag = word & 1;
-    if (formatVersion >= 301) {
-        return modeFlag === 1 ? decodeSBRWordTemporalV301(word) : decodeSBRWordNormalV301(word);
-    }
-
-    if (modeFlag === 1) {
-        return decodeSBRWordTemporalLegacy(word);
-    } else {
-        return decodeSBRWordNormalLegacy(word);
-    }
+export function decodeSBRWord(word: number): SBRParamsUnion {
+    return (word & 1) === 1 ? decodeSBRWordTemporal(word) : decodeSBRWordNormal(word);
 }
 
-function decodeSBRWordNormalLegacy(word: number): SBRParams {
-    const gainIdx = (word >>> 26) & 0x3F;
-    const bandBits = (word >>> 14) & 0xFFF;
-
-    const bandEnvelope: number[] = [];
-    for (let b = 0; b < 4; b++) {
-        const envIdx = (bandBits >>> (b * 3)) & 0x07;
-        bandEnvelope.push((envIdx * BAND_ENV_STEP_DB_NORMAL) + BAND_ENV_MIN_DB);
-    }
-
-    return {
-        temporalMode: false,
-        hfGain: (gainIdx * GAIN_STEP_DB_NORMAL) + MIN_GAIN_DB,
-        bandEnvelope,
-        noiseFloorRatio: (word >>> 10) & 0x0F,
-        tonality: (word >>> 7) & 0x07,
-        patchMode: (word >>> 5) & 0x03,
-        procMode: (word >>> 3) & 0x03,
-        stereoCue: 0,
-        transientShape: (word >>> 1) & 0x03
-    };
-}
-
-function decodeSBRWordTemporalLegacy(word: number): SBRParamsTemporal {
-    const bandBits = (word >>> 18) & 0xFF;
-
-    const bandEnvelope: number[] = [];
-    for (let b = 0; b < 4; b++) {
-        const envIdx = (bandBits >>> (b * 2)) & 0x03;
-        bandEnvelope.push((envIdx * BAND_ENV_STEP_DB_TEMPORAL) + BAND_ENV_MIN_DB_TEMPORAL);
-    }
-
-    return {
-        temporalMode: true,
-        patchMode: (word >>> 30) & 0x03,
-        procMode: (word >>> 28) & 0x03,
-        tonality: (word >>> 26) & 0x03,
-        stereoCue: 0,
-        bandEnvelope,
-        hfGainA: (((word >>> 13) & 0x1F) * GAIN_STEP_DB_TEMPORAL) + MIN_GAIN_DB,
-        noiseFloorRatioA: (word >>> 11) & 0x03,
-        transientA: (word >>> 10) & 0x01,
-        hfGainB: (((word >>> 5) & 0x1F) * GAIN_STEP_DB_TEMPORAL) + MIN_GAIN_DB,
-        noiseFloorRatioB: (word >>> 3) & 0x03,
-        transientB: (word >>> 2) & 0x01
-    };
-}
-
-function decodeSBRWordNormalV301(word: number): SBRParams {
+function decodeSBRWordNormal(word: number): SBRParams {
     const gainIdx = (word >>> 26) & 0x3F;
     const bandBits = (word >>> 14) & 0xFFF;
 
@@ -394,13 +238,12 @@ function decodeSBRWordNormalV301(word: number): SBRParams {
         noiseFloorRatio: (word >>> 10) & 0x0F,
         tonality: (word >>> 8) & 0x03,
         patchMode: (word >>> 3) & 0x03,
-        procMode: 0,
         stereoCue: (word >>> 5) & 0x07,
         transientShape: (word >>> 1) & 0x03
     };
 }
 
-function decodeSBRWordTemporalV301(word: number): SBRParamsTemporal {
+function decodeSBRWordTemporal(word: number): SBRParamsTemporal {
     const bandBits = (word >>> 17) & 0xFF;
 
     const bandEnvelope: number[] = [];
@@ -412,7 +255,6 @@ function decodeSBRWordTemporalV301(word: number): SBRParamsTemporal {
     return {
         temporalMode: true,
         patchMode: (word >>> 27) & 0x03,
-        procMode: 0,
         tonality: (word >>> 25) & 0x03,
         stereoCue: (word >>> 29) & 0x07,
         bandEnvelope,
@@ -425,10 +267,10 @@ function decodeSBRWordTemporalV301(word: number): SBRParamsTemporal {
     };
 }
 
-export function encodeRowSBR(rowParams: RowSBRParams, formatVersion: number = FORMAT_VERSION): Uint8Array {
+export function encodeRowSBR(rowParams: RowSBRParams): Uint8Array {
     const bytes = new Uint8Array(SBR_BYTES_PER_ROW);
     for (let i = 0; i < SBR_SUBGROUPS_PER_ROW; i++) {
-        const word = encodeSBRWord(rowParams.subgroups[i], formatVersion);
+        const word = encodeSBRWord(rowParams.subgroups[i]);
         // Big-endian encoding (4 bytes per word)
         bytes[i * 4 + 0] = (word >>> 24) & 0xFF;
         bytes[i * 4 + 1] = (word >>> 16) & 0xFF;
@@ -438,7 +280,7 @@ export function encodeRowSBR(rowParams: RowSBRParams, formatVersion: number = FO
     return bytes;
 }
 
-export function decodeRowSBR(bytes: Uint8Array, formatVersion: number = FORMAT_VERSION): RowSBRParams {
+export function decodeRowSBR(bytes: Uint8Array): RowSBRParams {
     if (bytes.length !== SBR_BYTES_PER_ROW) {
         throw new Error(`Invalid SBR bytes length: expected ${SBR_BYTES_PER_ROW}, got ${bytes.length}`);
     }
@@ -446,7 +288,7 @@ export function decodeRowSBR(bytes: Uint8Array, formatVersion: number = FORMAT_V
     for (let i = 0; i < SBR_SUBGROUPS_PER_ROW; i++) {
         const word = (bytes[i * 4] << 24) | (bytes[i * 4 + 1] << 16) |
             (bytes[i * 4 + 2] << 8) | bytes[i * 4 + 3];
-        subgroups.push(decodeSBRWord(word, formatVersion));
+        subgroups.push(decodeSBRWord(word));
     }
     return { subgroups: subgroups as [SBRParamsUnion, SBRParamsUnion] };
 }
@@ -516,11 +358,11 @@ export function readSourceTile(mdctCoeffs: Float32Array, patchMode: number, whit
     }
 }
 
-// RMS of each transient shape over its span, so v301 shapes keep the energy
-// the gain was fitted for
+// RMS of each transient shape over its span, so shapes keep the energy the
+// gain was fitted for
 const TRANSIENT_SHAPE_RMS = [1.0, Math.sqrt(7 / 12), Math.sqrt(7 / 12), Math.sqrt(7 / 16)] as const;
 
-function transientShapeGain(shape: number, position: number, normalized: boolean): number {
+function transientShapeGain(shape: number, position: number): number {
     let gain = 1.0;
     switch (shape) {
         case 1: // Attack
@@ -533,7 +375,7 @@ function transientShapeGain(shape: number, position: number, normalized: boolean
             gain = 1.0 - Math.abs(position - 0.5) * 1.5;
             break;
     }
-    return normalized ? gain / TRANSIENT_SHAPE_RMS[shape & 3] : gain;
+    return gain / TRANSIENT_SHAPE_RMS[shape & 3];
 }
 
 /**
@@ -545,11 +387,10 @@ export function applySBRSynthesis(
     params: SBRParamsUnion,
     blockIndexInSubgroup: number = 0,
     subgroupSize: number = 1,
-    externalSeed?: number,
-    formatVersion: number = FORMAT_VERSION
+    externalSeed?: number
 ): void {
-    const synthParams = resolveSynthesisParams(params, blockIndexInSubgroup, subgroupSize, formatVersion);
-    synthesizeBlock(mdctCoeffs, synthParams, externalSeed, formatVersion);
+    const synthParams = resolveSynthesisParams(params, blockIndexInSubgroup, subgroupSize);
+    synthesizeBlock(mdctCoeffs, synthParams, externalSeed);
 }
 
 interface SynthesisParams {
@@ -562,7 +403,6 @@ interface SynthesisParams {
     shapePosition: number | null;
     tonality: number;
     patchMode: number;
-    procMode: number;
     stereoCue: number;
     transientShape: number;
 }
@@ -570,8 +410,7 @@ interface SynthesisParams {
 function resolveSynthesisParams(
     params: SBRParamsUnion,
     blockIndexInSubgroup: number,
-    subgroupSize: number,
-    formatVersion: number
+    subgroupSize: number
 ): SynthesisParams {
     const spanPosition = (index: number, size: number) => size > 1 ? index / (size - 1) : null;
 
@@ -583,19 +422,15 @@ function resolveSynthesisParams(
 
         return {
             hfGain: isSecondHalf ? temporal.hfGainB : temporal.hfGainA,
-            // v300 read the 2-bit temporal field on the 4-bit scale
-            noiseRatio: Math.min(1.0, noiseFloorRatio / (formatVersion >= 301 ? 3.0 : 15.0)),
+            noiseRatio: Math.min(1.0, noiseFloorRatio / 3.0),
             transientShape: isSecondHalf ? temporal.transientB : temporal.transientA,
-            // v301 runs the shape over the half it was analyzed on
-            shapePosition: formatVersion >= 301
-                ? (isSecondHalf
-                    ? spanPosition(blockIndexInSubgroup - halfSize, subgroupSize - halfSize)
-                    : spanPosition(blockIndexInSubgroup, halfSize))
-                : spanPosition(blockIndexInSubgroup, subgroupSize),
+            // The shape runs over the half it was analyzed on
+            shapePosition: isSecondHalf
+                ? spanPosition(blockIndexInSubgroup - halfSize, subgroupSize - halfSize)
+                : spanPosition(blockIndexInSubgroup, halfSize),
             bandEnvelope: temporal.bandEnvelope,
             tonality: temporal.tonality,
             patchMode: temporal.patchMode,
-            procMode: formatVersion >= 301 ? 0 : temporal.procMode,
             stereoCue: temporal.stereoCue
         };
     }
@@ -608,7 +443,6 @@ function resolveSynthesisParams(
         shapePosition: spanPosition(blockIndexInSubgroup, subgroupSize),
         tonality: normal.tonality,
         patchMode: normal.patchMode,
-        procMode: formatVersion >= 301 ? 0 : normal.procMode,
         stereoCue: normal.stereoCue,
         transientShape: normal.transientShape
     };
@@ -618,21 +452,15 @@ function synthesizeBlock(
     mdctFull: Float32Array,
     params: SynthesisParams,
     externalSeed?: number,
-    formatVersion: number = FORMAT_VERSION,
     unitNoiseProvider?: (destIdx: number) => number
 ): void {
-    const isV301 = formatVersion >= 301;
     const noiseRatio = params.noiseRatio;
     const toneRatio = 1.0 - noiseRatio;
-    // v300 used tonality as a second tone/noise mix control. In v301 it
-    // selects how much the source tile is whitened and the mix is set by
-    // the noise ratio alone.
-    const tonalityFactor = isV301 ? 1.0 : Math.min(1.0, params.tonality / 7.0);
 
     // Temporal envelope multiplier
     const temporalMult = params.shapePosition === null
         ? 1.0
-        : transientShapeGain(params.transientShape, params.shapePosition, isV301);
+        : transientShapeGain(params.transientShape, params.shapePosition);
 
     // Content-based seed or external seed
     const frameSeed = externalSeed !== undefined ? externalSeed : Math.floor(
@@ -646,7 +474,9 @@ function synthesizeBlock(
     const mirror = params.patchMode === 3;
 
     const sourceTile = new Float32Array(SBR_NUM_BINS);
-    readSourceTile(mdctFull, params.patchMode, isV301 ? 3 - Math.min(3, params.tonality) : 0, sourceTile);
+    // Tonality selects how much the source tile is whitened; the tone/noise
+    // mix is set by the noise ratio alone
+    readSourceTile(mdctFull, params.patchMode, 3 - Math.min(3, params.tonality), sourceTile);
 
     // --- Interpolation setup ---
 
@@ -705,7 +535,6 @@ function synthesizeBlock(
         const bandStart = b * 8;
         const srcRMS = bandSourceRMS[b]; // Still use band RMS for noise/mix logic
         const actualSrcRMS = bandActualSourceRMS[b];
-        const floor = (noiseRatio > 0.5) ? 0.001 : 1e-9;
 
         for (let i = 0; i < 8; i++) {
             const destIdx = SBR_START_BIN + bandStart + i;
@@ -727,39 +556,18 @@ function synthesizeBlock(
                 continue;
             }
 
-            let val = sourceTile[bandStart + i];
-
-            // Processing modes
-            if (params.procMode === 2) {
-                const safeRMS = Math.max(srcRMS, 1e-6);
-                const norm = val / (safeRMS * 2.0);
-                val = (norm * norm * norm) * (safeRMS * 2.0);
-            } else if (params.procMode === 3) {
-                if (i & 1) val = -val;
-            }
+            const val = sourceTile[bandStart + i];
 
             // Mix with energy preservation: wTonal^2 + wNoisy^2 = 1.0
             // Since getDeterministicNoise has RMS of 1/sqrt(3), 
             // we multiply by sqrt(3) ~= 1.732 to normalize noise to RMS 1.0.
             const SCALE_SQRT3 = Math.sqrt(3.0);
-            let finalVal: number;
-            if (params.procMode === 1) {
-                const noiseSample = unitNoiseProvider ? unitNoiseProvider(destIdx) : getDeterministicNoise(frameSeed, destIdx);
-                if (srcRMS <= floor * 1.1 && noiseRatio > 0.5) {
-                    finalVal = noiseSample * srcRMS * SCALE_SQRT3;
-                } else {
-                    finalVal = val;
-                }
-            } else {
-                // Determine weights
-                const wTonal = Math.sqrt(tonalityFactor * toneRatio);
-                const wNoisy = Math.sqrt((1.0 - tonalityFactor) * toneRatio + noiseRatio);
+            const wTonal = Math.sqrt(toneRatio);
+            const wNoisy = Math.sqrt(noiseRatio);
 
-                // Normalize noise power
-                const noiseSample = unitNoiseProvider ? unitNoiseProvider(destIdx) : getDeterministicNoise(frameSeed, destIdx);
-                const noise = noiseSample * srcRMS * SCALE_SQRT3;
-                finalVal = (val * wTonal) + (noise * wNoisy);
-            }
+            const noiseSample = unitNoiseProvider ? unitNoiseProvider(destIdx) : getDeterministicNoise(frameSeed, destIdx);
+            const noise = noiseSample * srcRMS * SCALE_SQRT3;
+            const finalVal = (val * wTonal) + (noise * wNoisy);
 
             mdctFull[destIdx] = finalVal * finalGainLin;
         }
@@ -775,11 +583,10 @@ export function applyJointStereoSBRSynthesis(
     subgroupSize: number = 1,
     sharedSeed?: number,
     midSeed?: number,
-    sideSeed?: number,
-    formatVersion: number = FORMAT_VERSION
+    sideSeed?: number
 ): void {
-    const midParams = resolveSynthesisParams(midParamsUnion, blockIndexInSubgroup, subgroupSize, formatVersion);
-    const sideParams = resolveSynthesisParams(sideParamsUnion, blockIndexInSubgroup, subgroupSize, formatVersion);
+    const midParams = resolveSynthesisParams(midParamsUnion, blockIndexInSubgroup, subgroupSize);
+    const sideParams = resolveSynthesisParams(sideParamsUnion, blockIndexInSubgroup, subgroupSize);
     const cue = decodeStereoSbrCue(midParams.stereoCue);
     const sharedMix = Math.sqrt(cue.sharedAmount);
     const independentMix = Math.sqrt(Math.max(0.0, 1.0 - cue.sharedAmount));
@@ -797,8 +604,8 @@ export function applyJointStereoSBRSynthesis(
         (signFactor * sharedMix * sharedNoise(destIdx)) +
         (independentMix * getDeterministicNoise(sideFrameSeed, destIdx));
 
-    synthesizeBlock(midCoeffs, midParams, midSeed, formatVersion, midNoise);
-    synthesizeBlock(sideCoeffs, sideParams, sideSeed, formatVersion, sideNoise);
+    synthesizeBlock(midCoeffs, midParams, midSeed, midNoise);
+    synthesizeBlock(sideCoeffs, sideParams, sideSeed, sideNoise);
     projectStereoCueToHighFrequencies(midCoeffs, sideCoeffs, cue);
 }
 
@@ -959,7 +766,7 @@ function fitTransientShape(stats: RangeStats, patchMode: number, gainDb: number,
     for (const shape of [0, ...candidates]) {
         let error = 0;
         for (let b = 0; b < stats.blockCount; b++) {
-            const envelope = transientShapeGain(shape, b / (stats.blockCount - 1), true);
+            const envelope = transientShapeGain(shape, b / (stats.blockCount - 1));
             error += (Math.sqrt(stats.targetBlock[b]) - Math.sqrt(stats.sourceBlock[patchMode][b]) * gainLin * envelope) ** 2;
         }
         if (shape === 0) flatError = error;
@@ -1043,7 +850,6 @@ function analyzeSubgroup(
             noiseFloorRatio: 0,
             tonality: 0,
             patchMode: forcedPatchMode ?? 0,
-            procMode: 0,
             stereoCue: 0,
             transientShape: 0
         };
@@ -1072,7 +878,6 @@ function analyzeSubgroup(
         return {
             temporalMode: true,
             patchMode,
-            procMode: 0,
             tonality,
             stereoCue: 0,
             bandEnvelope: fitBandEnvelope(full, patchMode, gain, BAND_ENV_MIN_DB_TEMPORAL, 4.5),
@@ -1093,7 +898,6 @@ function analyzeSubgroup(
         noiseFloorRatio: Math.round(noiseRatio * 15),
         tonality,
         patchMode,
-        procMode: 0,
         stereoCue: 0,
         transientShape: fitTransientShape(full, patchMode, hfGain, [1, 2, 3])
     };
@@ -1334,7 +1138,6 @@ export function createDefaultSBRParams(): SBRParams {
         noiseFloorRatio: 4,
         tonality: 2,
         patchMode: 0,
-        procMode: 0,
         stereoCue: 0,
         transientShape: 0
     };

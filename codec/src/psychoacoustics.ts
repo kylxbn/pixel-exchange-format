@@ -1,20 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Kyle Alexander Buan
 
-export const ZIGZAG_4X4_FLAT = new Uint8Array([
-    0, 1, 4, 8,
-    5, 2, 3, 6,
-    9, 12, 13, 10,
-    7, 11, 14, 15
-]);
-
-export const RASTER_4X4_FLAT = new Uint8Array([
-    0, 1, 2, 3,
-    4, 5, 6, 7,
-    8, 9, 10, 11,
-    12, 13, 14, 15
-]);
-
 export const ZIGZAG_8X8_FLAT = new Uint8Array([
     0, 1, 8, 16, 9, 2, 3, 10,
     17, 24, 32, 25, 18, 11, 4, 5,
@@ -54,20 +40,9 @@ export const Q92PM1_LUMA_8X8_FLAT = new Uint8Array([
 ]);
 
 // Derived from the same Q91/Q92/Q93 1/2/1 weighting of the chroma tables
-// over the first 16 JPEG chroma zigzag slots. The current codec uses one
-// shared 4x4 chroma map for both Cb and Cr because the JPEGs we are targeting
-// also use one shared chroma quantization table.
-export const Q92PM1_CHROMA_4X4_FLAT = new Uint8Array([
-    0, 1, 4, 5,
-    8, 2, 6, 9,
-    3, 12, 7, 10,
-    11, 13, 14, 15
-]);
-
-// Derived from the same Q91/Q92/Q93 1/2/1 weighting of the chroma tables
-// over all 64 JPEG chroma zigzag slots. Used by v301+ where one 8x8 chroma
-// block spans a 2x2 group of luma blocks (16x16 px at 4:2:0). The chroma
-// tables flatten beyond the early slots, so the tail resolves to zigzag order.
+// over all 64 JPEG chroma zigzag slots. One 8x8 chroma block spans a 2x2
+// group of luma blocks (16x16 px at 4:2:0). The chroma tables flatten beyond
+// the early slots, so the tail resolves to zigzag order.
 export const Q92PM1_CHROMA_8X8_FLAT = new Uint8Array([
     0, 1, 8, 9, 16, 2, 10, 17,
     3, 24, 18, 25, 11, 32, 4, 5,
@@ -91,15 +66,6 @@ export const Q92PM8_LUMA_8X8_FLAT = new Uint8Array([
     22, 56, 39, 50, 30, 44, 29, 51,
     57, 47, 58, 59, 61, 55, 63, 52,
     38, 62, 45, 37, 60, 46, 54, 53
-]);
-
-// Derived from weighted ImageMagick/libjpeg Q84..Q100 chroma tables over the
-// first 16 JPEG chroma zigzag slots using the same Q92-centered weighting.
-export const Q92PM8_CHROMA_4X4_FLAT = new Uint8Array([
-    0, 1, 4, 5,
-    8, 2, 6, 9,
-    3, 12, 7, 10,
-    11, 13, 14, 15
 ]);
 
 // Derived from weighted ImageMagick/libjpeg Q84..Q100 chroma tables over all
@@ -127,36 +93,21 @@ for (let k = 0; k < 64; k++) {
 export const AUDIO_PIXEL_MAPPING_PRESETS = {
     zigzag: {
         luma8x8: ZIGZAG_8X8_FLAT,
-        chroma4x4: ZIGZAG_4X4_FLAT,
         chroma8x8: ZIGZAG_8X8_FLAT,
     },
     q92pm1: {
         luma8x8: Q92PM1_LUMA_8X8_FLAT,
-        chroma4x4: Q92PM1_CHROMA_4X4_FLAT,
         chroma8x8: Q92PM1_CHROMA_8X8_FLAT,
     },
     q92pm8: {
         luma8x8: Q92PM8_LUMA_8X8_FLAT,
-        chroma4x4: Q92PM8_CHROMA_4X4_FLAT,
         chroma8x8: Q92PM8_CHROMA_8X8_FLAT,
     },
     raster: {
         luma8x8: RASTER_8X8_FLAT,
-        chroma4x4: RASTER_4X4_FLAT,
         chroma8x8: RASTER_8X8_FLAT,
     },
 } as const;
-
-export type AudioPixelMapping = typeof AUDIO_PIXEL_MAPPING_PRESETS[keyof typeof AUDIO_PIXEL_MAPPING_PRESETS];
-
-/**
- * Coefficient map used by a given format version. v300 images were written
- * with the plain zigzag map; v301 introduced the JPEG-tuned presets. The
- * decoder must pick the map from the header version, not the encoder default.
- */
-export function getBlockMapForVersion(formatVersion: number): AudioPixelMapping {
-    return formatVersion >= 301 ? AUDIO_PSYCHOACOUSTICS.blockMap : AUDIO_PIXEL_MAPPING_PRESETS.zigzag;
-}
 
 export const AUDIO_PSYCHOACOUSTICS = {
     // High-frequency reconstruction for bins 96..127

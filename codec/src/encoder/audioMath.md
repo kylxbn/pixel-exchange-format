@@ -3,7 +3,7 @@ order: 27
 title: Audio Row Math (Encoder)
 ---
 
-`processRowPair(...)` is the core audio DSP pipeline used by `AudioEncoder`. Since v301 the encoder works on pairs of data rows, because one 8x8 chroma block spans a 2x2 group of luma blocks (a 16x16 px JPEG 4:2:0 MCU) and audio blocks are stored in MCU order (see Audio Mode Format).
+`processRowPair(...)` is the core audio DSP pipeline used by `AudioEncoder`. The encoder works on pairs of data rows, because one 8x8 chroma block spans a 2x2 group of luma blocks (a 16x16 px JPEG 4:2:0 MCU) and audio blocks are stored in MCU order (see Audio Mode Format).
 
 ## Responsibilities
 
@@ -26,12 +26,9 @@ title: Audio Row Math (Encoder)
 
 `writeRowPairMetadata(...)` emits row metadata through the injected callback (`writeRowMetadata`).
 
-`writePreparedAudioRow(...)` is the legacy v300 writer (per-block 4x4 chroma); it is kept for decoder compatibility tests only.
-
 ## Storage Mapping
 
 - Luma: bins `0..63` -> `8x8` coefficients (selected by `AUDIO_PSYCHOACOUSTICS.blockMap.luma8x8`)
-- Chroma (v301+): bins `64..95` interleaved Cb/Cr -> 16 ranks each of the MCU's shared `8x8` chroma plane (selected by `AUDIO_PSYCHOACOUSTICS.blockMap.chroma8x8`)
-- Chroma (v300): bins `64..95` interleaved Cb/Cr -> per-block `4x4` coefficients (selected by `AUDIO_PSYCHOACOUSTICS.blockMap.chroma4x4`)
+- Chroma: bins `64..95` interleaved Cb/Cr -> 16 ranks each of the MCU's shared `8x8` chroma plane (selected by `AUDIO_PSYCHOACOUSTICS.blockMap.chroma8x8`)
 
 Band factors are computed over bins `0..63` and quantization is mirrored in analysis by `logDecode(logEncode(...))`.

@@ -18,10 +18,8 @@ Copyright (c) 2026 Kyle Alexander Buan
 		BLOCK_SIZE,
 		CHANNEL_MODE,
 		DATA_BLOCKS_PER_ROW,
-		FORMAT_VERSION,
 		IMAGE_WIDTH,
 		PATCH_MODE_NAMES,
-		PROCESSING_MODE_NAMES,
 		TRANSIENT_SHAPE_NAMES,
 		audioBlockToImageBlock as audioBlockToImageBlockIndex,
 		imageBlockToAudioBlock as imageBlockToAudioPosition,
@@ -78,8 +76,7 @@ Copyright (c) 2026 Kyle Alexander Buan
 	let hudSbrNoise = $state('0');
 	let hudSbrTonality = $state('0');
 	let hudSbrPatch = $state('Adjacent');
-	let hudSbrProcLabel = $state('Proc');
-	let hudSbrProc = $state('Normal');
+	let hudSbrStereo = $state('');
 	let hudSbrTransient = $state('Flat');
 	let hudSbrEnvelope = $state('0, 0, 0, 0');
 
@@ -191,14 +188,10 @@ Copyright (c) 2026 Kyle Alexander Buan
 		const { blocksPerRow } = metadata;
 		const absoluteImageBlockIndex = audioBlockToImageBlockIndex(
 			Math.floor(audioBlockIndex / DATA_BLOCKS_PER_ROW),
-			audioBlockIndex % DATA_BLOCKS_PER_ROW,
-			metadata.version
+			audioBlockIndex % DATA_BLOCKS_PER_ROW
 		);
-		// v301 stores a row's blocks in MCU order across two image rows
-		const band = audioRowImageSpan(
-			Math.floor(audioBlockIndex / DATA_BLOCKS_PER_ROW),
-			metadata.version
-		);
+		// A row's blocks are stored in MCU order across two image rows
+		const band = audioRowImageSpan(Math.floor(audioBlockIndex / DATA_BLOCKS_PER_ROW));
 
 		return {
 			row: Math.floor(absoluteImageBlockIndex / blocksPerRow),
@@ -209,12 +202,8 @@ Copyright (c) 2026 Kyle Alexander Buan
 	}
 
 	// Helper: Convert image block to audio block index
-	function imageBlockToAudioBlock(
-		imageRow: number,
-		imageCol: number,
-		metadata: VisualizationMetadata
-	): number | null {
-		const position = imageBlockToAudioPosition(imageRow, imageCol, metadata.version);
+	function imageBlockToAudioBlock(imageRow: number, imageCol: number): number | null {
+		const position = imageBlockToAudioPosition(imageRow, imageCol);
 		if (!position) return null;
 		return position.rowInAudioArea * DATA_BLOCKS_PER_ROW + position.colInAudioArea;
 	}
@@ -347,11 +336,7 @@ Copyright (c) 2026 Kyle Alexander Buan
 
 		// Decode SBR parameters
 		if (stats.sbrData && stats.sbrData.length === 8) {
-			const formatVersion =
-				decoderState.result && decoderState.result.type === 'audio'
-					? decoderState.result.visualizationMetadata.version
-					: FORMAT_VERSION;
-			const rowSBRParams = decodeRowSBR(stats.sbrData, formatVersion);
+			const rowSBRParams = decodeRowSBR(stats.sbrData);
 
 			// Subgroups are split relative to the row's actual block count (same as the decoder)
 			const { src, localBlockIndex: localIdx } = currentSourceInfo;
@@ -382,11 +367,7 @@ Copyright (c) 2026 Kyle Alexander Buan
 				hudSbrNoise = `${isSecondHalf ? temporal.noiseFloorRatioB : temporal.noiseFloorRatioA}/3`;
 				hudSbrTonality = `${temporal.tonality}/3`;
 				hudSbrPatch = PATCH_MODE_NAMES[temporal.patchMode] || 'Adjacent';
-				hudSbrProcLabel = formatVersion >= 301 ? 'Stereo' : 'Proc';
-				hudSbrProc =
-					formatVersion >= 301
-						? describeStereoCue(temporal.stereoCue)
-						: PROCESSING_MODE_NAMES[temporal.procMode] || 'Normal';
+				hudSbrStereo = describeStereoCue(temporal.stereoCue);
 				hudSbrTransient = (isSecondHalf ? temporal.transientB : temporal.transientA)
 					? 'Attack'
 					: 'Flat';
@@ -399,13 +380,9 @@ Copyright (c) 2026 Kyle Alexander Buan
 				hudSbrGain = `${normal.hfGain >= 0 ? '+' : ''}${normal.hfGain.toFixed(1)} dB`;
 				hudSbrGainBarWidth = Math.min(100, Math.max(0, ((normal.hfGain + 48) / 63) * 100));
 				hudSbrNoise = `${normal.noiseFloorRatio}/15`;
-				hudSbrTonality = `${normal.tonality}/${formatVersion >= 301 ? 3 : 7}`;
+				hudSbrTonality = `${normal.tonality}/3`;
 				hudSbrPatch = PATCH_MODE_NAMES[normal.patchMode] || 'Adjacent';
-				hudSbrProcLabel = formatVersion >= 301 ? 'Stereo' : 'Proc';
-				hudSbrProc =
-					formatVersion >= 301
-						? describeStereoCue(normal.stereoCue)
-						: PROCESSING_MODE_NAMES[normal.procMode] || 'Normal';
+				hudSbrStereo = describeStereoCue(normal.stereoCue);
 				hudSbrTransient = TRANSIENT_SHAPE_NAMES[normal.transientShape] || 'Flat';
 				hudSbrEnvelope = normal.bandEnvelope
 					.map((v) => (v >= 0 ? '+' : '') + v.toFixed(1))
@@ -455,11 +432,7 @@ Copyright (c) 2026 Kyle Alexander Buan
 		const clickedCol = Math.floor(clickX_unscaled / BLOCK_SIZE);
 
 		// Convert image block to local audio block index within current source (validates bounds)
-		const clickedLocalBlockIndex = imageBlockToAudioBlock(
-			clickedRow,
-			clickedCol,
-			visualizationMetadata
-		);
+		const clickedLocalBlockIndex = imageBlockToAudioBlock(clickedRow, clickedCol);
 		if (clickedLocalBlockIndex === null) return; // Outside audio area
 
 		const globalBlockIndex = sourceInfo.firstGlobalBlock + clickedLocalBlockIndex;
@@ -604,8 +577,8 @@ Copyright (c) 2026 Kyle Alexander Buan
 						<span class="text-violet-400 text-xs">{hudSbrPatch}</span>
 					</div>
 					<div class="flex justify-between items-center">
-						<span class="text-gray-400 text-xs">{hudSbrProcLabel}</span>
-						<span class="text-orange-400 text-xs">{hudSbrProc}</span>
+						<span class="text-gray-400 text-xs">Stereo</span>
+						<span class="text-orange-400 text-xs">{hudSbrStereo}</span>
 					</div>
 				</div>
 			</div>

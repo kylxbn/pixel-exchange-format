@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Kyle Alexander Buan
 
-import { MDCT_HOP_SIZE, BLOCK_SIZE, BLOCKS_PER_ROW, BINARY_ROW_DATA_CAPACITY, CHANNEL_MODE, DATA_BLOCKS_PER_ROW, FORMAT_VERSION } from '../constants';
+import { MDCT_HOP_SIZE, BLOCK_SIZE, BLOCKS_PER_ROW, BINARY_ROW_DATA_CAPACITY, CHANNEL_MODE, DATA_BLOCKS_PER_ROW } from '../constants';
 import { leadInSamples } from '../audioLayout';
 
 export class ChunkingUtils {
     public static splitAudioForMultiImage(
         channels: Float32Array[],
-        maxHeight: number = 4096,
-        formatVersion: number = FORMAT_VERSION
+        maxHeight: number = 4096
     ): Float32Array[][] {
         const maxSamplesPerImage = this.calculateMaxSamplesPerImage(maxHeight);
         const totalSamples = channels[0].length;
@@ -23,7 +22,7 @@ export class ChunkingUtils {
         while (currentSample < totalSamples) {
             const remainingSamples = totalSamples - currentSample;
             // The first image also stores the lead-in block
-            const leadIn = currentSample === 0 ? leadInSamples(formatVersion, CHANNEL_MODE.MONO, 1) : 0;
+            const leadIn = currentSample === 0 ? leadInSamples(CHANNEL_MODE.MONO, 1) : 0;
             const chunkSize = Math.min(maxSamplesPerImageAligned - leadIn, remainingSamples);
 
             const chunkChannels: Float32Array[] = [];
@@ -61,8 +60,8 @@ export class ChunkingUtils {
      * Audio samples that fit in a file made of a single image (or the first
      * image of a longer file), which also has to store the lead-in block.
      */
-    public static calculateMaxSamplesForFirstImage(maxHeight: number = 4096, formatVersion: number = FORMAT_VERSION): number {
-        return this.calculateMaxSamplesPerImage(maxHeight) - leadInSamples(formatVersion, CHANNEL_MODE.MONO, 1);
+    public static calculateMaxSamplesForFirstImage(maxHeight: number = 4096): number {
+        return this.calculateMaxSamplesPerImage(maxHeight) - leadInSamples(CHANNEL_MODE.MONO, 1);
     }
 
     /** Audio samples that fit in every image after the first. */
@@ -75,7 +74,7 @@ export class ChunkingUtils {
         const maxTotalBlocks = maxBlockRows * blocksPerRow;
         const firstAudioBlockIndex = 2 * blocksPerRow;
         const maxAudioBlocks = maxTotalBlocks - firstAudioBlockIndex;
-        // v301: data rows come in pairs (16x16 chroma superblocks), so a chunk
+        // Data rows come in pairs (16x16 chroma superblocks), so a chunk
         // must fit after the encoder rounds its row count up to even
         const maxImageRows = 2 * Math.floor(Math.floor(maxAudioBlocks / blocksPerRow) / 2);
         const maxTotalImageBlocks = maxImageRows * dataBlocksPerRow;

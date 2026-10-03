@@ -5,20 +5,18 @@ import { describe, it, expect } from 'vitest';
 import {
     prepareAudioRow,
     prepareRowPairChroma,
-    writePreparedAudioRow,
     writeRowPairPixels,
 } from './encoder/audioMath';
-import type { EncodeRowBuffers, RowMetadataWriter, PreparedAudioRow } from './encoder/audioMath';
+import type { EncodeRowBuffers, PreparedAudioRow } from './encoder/audioMath';
 import { decodeBlockToCoefficients } from './decoder/audioMath';
 import type { DecodeBlockBuffers } from './decoder/audioMath';
 import { AudioEncoder } from './encoder/audio';
-import type { SimpleImageData } from './encoder/audio';
+import type { SimpleImageData } from './encoder/types';
 import { PxfEncoder } from './encoder';
 import { PxfDecoder } from './decoder';
 import { getSineWindow } from './utils/audioUtils';
 import { getMdctWhiteningProfile } from './utils/mdctWhitening';
 import { createRNG } from './utils/rng';
-import { AUDIO_PIXEL_MAPPING_PRESETS, AUDIO_PSYCHOACOUSTICS, getBlockMapForVersion } from './psychoacoustics';
 import {
     BLOCKS_PER_ROW,
     DATA_BLOCKS_PER_ROW,
@@ -34,8 +32,6 @@ import {
 } from './audioLayout';
 import { decodeRGBToPoint } from './utils/obb';
 import { simulateJpegChannel } from './encoder/jpegChannel';
-
-const FIRST_AUDIO_BLOCK_INDEX = 2 * BLOCKS_PER_ROW;
 
 function makeEncodeBuffers(): EncodeRowBuffers {
     return {
@@ -79,8 +75,8 @@ function makeNoiseAudio(totalAudioBlocks: number, seed: number): Float32Array {
     return paddedAudio;
 }
 
-function chromaScaleFor(row: PreparedAudioRow, col: number, formatVersion: number): number {
-    return [row.scaleCAX, row.scaleCAY, row.scaleCBX, row.scaleCBY][chromaGroupIndex(col, formatVersion)];
+function chromaScaleFor(row: PreparedAudioRow, col: number): number {
+    return [row.scaleCAX, row.scaleCAY, row.scaleCBX, row.scaleCBY][chromaGroupIndex(col)];
 }
 
 function relativeRmse(orig: number[], dec: number[]): number {
@@ -94,10 +90,8 @@ function relativeRmse(orig: number[], dec: number[]): number {
     return Math.sqrt(errSum / (refSum + 1e-12));
 }
 
-const noopMetadataWriter: RowMetadataWriter = () => { };
-
-describe('4:2:0 chroma (v301 superblocks)', () => {
-    it('round-trips all bins through the v301 pair layout at the math layer', () => {
+describe('4:2:0 chroma superblocks', () => {
+    it('round-trips all bins through the row pair layout at the math layer', () => {
         const totalAudioBlocks = DATA_BLOCKS_PER_ROW + 6; // partial bottom row
         const paddedAudio = makeNoiseAudio(totalAudioBlocks, 12345);
         const mdctWindow = getSineWindow(MDCT_WINDOW_SIZE);
@@ -132,15 +126,14 @@ describe('4:2:0 chroma (v301 superblocks)', () => {
             const decChroma: number[] = [];
 
             for (let i = 0; i < row.rowDataCount; i++) {
-                const blockIndex = audioBlockToImageBlock(r, i, 301);
-                const scaleY = isLumaSubgroupA(i, 301) ? row.scaleYA : row.scaleYB;
-                const bandFactors = isLumaSubgroupA(i, 301) ? row.bandFactorsA : row.bandFactorsB;
+                const blockIndex = audioBlockToImageBlock(r, i);
+                const scaleY = isLumaSubgroupA(i) ? row.scaleYA : row.scaleYB;
+                const bandFactors = isLumaSubgroupA(i) ? row.bandFactorsA : row.bandFactorsB;
 
                 decodeBlockToCoefficients(
                     imageData.data, IMAGE_WIDTH, blockIndex,
-                    scaleY, chromaScaleFor(row, i, 301),
-                    whiteningProfile, bandFactors, coeffBuffer, decodeBuffers,
-                    undefined, 301
+                    scaleY, chromaScaleFor(row, i),
+                    whiteningProfile, bandFactors, coeffBuffer, decodeBuffers
                 );
 
                 const orig = row.rowMDCTCoeffs[i];
@@ -161,47 +154,43 @@ describe('4:2:0 chroma (v301 superblocks)', () => {
 
     it('stores audio blocks in JPEG 4:2:0 MCU order', () => {
         // First row of a pair: left 31 MCUs, blocks TL, TR, BL, BR per MCU
-        expect(audioBlockToImageBlock(0, 0, 301)).toBe(2 * BLOCKS_PER_ROW);
-        expect(audioBlockToImageBlock(0, 1, 301)).toBe(2 * BLOCKS_PER_ROW + 1);
-        expect(audioBlockToImageBlock(0, 2, 301)).toBe(3 * BLOCKS_PER_ROW);
-        expect(audioBlockToImageBlock(0, 3, 301)).toBe(3 * BLOCKS_PER_ROW + 1);
-        expect(audioBlockToImageBlock(0, 4, 301)).toBe(2 * BLOCKS_PER_ROW + 2);
-        expect(audioBlockToImageBlock(0, 123, 301)).toBe(3 * BLOCKS_PER_ROW + 61);
+        expect(audioBlockToImageBlock(0, 0)).toBe(2 * BLOCKS_PER_ROW);
+        expect(audioBlockToImageBlock(0, 1)).toBe(2 * BLOCKS_PER_ROW + 1);
+        expect(audioBlockToImageBlock(0, 2)).toBe(3 * BLOCKS_PER_ROW);
+        expect(audioBlockToImageBlock(0, 3)).toBe(3 * BLOCKS_PER_ROW + 1);
+        expect(audioBlockToImageBlock(0, 4)).toBe(2 * BLOCKS_PER_ROW + 2);
+        expect(audioBlockToImageBlock(0, 123)).toBe(3 * BLOCKS_PER_ROW + 61);
         // Second row of the pair: right 31 MCUs
-        expect(audioBlockToImageBlock(1, 0, 301)).toBe(2 * BLOCKS_PER_ROW + 62);
-        expect(audioBlockToImageBlock(1, 123, 301)).toBe(3 * BLOCKS_PER_ROW + 123);
-        expect(audioBlockToImageBlock(2, 0, 301)).toBe(4 * BLOCKS_PER_ROW);
-        // v300 stays raster
-        expect(audioBlockToImageBlock(1, 5, 300)).toBe(3 * BLOCKS_PER_ROW + 5);
+        expect(audioBlockToImageBlock(1, 0)).toBe(2 * BLOCKS_PER_ROW + 62);
+        expect(audioBlockToImageBlock(1, 123)).toBe(3 * BLOCKS_PER_ROW + 123);
+        expect(audioBlockToImageBlock(2, 0)).toBe(4 * BLOCKS_PER_ROW);
 
-        for (const version of [300, 301]) {
-            const seen = new Set<number>();
-            for (let row = 0; row < 4; row++) {
-                for (let col = 0; col < DATA_BLOCKS_PER_ROW; col++) {
-                    const blockIndex = audioBlockToImageBlock(row, col, version);
-                    seen.add(blockIndex);
-                    expect(imageBlockToAudioBlock(
-                        Math.floor(blockIndex / BLOCKS_PER_ROW), blockIndex % BLOCKS_PER_ROW, version
-                    )).toEqual({ rowInAudioArea: row, colInAudioArea: col });
-                }
+        const seen = new Set<number>();
+        for (let row = 0; row < 4; row++) {
+            for (let col = 0; col < DATA_BLOCKS_PER_ROW; col++) {
+                const blockIndex = audioBlockToImageBlock(row, col);
+                seen.add(blockIndex);
+                expect(imageBlockToAudioBlock(
+                    Math.floor(blockIndex / BLOCKS_PER_ROW), blockIndex % BLOCKS_PER_ROW
+                )).toEqual({ rowInAudioArea: row, colInAudioArea: col });
             }
-            expect(seen.size).toBe(4 * DATA_BLOCKS_PER_ROW);
         }
-        expect(imageBlockToAudioBlock(1, 0, 301)).toBeNull();
-        expect(imageBlockToAudioBlock(2, DATA_BLOCKS_PER_ROW, 301)).toBeNull();
+        expect(seen.size).toBe(4 * DATA_BLOCKS_PER_ROW);
+        expect(imageBlockToAudioBlock(1, 0)).toBeNull();
+        expect(imageBlockToAudioBlock(2, DATA_BLOCKS_PER_ROW)).toBeNull();
     });
 
     it('keeps every MCU inside one luma and one chroma scale group', () => {
         for (let col = 0; col < DATA_BLOCKS_PER_ROW; col++) {
             const mcuStart = col - (col % 4);
-            expect(isLumaSubgroupA(col, 301)).toBe(isLumaSubgroupA(mcuStart, 301));
-            expect(chromaGroupIndex(col, 301)).toBe(chromaGroupIndex(mcuStart, 301));
+            expect(isLumaSubgroupA(col)).toBe(isLumaSubgroupA(mcuStart));
+            expect(chromaGroupIndex(col)).toBe(chromaGroupIndex(mcuStart));
             // Chroma groups nest inside the luma subgroups
-            expect(chromaGroupIndex(col, 301) < 2).toBe(isLumaSubgroupA(col, 301));
+            expect(chromaGroupIndex(col) < 2).toBe(isLumaSubgroupA(col));
         }
-        expect(isLumaSubgroupA(63, 301)).toBe(true);
-        expect(isLumaSubgroupA(64, 301)).toBe(false);
-        expect([31, 32, 63, 64, 95, 96, 123].map(col => chromaGroupIndex(col, 301)))
+        expect(isLumaSubgroupA(63)).toBe(true);
+        expect(isLumaSubgroupA(64)).toBe(false);
+        expect([31, 32, 63, 64, 95, 96, 123].map(col => chromaGroupIndex(col)))
             .toEqual([0, 1, 1, 2, 2, 3, 3]);
     });
 
@@ -224,7 +213,7 @@ describe('4:2:0 chroma (v301 superblocks)', () => {
             const groupMax = [0, 0, 0, 0];
             for (let m = 0; m < DATA_BLOCKS_PER_ROW / 4; m++) {
                 const off = (r * (DATA_BLOCKS_PER_ROW / 4) + m) * 64;
-                const g = chromaGroupIndex(m * 4, 301);
+                const g = chromaGroupIndex(m * 4);
                 for (let j = 0; j < 64; j++) {
                     groupMax[g] = Math.max(groupMax[g], Math.abs(superCb[off + j]), Math.abs(superCr[off + j]));
                 }
@@ -264,50 +253,6 @@ describe('4:2:0 chroma (v301 superblocks)', () => {
             }
         }
         expect(worst).toBeLessThan(0.05);
-    });
-
-    it('still round-trips the legacy v300 per-block layout at the math layer', () => {
-        const totalAudioBlocks = 40;
-        const paddedAudio = makeNoiseAudio(totalAudioBlocks, 6789);
-        const mdctWindow = getSineWindow(MDCT_WINDOW_SIZE);
-        const whiteningProfile = getMdctWhiteningProfile(44100);
-        const buffers = makeEncodeBuffers();
-
-        const row = prepareAudioRow(
-            totalAudioBlocks, 0, totalAudioBlocks, paddedAudio,
-            MDCT_HOP_SIZE, MDCT_WINDOW_SIZE, mdctWindow, whiteningProfile, buffers, 300
-        );
-
-        const imageData = makeImage(1);
-        writePreparedAudioRow(
-            0, FIRST_AUDIO_BLOCK_INDEX, row, imageData, buffers, noopMetadataWriter, 300
-        );
-
-        const decodeBuffers = makeDecodeBuffers();
-        const coeffBuffer = new Float32Array(128);
-        const origAll: number[] = [];
-        const decAll: number[] = [];
-
-        for (let i = 0; i < row.rowDataCount; i++) {
-            const blockIndex = FIRST_AUDIO_BLOCK_INDEX + i;
-            const scaleY = isLumaSubgroupA(i, 300) ? row.scaleYA : row.scaleYB;
-            const bandFactors = isLumaSubgroupA(i, 300) ? row.bandFactorsA : row.bandFactorsB;
-
-            decodeBlockToCoefficients(
-                imageData.data, IMAGE_WIDTH, blockIndex,
-                scaleY, chromaScaleFor(row, i, 300),
-                whiteningProfile, bandFactors, coeffBuffer, decodeBuffers,
-                undefined, 300
-            );
-
-            const orig = row.rowMDCTCoeffs[i];
-            for (let k = 0; k < 96; k++) {
-                origAll.push(orig[k]);
-                decAll.push(coeffBuffer[k]);
-            }
-        }
-
-        expect(relativeRmse(origAll, decAll)).toBeLessThan(0.05);
     });
 
     it('pads data rows to an even count in calculateDimensions', () => {
@@ -372,13 +317,5 @@ describe('JPEG transport model', () => {
         const meanError = errorSum / count;
         expect(meanError).toBeGreaterThan(0.5);
         expect(meanError).toBeLessThan(8);
-    });
-});
-
-describe('format-version coefficient map', () => {
-    it('reads v300 images with the zigzag map they were written with', () => {
-        expect(getBlockMapForVersion(300)).toBe(AUDIO_PIXEL_MAPPING_PRESETS.zigzag);
-        expect(getBlockMapForVersion(301)).toBe(AUDIO_PSYCHOACOUSTICS.blockMap);
-        expect(AUDIO_PSYCHOACOUSTICS.blockMap).not.toBe(AUDIO_PIXEL_MAPPING_PRESETS.zigzag);
     });
 });
