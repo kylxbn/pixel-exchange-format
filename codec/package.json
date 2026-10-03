@@ -1,6 +1,6 @@
 {
     "name": "@pixel-exchange-format/codec",
-    "version": "3.0.0",
+    "version": "3.1.0",
     "description": "Core codec for Pixel Exchange Format",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",

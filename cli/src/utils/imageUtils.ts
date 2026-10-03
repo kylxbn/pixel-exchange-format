@@ -29,7 +29,7 @@ export async function decodeImage(
                 return decodeJPEG(arrayBuffer);
             }
         } catch (err) {
-            console.warn('Custom JPEG decoder failed, falling back to sharp:', err);
+            console.warn(`Custom JPEG decoder failed, falling back to sharp: ${err instanceof Error ? err.message : String(err)}`);
         }
     }
     try {
@@ -95,22 +95,4 @@ export async function encodePNG(
             'PNG encoding failed: ' + errorMessage
         );
     }
-}
-
-/**
- * Converts a raw image data format to the codec's expected format
- * @param imageData - Raw image data from PNG decoder
- * @returns Codec-compatible image data
- */
-export function toCodecImageData(imageData: {
-    data: Uint8ClampedArray;
-    width: number;
-    height: number;
-}): {
-    data: Uint8ClampedArray;
-    width: number;
-    height: number;
-} {
-    // The format is already compatible
-    return imageData;
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Kyle Alexander Buan
 
-import { BLOCK_SIZE } from "constants";
+import { BLOCK_SIZE } from "../constants";
 import { FONT_GLYPHS, UNKNOWN_GLYPH } from "./font";
 import anyAscii from "any-ascii";
 

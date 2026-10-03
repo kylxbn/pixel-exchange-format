@@ -21,65 +21,14 @@ import { decodeRGBToPoint } from '../utils/obb';
 import { PxfDecoder } from '.';
 import { decodeBlock, decodeStereoBlocks } from './audioMath';
 import type { DecodeBlockBuffers } from './audioMath';
-
-export interface ImageSource {
-    data: Uint8ClampedArray;
-    width: number;
-    height: number;
-    channelMode: number;
-    visualizationMetadata: VisualizationMetadata;
-    totalSamples: number;
-    sampleRate: number;
-    metadata: Record<string, string>;
-    randomBytes: Uint8Array;
-    imageIndex: number;
-    totalImages: number;
-}
-
-export interface VisualizationMetadata {
-    hopSize: number;
-    firstAudioBlockIndex: number;
-    sampleRate: number;
-    blocksPerRow: number;
-    totalAudioBlocks: number;
-    version: number;
-}
-
-export interface AudioResult {
-    type: 'audio';
-    channels: Float32Array[];
-    sampleRate: number;
-    metadata: Record<string, string>;
-    visualizationMetadata: VisualizationMetadata;
-    sourceImageIndex: number;
-    decoder: StreamingAudioDecoder;
-}
-
-export interface BlockStats {
-    lumaScale: number;
-    chromaScale: number;
-    bandFactors: Float32Array;
-    sbrData: Uint8Array | null;
-}
-
-export interface AudioRowMetadata {
-    scaleYA: number;
-    scaleYB: number;
-    scaleCAX: number;
-    scaleCAY: number;
-    scaleCBX: number;
-    scaleCBY: number;
-    bandFactorsA: Float32Array;
-    bandFactorsB: Float32Array;
-    sbrData: Uint8Array | null;
-}
-
-
+import type { AudioResult, AudioRowMetadata, BlockStats, ImageSource, VisualizationMetadata } from './types';
 
 export class StreamingAudioDecoder {
     sources: ImageSource[];
     visualizationMetadata: VisualizationMetadata;
     primarySource: ImageSource;
+    /** Mono images, or the mid images of a stereo set, sorted by image index. */
+    readonly primarySources: ImageSource[];
 
     private currentAudioBlock: number = 0;
     private overlapL: Float32Array;
@@ -171,34 +120,19 @@ export class StreamingAudioDecoder {
                 }
             }
 
-
         }
 
-        // For multi-image audio, calculate total samples across all images
-        let totalSamples = 0;
-        if (this.primarySource.channelMode !== CHANNEL_MODE.BINARY) {
-            // For stereo, only count mid channel samples (don't double-count mid+side)
-            // For mono, sum all sources
-            if (this.primarySource.channelMode === CHANNEL_MODE.STEREO_MID) {
-                const midSrcs = sources.filter(s => s.channelMode === CHANNEL_MODE.STEREO_MID);
-                for (const src of midSrcs) {
-                    totalSamples += src.totalSamples;
-                }
-            } else {
-                // Mono or other modes: sum all sources
-                for (const src of sources) {
-                    totalSamples += src.totalSamples;
-                }
-            }
-        } else {
-            // For binary, totalSamples is the chunk size for the current image
-            totalSamples = this.primarySource.totalSamples;
-        }
+        // The images that carry the sample timeline, in playback order:
+        // mono images, or the mid images of a stereo set (sides are looked up
+        // per block). Side-only sets were rejected above.
+        this.primarySources = sources
+            .filter(s => s.channelMode === this.primarySource.channelMode)
+            .sort((a, b) => a.imageIndex - b.imageIndex);
 
         // Update visualizationMetadata with correct totalAudioBlocks
         this.visualizationMetadata = {
             ...this.primarySource.visualizationMetadata,
-            totalAudioBlocks: Math.ceil(totalSamples / this.primarySource.visualizationMetadata.hopSize)
+            totalAudioBlocks: Math.ceil(this.totalSamples / this.primarySource.visualizationMetadata.hopSize)
         };
 
         this.windowSize = this.visualizationMetadata.hopSize * 2;
@@ -235,24 +169,31 @@ export class StreamingAudioDecoder {
     }
 
     get totalSamples(): number {
-        if (this.primarySource.channelMode !== CHANNEL_MODE.BINARY) {
-            // For stereo, only count mid channel samples (don't double-count mid+side)
-            // For mono, sum all sources
-            if (this.primarySource.channelMode === CHANNEL_MODE.STEREO_MID) {
-                const midSrcs = this.sources.filter(s => s.channelMode === CHANNEL_MODE.STEREO_MID);
-                return midSrcs.reduce((sum, src) => sum + src.totalSamples, 0);
-            } else {
-                // Mono: sum all sources
-                return this.sources.reduce((sum, src) => sum + src.totalSamples, 0);
-            }
-        } else {
-            // For binary, totalSamples is the chunk size for the current image
-            return this.primarySource.totalSamples;
-        }
+        return this.primarySources.reduce((sum, src) => sum + src.totalSamples, 0);
     }
 
     get duration() {
         return this.totalSamples / this.sampleRate;
+    }
+
+    private blocksInSource(src: ImageSource): number {
+        return Math.ceil(src.totalSamples / this.visualizationMetadata.hopSize);
+    }
+
+    /**
+     * Maps a global audio block index onto the primary image that holds it.
+     * Returns null when the index is past the end of the available images.
+     */
+    locateBlock(audioBlockIdx: number): { src: ImageSource; localBlockIdx: number } | null {
+        let accumulated = 0;
+        for (const src of this.primarySources) {
+            const blocks = this.blocksInSource(src);
+            if (audioBlockIdx < accumulated + blocks) {
+                return { src, localBlockIdx: audioBlockIdx - accumulated };
+            }
+            accumulated += blocks;
+        }
+        return null;
     }
 
     /**
@@ -310,7 +251,7 @@ export class StreamingAudioDecoder {
 
         // LDPC Decode
         const decoded = rowMetaLdpc.decode(llrs);
-        if (decoded.corrected == false) {
+        if (!decoded.corrected) {
             // Return default/fallback metadata
             return {
                 scaleYA: 1.0, scaleYB: 1.0, scaleCAX: 1.0, scaleCAY: 1.0, scaleCBX: 1.0, scaleCBY: 1.0,
@@ -461,28 +402,9 @@ export class StreamingAudioDecoder {
     getStatsAtBlock(audioBlockIdx: number): BlockStats | null {
         if (audioBlockIdx >= this.visualizationMetadata.totalAudioBlocks) return null;
 
-        // For multi-part stereo, find the mid source that contains this block
-        const midSrcs = this.sources.filter(s => s.channelMode === CHANNEL_MODE.STEREO_MID);
-        let src = this.primarySource;
-        let localBlockIdx = audioBlockIdx;
-
-        if (midSrcs.length > 1) {
-            // Multi-part stereo: find which mid source contains this global block
-            let accumulatedBlocks = 0;
-            const sortedMids = [...midSrcs].sort((a, b) => a.imageIndex - b.imageIndex);
-
-            for (const mid of sortedMids) {
-                const blocksInThisPart = Math.ceil(mid.totalSamples / this.visualizationMetadata.hopSize);
-
-                if (audioBlockIdx < accumulatedBlocks + blocksInThisPart) {
-                    src = mid;
-                    localBlockIdx = audioBlockIdx - accumulatedBlocks;
-                    break;
-                }
-
-                accumulatedBlocks += blocksInThisPart;
-            }
-        }
+        const located = this.locateBlock(audioBlockIdx);
+        if (!located) return null;
+        const { src, localBlockIdx } = located;
 
         const imgBlockIdxBase = localBlockIdx;
         const rowInAudioArea = Math.floor(imgBlockIdxBase / DATA_BLOCKS_PER_ROW);
@@ -559,10 +481,9 @@ export class StreamingAudioDecoder {
         const hopSize = this.visualizationMetadata.hopSize;
         const totalOutSamples = count * hopSize;
 
-        // Check if we need stereo output (have both mid and side channels)
-        const midSrcs = this.sources.filter(s => s.channelMode === CHANNEL_MODE.STEREO_MID);
+        // Stereo output needs at least one mid/side pair
         const sideSrcs = this.sources.filter(s => s.channelMode === CHANNEL_MODE.STEREO_SIDE);
-        const isStereo = midSrcs.length > 0 && sideSrcs.length > 0;
+        const isStereo = this.primarySource.channelMode === CHANNEL_MODE.STEREO_MID && sideSrcs.length > 0;
 
         const outL = new Float32Array(totalOutSamples);
         const outR = isStereo ? new Float32Array(totalOutSamples) : null;
@@ -572,141 +493,44 @@ export class StreamingAudioDecoder {
         const actualCount = Math.min(count, maxAvailableBlocks);
 
         for (let i = 0; i < actualCount; i++) {
-            let winL: Float32Array, winR: Float32Array | null = null;
+            let winL: Float32Array;
+            let winR: Float32Array | null = null;
 
-            if (isStereo) {
-                // Stereo multi-part: find the correct mid/side pair for this block
-                // Calculate blocks per part for each mid source
-                // currentAudioBlock is global across all parts, need to map to correct image pair
+            const located = this.locateBlock(this.currentAudioBlock);
+            const sideSrc = located && isStereo
+                ? sideSrcs.find(s => s.imageIndex === located.src.imageIndex + 1) ?? null
+                : null;
 
-                // Find which part this block belongs to by accumulating blocks
-                let accumulatedBlocks = 0;
-                let midSrc: ImageSource | null = null;
-                let sideSrc: ImageSource | null = null;
-                let localBlockInPart = this.currentAudioBlock;
+            if (!located) {
+                winL = new Float32Array(this.windowSize);
+                if (outR) winR = new Float32Array(this.windowSize);
+            } else if (sideSrc) {
+                const { src: midSrc, localBlockIdx } = located;
+                const useJointStereoSbr =
+                    midSrc.visualizationMetadata.version >= 301 &&
+                    sideSrc.visualizationMetadata.version >= 301;
+                const stereoWindows = useJointStereoSbr
+                    ? this.decodeStereoWindowPair(midSrc, sideSrc, localBlockIdx)
+                    : null;
 
-                // Sort mid sources by imageIndex to process in order
-                const sortedMids = [...midSrcs].sort((a, b) => a.imageIndex - b.imageIndex);
+                // Copy mid: decodeWindowFromSource returns a shared buffer and
+                // the side decode below would otherwise overwrite it.
+                const midWin = new Float32Array(stereoWindows?.midWindow ?? this.decodeWindowFromSource(midSrc, localBlockIdx));
+                const sideWin = stereoWindows?.sideWindow ?? this.decodeWindowFromSource(sideSrc, localBlockIdx);
 
-                for (const mid of sortedMids) {
-                    const blocksInThisPart = Math.ceil(mid.totalSamples / this.visualizationMetadata.hopSize);
-
-                    if (this.currentAudioBlock < accumulatedBlocks + blocksInThisPart) {
-                        // This block belongs to this part
-                        midSrc = mid;
-                        localBlockInPart = this.currentAudioBlock - accumulatedBlocks;
-
-                        // Find corresponding side channel (imageIndex = mid.imageIndex + 1)
-                        sideSrc = sideSrcs.find(s => s.imageIndex === mid.imageIndex + 1) || null;
-                        break;
-                    }
-
-                    accumulatedBlocks += blocksInThisPart;
-                }
-
-                if (midSrc && sideSrc) {
-                    const useJointStereoSbr =
-                        midSrc.visualizationMetadata.version >= 301 &&
-                        sideSrc.visualizationMetadata.version >= 301;
-                    const stereoWindows = useJointStereoSbr
-                        ? this.decodeStereoWindowPair(midSrc, sideSrc, localBlockInPart)
-                        : null;
-
-                    const midWin = stereoWindows?.midWindow ?? this.decodeWindowFromSource(midSrc, localBlockInPart);
-                    const midData = new Float32Array(midWin);
-                    const sideWin = stereoWindows?.sideWindow ?? this.decodeWindowFromSource(sideSrc, localBlockInPart);
-
-                    winL = midData;
-                    winR = sideWin;
-                    // Mix: L = M+S, R = M-S
-                    for (let k = 0; k < this.windowSize; k++) {
-                        const m = midData[k];
-                        const s = sideWin[k];
-                        winL[k] = m + s;
-                        winR[k] = m - s;
-                    }
-                } else if (midSrc) {
-                    // Missing side channel, fallback to mono (duplicate mid to both channels)
-                    const midWin = this.decodeWindowFromSource(midSrc, localBlockInPart);
-                    winL = midWin;
-                    winR = midWin; // Duplicate mono to stereo
-                } else {
-                    // Missing source, use silence
-                    winL = new Float32Array(this.windowSize);
-                    if (outR) winR = new Float32Array(this.windowSize);
-                }
-            } else if (midSrcs.length > 0) {
-                // Only mid sources (mono from mid channel)
-                // Find which part this block belongs to by accumulating blocks
-                let accumulatedBlocks = 0;
-                let midSrc: ImageSource | null = null;
-                let localBlockInPart = this.currentAudioBlock;
-
-                const sortedMids = [...midSrcs].sort((a, b) => a.imageIndex - b.imageIndex);
-
-                for (const mid of sortedMids) {
-                    const blocksInThisPart = Math.ceil(mid.totalSamples / this.visualizationMetadata.hopSize);
-
-                    if (this.currentAudioBlock < accumulatedBlocks + blocksInThisPart) {
-                        midSrc = mid;
-                        localBlockInPart = this.currentAudioBlock - accumulatedBlocks;
-                        break;
-                    }
-
-                    accumulatedBlocks += blocksInThisPart;
-                }
-
-                if (midSrc) {
-                    winL = this.decodeWindowFromSource(midSrc, localBlockInPart);
-                } else {
-                    winL = new Float32Array(this.windowSize);
+                winL = midWin;
+                winR = sideWin;
+                // Mix: L = M+S, R = M-S
+                for (let k = 0; k < this.windowSize; k++) {
+                    const m = midWin[k];
+                    const s = sideWin[k];
+                    winL[k] = m + s;
+                    winR[k] = m - s;
                 }
             } else {
-                // Fallback to old logic for single-file audio
-                let localAudioBlockIdx = this.currentAudioBlock;
-                let targetSrc = this.sources[0];
-                let found = false;
-
-                for (const src of this.sources) {
-                    const blocksInThisSource = Math.ceil(src.totalSamples / this.visualizationMetadata.hopSize);
-                    if (localAudioBlockIdx < blocksInThisSource) {
-                        targetSrc = src;
-                        found = true;
-                        break;
-                    }
-                    localAudioBlockIdx -= blocksInThisSource;
-                }
-
-                if (found) {
-                    winL = this.decodeWindowFromSource(targetSrc, localAudioBlockIdx);
-
-                    if (targetSrc.channelMode === CHANNEL_MODE.STEREO_MID) {
-                        // For stereo single-file, find corresponding side
-                        const sideSrc = this.sources.find(s => s.channelMode === CHANNEL_MODE.STEREO_SIDE &&
-                            s.imageIndex === targetSrc.imageIndex + 1);
-                        if (sideSrc) {
-                            const useJointStereoSbr =
-                                targetSrc.visualizationMetadata.version >= 301 &&
-                                sideSrc.visualizationMetadata.version >= 301;
-                            const stereoWindows = useJointStereoSbr
-                                ? this.decodeStereoWindowPair(targetSrc, sideSrc, localAudioBlockIdx)
-                                : null;
-                            const midWin = stereoWindows?.midWindow ?? winL;
-                            const midData = new Float32Array(midWin);
-                            const sideWin = stereoWindows?.sideWindow ?? this.decodeWindowFromSource(sideSrc, localAudioBlockIdx);
-                            winR = sideWin;
-                            // Mix
-                            for (let k = 0; k < this.windowSize; k++) {
-                                const m = midData[k];
-                                const s = sideWin[k];
-                                winL[k] = m + s;
-                                winR[k] = m - s;
-                            }
-                        }
-                    }
-                } else {
-                    winL = new Float32Array(this.windowSize);
-                }
+                // Mono, or a mid image whose side image is missing (duplicate to both channels)
+                winL = this.decodeWindowFromSource(located.src, located.localBlockIdx);
+                if (outR) winR = winL;
             }
 
             const outPos = i * hopSize;
@@ -747,7 +571,7 @@ export class StreamingAudioDecoder {
         sideSrc: ImageSource,
         localAudioBlockIdx: number
     ): { midWindow: Float32Array; sideWindow: Float32Array } {
-        const blocksInThisSource = Math.ceil(midSrc.totalSamples / this.visualizationMetadata.hopSize);
+        const blocksInThisSource = this.blocksInSource(midSrc);
         if (localAudioBlockIdx < 0 || localAudioBlockIdx >= blocksInThisSource) {
             return {
                 midWindow: new Float32Array(this.windowSize),
@@ -761,6 +585,7 @@ export class StreamingAudioDecoder {
         const absRow = 2 + rowInAudioArea;
         const metaBlockAbsIdx = (absRow * BLOCKS_PER_ROW) + DATA_BLOCKS_PER_ROW;
         const imgBlockAbsIdx = (absRow * BLOCKS_PER_ROW) + colInAudioArea;
+        const rowDataCount = StreamingAudioDecoder.rowDataCountAt(blocksInThisSource, rowInAudioArea);
 
         const midMeta = this.getCachedRowMetadata(midSrc, metaBlockAbsIdx);
         const sideMeta = this.getCachedRowMetadata(sideSrc, metaBlockAbsIdx);
@@ -812,13 +637,23 @@ export class StreamingAudioDecoder {
             midSeeds.sharedSeed,
             midSeeds.channelSeed,
             sideSeeds.channelSeed,
-            midSrc.visualizationMetadata.version
+            midSrc.visualizationMetadata.version,
+            rowDataCount
         );
+    }
+
+    /** Number of audio blocks stored in a given data row of an image. */
+    rowDataCountAt(src: ImageSource, rowInAudioArea: number): number {
+        return StreamingAudioDecoder.rowDataCountAt(this.blocksInSource(src), rowInAudioArea);
+    }
+
+    private static rowDataCountAt(blocksInSource: number, rowInAudioArea: number): number {
+        return Math.max(0, Math.min(DATA_BLOCKS_PER_ROW, blocksInSource - rowInAudioArea * DATA_BLOCKS_PER_ROW));
     }
 
     private decodeWindowFromSource(src: ImageSource, localAudioBlockIdx: number): Float32Array {
         // Validate block index bounds for this source
-        const blocksInThisSource = Math.ceil(src.totalSamples / this.visualizationMetadata.hopSize);
+        const blocksInThisSource = this.blocksInSource(src);
         if (localAudioBlockIdx < 0 || localAudioBlockIdx >= blocksInThisSource) {
             return new Float32Array(this.windowSize); // Return silence for out-of-bounds
         }
@@ -832,6 +667,7 @@ export class StreamingAudioDecoder {
 
         const metaBlockAbsIdx = (absRow * BLOCKS_PER_ROW) + DATA_BLOCKS_PER_ROW;
         const imgBlockAbsIdx = (absRow * BLOCKS_PER_ROW) + colInAudioArea;
+        const rowDataCount = StreamingAudioDecoder.rowDataCountAt(blocksInThisSource, rowInAudioArea);
 
         const { scaleYA, scaleYB, scaleCAX, scaleCAY, scaleCBX, scaleCBY, bandFactorsA, bandFactorsB, sbrData } = this.getCachedRowMetadata(src, metaBlockAbsIdx);
 
@@ -851,7 +687,8 @@ export class StreamingAudioDecoder {
             this.buffers, sbrData, colInAudioArea,
             undefined, // debugCapture
             channelSeed,
-            src.visualizationMetadata.version
+            src.visualizationMetadata.version,
+            rowDataCount
         );
     }
 }

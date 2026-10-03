@@ -4,29 +4,42 @@ Copyright (c) 2026 Kyle Alexander Buan
 -->
 
 <script lang="ts">
-  let { 
-    min = 0, 
-    max = 100, 
-    step = 1, 
-    value = $bindable(0), 
-    disabled = false,
-    label = '',
-    class: className = '',
-    ...props
-  } = $props();
+	import type { HTMLInputAttributes } from 'svelte/elements';
 
-  function handleChange(e: Event) {
-    if (disabled) return;
-    const target = e.target as HTMLInputElement;
-    value = parseFloat(target.value);
-    
-    // Call original oninput if provided in props
-    if (props.oninput) {
-       (props.oninput as any)(e);
-    }
-  }
+	interface Props extends Omit<
+		HTMLInputAttributes,
+		'min' | 'max' | 'step' | 'value' | 'disabled' | 'class'
+	> {
+		min?: number;
+		max?: number;
+		step?: number;
+		value?: number;
+		disabled?: boolean;
+		label?: string;
+		class?: string;
+	}
 
-  let percent = $derived(((value - min) / (max - min)) * 100);
+	let {
+		min = 0,
+		max = 100,
+		step = 1,
+		value = $bindable(0),
+		disabled = false,
+		label = '',
+		class: className = '',
+		oninput,
+		...props
+	}: Props = $props();
+
+	function handleChange(e: Event & { currentTarget: EventTarget & HTMLInputElement }) {
+		if (disabled) return;
+		value = parseFloat(e.currentTarget.value);
+		oninput?.(e);
+	}
+
+	let percent = $derived(
+		max > min ? Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100)) : 0
+	);
 </script>
 
 <div

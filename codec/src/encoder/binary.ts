@@ -18,24 +18,7 @@ import { HeaderEncoder } from './header';
 import { TextRenderer } from './text';
 import { generateBinaryPermutation } from '../utils/shuffle';
 import { encodePointToRGB } from '../utils/obb';
-
-export interface EncodedImageResult {
-    data: Uint8ClampedArray;
-    width: number;
-    height: number;
-    name: string;
-}
-
-export interface AudioData {
-    channels: Float32Array[];
-    sampleRate: number;
-}
-
-export interface SimpleImageData {
-    data: Uint8ClampedArray;
-    width: number;
-    height: number;
-}
+import type { EncodedImageResult, SimpleImageData } from './types';
 
 export class BinaryEncoder {
     public static async encodeBinary(
@@ -51,7 +34,7 @@ export class BinaryEncoder {
         // Generate random number using RNG
         const randomSeed = Math.floor(Math.random() * 2 ** 32);
         const randomGenerator = createRNG(randomSeed);
-        const randomBytes = new Uint8Array(numberToBytes(randomGenerator.next32(), 4));
+        const randomBytes = numberToBytes(randomGenerator.next32(), 4);
 
         for (let i = 0; i < chunks.length; i++) {
             const chunk = chunks[i];
@@ -130,10 +113,10 @@ export class BinaryEncoder {
         // rowBytes is now exactly 2480 bytes (padded if needed)
 
         // 1. LDPC Encode on SEQUENTIAL data
-        // Encode 2480 bytes -> 3004 bytes
+        // Encode 2480 bytes -> 2508 bytes
         // Parity is computed on sequential byte positions
         const encoded = binaryLdpc.encode(rowBytes);
-        const parityBytes = encoded.slice(BINARY_ROW_DATA_CAPACITY); // 20 bytes
+        const parityBytes = encoded.slice(BINARY_ROW_DATA_CAPACITY); // 28 bytes
 
         // 2. Calculate CRC32 of original sequential data for integrity check
         const rowCrc = crc32c(rowBytes);

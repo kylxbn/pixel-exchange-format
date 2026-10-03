@@ -1,10 +1,11 @@
-// SPDX-License-Identifier: BSD-3-Clause
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2012 Mozilla Foundation
 // Copyright (c) 2026 Kyle Alexander Buan
-
-/**
- * Proven JPEG IDCT implementation adapted from a reference decoder.
- * Uses fixed-point arithmetic for reliability and matches standard JPEG behavior.
- */
+//
+// The fixed-point IDCT below is derived from pdf.js's jpg.js (originally
+// notmasteryet's jpgjs), licensed under the Apache License, Version 2.0.
+// See third-party/pdf.js/LICENSE. It is not libjpeg's jpeg_idct_islow; it
+// differs from it by at most 1 LSB, which is fine for PXF's purposes.
 
 const dctCos1 = 4017;   // cos(pi/16)
 const dctSin1 = 799;    // sin(pi/16)
@@ -170,28 +171,27 @@ export function inverseDCT(block: number[]): number[] {
 }
 
 /**
- * ZigZag Table from reference - Matches standard JPEG order:
- * Figures A.6 and F.1 in the JPEG spec.
+ * ZigZag Table - Matches standard JPEG order (Figures A.6 and F.1 in the JPEG spec).
  */
-export function zigzagToNatural(zigzag: number[]): number[] {
-  const dctZigZag = [
-    0,
-    1, 8,
-    16, 9, 2,
-    3, 10, 17, 24,
-    32, 25, 18, 11, 4,
-    5, 12, 19, 26, 33, 40,
-    48, 41, 34, 27, 20, 13, 6,
-    7, 14, 21, 28, 35, 42, 49, 56,
-    57, 50, 43, 36, 29, 22, 15,
-    23, 30, 37, 44, 51, 58,
-    59, 52, 45, 38, 31,
-    39, 46, 53, 60,
-    61, 54, 47,
-    55, 62,
-    63
-  ];
+const dctZigZag = [
+  0,
+  1, 8,
+  16, 9, 2,
+  3, 10, 17, 24,
+  32, 25, 18, 11, 4,
+  5, 12, 19, 26, 33, 40,
+  48, 41, 34, 27, 20, 13, 6,
+  7, 14, 21, 28, 35, 42, 49, 56,
+  57, 50, 43, 36, 29, 22, 15,
+  23, 30, 37, 44, 51, 58,
+  59, 52, 45, 38, 31,
+  39, 46, 53, 60,
+  61, 54, 47,
+  55, 62,
+  63
+];
 
+export function zigzagToNatural(zigzag: number[]): number[] {
   const natural = new Array(64);
   for (let j = 0; j < 64; j++) {
     const z = dctZigZag[j];

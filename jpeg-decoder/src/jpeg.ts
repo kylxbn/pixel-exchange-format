@@ -2,8 +2,8 @@
 // Copyright (c) 2026 Kyle Alexander Buan
 
 import type { RawImageData } from '@pixel-exchange-format/codec';
-import { parseJPEG } from './parser';
-import { decodeImage } from './decoder';
+import { parseJPEG } from './parser.js';
+import { decodeImage } from './decoder.js';
 
 export function decodeJPEG(buffer: ArrayBuffer): RawImageData {
   const jpegData = parseJPEG(new Uint8Array(buffer));

@@ -4,15 +4,16 @@ Copyright (c) 2026 Kyle Alexander Buan
 -->
 
 <script lang="ts">
-    import Encoder from '$lib/components/Encoder.svelte';
-    import { goto } from '$app/navigation';
-    import { resolve } from '$app/paths';
-    import { transferState } from '$lib/transfer.svelte';
+	import Encoder from '$lib/components/Encoder.svelte';
+	import { goto } from '$app/navigation';
+	import { localizeRoute } from '$lib/navigation';
+	import { transferState } from '$lib/transfer.svelte';
 
-    function handleTransfer(files: File[]) {
-        transferState.transfer(files);
-        goto(resolve('/decode'));
-    }
+	function handleTransfer(files: File[]) {
+		transferState.transfer(files);
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- locale-prefixed paths are not in the typed Pathname union
+		goto(localizeRoute('/decode'));
+	}
 </script>
 
 <div class="w-full h-full overflow-y-auto">

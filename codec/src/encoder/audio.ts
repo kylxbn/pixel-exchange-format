@@ -23,24 +23,7 @@ import { TextRenderer } from './text';
 import { prepareAudioRow, prepareRowPairChroma, processRowPair, writePreparedAudioRowPair } from './audioMath';
 import type { EncodeRowBuffers } from './audioMath';
 import { analyzeStereoRowSbrCues, applyStereoCuesToRowSBR, lockStereoRowPatchModes } from '../utils/sbr';
-
-export interface EncodedImageResult {
-    data: Uint8ClampedArray;
-    width: number;
-    height: number;
-    name: string;
-}
-
-export interface AudioData {
-    channels: Float32Array[];
-    sampleRate: number;
-}
-
-export interface SimpleImageData {
-    data: Uint8ClampedArray;
-    width: number;
-    height: number;
-}
+import type { EncodedImageResult, SimpleImageData } from './types';
 
 export class AudioEncoder {
     public static calculateDimensions(totalSamples: number): { width: number; height: number } {
@@ -69,7 +52,7 @@ export class AudioEncoder {
         // Generate random number using RNG
         const randomSeed = Math.floor(Math.random() * 2**32);
         const randomGenerator = createRNG(randomSeed);
-        const randomBytes = new Uint8Array(numberToBytes(randomGenerator.next32(), 4));
+        const randomBytes = numberToBytes(randomGenerator.next32(), 4);
 
         if (channels.length === 1) {
             // Split mono audio into chunks

@@ -2,15 +2,15 @@
 // Copyright (c) 2026 Kyle Alexander Buan
 
 export class TransferState {
-    files = $state<File[]>([]);
+	files = $state<File[]>([]);
 
-    transfer(files: File[]) {
-        this.files = files;
-    }
+	transfer(files: File[]) {
+		this.files = files;
+	}
 
-    clear() {
-        this.files = [];
-    }
+	clear() {
+		this.files = [];
+	}
 }
 
 export const transferState = new TransferState();

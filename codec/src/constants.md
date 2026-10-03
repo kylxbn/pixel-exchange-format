@@ -106,12 +106,13 @@ Preset selection and active block maps are configured in `psychoacoustics.ts`:
 Band-map assignment and active coefficient placement are configured in `psychoacoustics.ts`:
 - `AUDIO_PSYCHOACOUSTICS.bandMap`
 - `AUDIO_PSYCHOACOUSTICS.blockMap.luma8x8`
-- `AUDIO_PSYCHOACOUSTICS.blockMap.chroma4x4`
+- `AUDIO_PSYCHOACOUSTICS.blockMap.chroma8x8` (v301+ superblock chroma)
+- `AUDIO_PSYCHOACOUSTICS.blockMap.chroma4x4` (v300 per-block chroma)
 
 The `q92pm1` and `q92pm8` presets are JPEG-tuned permutations derived from
 ImageMagick/libjpeg quantization tables. `q92pm8` uses weighted Q84..Q100
-tables centered on Q92 and is the current default. Chroma uses one shared 4x4
-map for both Cb and Cr because the targeted JPEG family uses one shared chroma
+tables centered on Q92 and is the current default. Chroma uses one shared map
+for both Cb and Cr because the targeted JPEG family uses one shared chroma
 quantization table.
 
 Mu-law values and audio stage toggles are configured in `psychoacoustics.ts`:

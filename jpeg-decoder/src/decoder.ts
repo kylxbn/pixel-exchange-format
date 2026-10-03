@@ -2,10 +2,10 @@
 // Copyright (c) 2026 Kyle Alexander Buan
 
 import type { RawImageData } from '@pixel-exchange-format/codec';
-import type { JPEGData } from './parser';
-import { HuffmanDecoder, BitStream } from './huffman';
-import { inverseDCT, zigzagToNatural } from './dct';
-import { blocksToComponent, combineComponents } from './color';
+import type { JPEGData } from './parser.js';
+import { HuffmanDecoder, BitStream } from './huffman.js';
+import { inverseDCT, zigzagToNatural } from './dct.js';
+import { blocksToComponent, combineComponents } from './color.js';
 
 export function decodeImage(jpegData: JPEGData): RawImageData {
   // Set up Huffman decoders

@@ -354,7 +354,7 @@ export function numberToBytes(num: number, byteCount: number): Uint8Array {
 }
 export function bytesToNumber(bytes: Uint8Array): number {
     let num = 0;
-    for (let i = 0; i < bytes.length; i++) { num |= bytes[i] << (i * 8); }
+    for (let i = 0; i < bytes.length; i++) { num += bytes[i] * 2 ** (i * 8); }
     return num;
 }
 

@@ -8,9 +8,7 @@ import {
     MDCT_WINDOW_SIZE,
 } from '../constants';
 import { dct4x4, dct8x8, imdct } from '../utils/audioUtils';
-import {
-    AUDIO_PSYCHOACOUSTICS,
-} from '../psychoacoustics';
+import { AUDIO_PSYCHOACOUSTICS, getBlockMapForVersion } from '../psychoacoustics';
 import { reverseMdctWhiteningWithProfile } from '../utils/mdctWhitening';
 import type { MdctWhiteningProfile } from '../utils/mdctWhitening';
 import {
@@ -18,17 +16,15 @@ import {
     applySBRSynthesis,
     applyJointStereoSBRSynthesis,
     decodeStereoSbrCue,
+    getSbrSubgroupIndexForBlock,
+    getSbrSubgroupRange,
     SBR_START_BIN,
     SBR_END_BIN,
-    SBR_SUBGROUPS_PER_ROW,
     type SBRParamsUnion,
 } from '../utils/sbr';
 import { decodeRGBToPoint } from '../utils/obb';
 
 const BAND_MAP = AUDIO_PSYCHOACOUSTICS.bandMap;
-const BLOCK_MAP_8X8 = AUDIO_PSYCHOACOUSTICS.blockMap.luma8x8;
-const BLOCK_MAP_4X4 = AUDIO_PSYCHOACOUSTICS.blockMap.chroma4x4;
-const BLOCK_MAP_CHROMA_8X8 = AUDIO_PSYCHOACOUSTICS.blockMap.chroma8x8;
 
 export interface DecodeBlockBuffers {
     spatialY: Float32Array;
@@ -76,6 +72,7 @@ export function decodeBlockToCoefficients(
     }
 
     const isV301 = formatVersion >= 301;
+    const blockMap = getBlockMapForVersion(formatVersion);
     const bx = (blockIndex % BLOCKS_PER_ROW) * 8;
     const by = Math.floor(blockIndex / BLOCKS_PER_ROW) * 8;
 
@@ -172,20 +169,20 @@ export function decodeBlockToCoefficients(
 
     // --- STEP 3: APPLY LUMA/CHROMA SCALING (REVERSE) ---
     for (let k = 0; k < 64; k++) {
-        coeffBuffer[k] = buffers.dctY[BLOCK_MAP_8X8[k]];
+        coeffBuffer[k] = buffers.dctY[blockMap.luma8x8[k]];
     }
     if (isV301) {
         // This block's bins sit at importance rank 4k + ordinal in the shared map
         const ordinal = (Math.floor(blockIndex / BLOCKS_PER_ROW) & 1) * 2 + (blockIndex % 2);
         for (let k = 0; k < 16; k++) {
-            const pos = BLOCK_MAP_CHROMA_8X8[4 * k + ordinal];
+            const pos = blockMap.chroma8x8[4 * k + ordinal];
             coeffBuffer[64 + 2 * k] = Math.max(-1e9, Math.min(1e9, buffers.dctCb[pos] / maxC));
             coeffBuffer[65 + 2 * k] = Math.max(-1e9, Math.min(1e9, buffers.dctCr[pos] / maxC));
         }
     } else {
         for (let k = 0; k < 16; k++) {
-            coeffBuffer[64 + 2 * k] = buffers.dctCb[BLOCK_MAP_4X4[k]];
-            coeffBuffer[65 + 2 * k] = buffers.dctCr[BLOCK_MAP_4X4[k]];
+            coeffBuffer[64 + 2 * k] = buffers.dctCb[blockMap.chroma4x4[k]];
+            coeffBuffer[65 + 2 * k] = buffers.dctCr[blockMap.chroma4x4[k]];
         }
     }
 
@@ -220,24 +217,29 @@ export function decodeBlockToCoefficients(
     return coeffBuffer;
 }
 
+/**
+ * Picks the SBR subgroup parameters for a block. The partition must match
+ * analyzeRowSBR, which splits subgroups relative to the row's actual data
+ * block count rather than the full DATA_BLOCKS_PER_ROW.
+ */
 export function selectSbrParamsForBlock(
     sbrBytes: Uint8Array | null,
     colInAudioArea: number,
-    formatVersion: number = FORMAT_VERSION
+    formatVersion: number = FORMAT_VERSION,
+    rowDataCount: number = DATA_BLOCKS_PER_ROW
 ): SelectedSbrParams | null {
     if (!AUDIO_PSYCHOACOUSTICS.enableSbr || !sbrBytes || sbrBytes.length !== 8 || colInAudioArea === undefined) {
         return null;
     }
 
     const rowParams = decodeRowSBR(sbrBytes, formatVersion);
-    const subgroupSize = DATA_BLOCKS_PER_ROW / SBR_SUBGROUPS_PER_ROW;
-    const blockIdxInSubgroup = colInAudioArea % subgroupSize;
-    const subgroupIdx = Math.min(SBR_SUBGROUPS_PER_ROW - 1, Math.floor(colInAudioArea / subgroupSize));
+    const subgroupIdx = getSbrSubgroupIndexForBlock(rowDataCount, colInAudioArea);
+    const { start, end } = getSbrSubgroupRange(rowDataCount, subgroupIdx);
 
     return {
         params: rowParams.subgroups[subgroupIdx],
-        blockIdxInSubgroup,
-        subgroupSize
+        blockIdxInSubgroup: colInAudioArea - start,
+        subgroupSize: Math.max(1, end - start)
     };
 }
 
@@ -266,13 +268,14 @@ export function decodeBlock(
     colInAudioArea: number,
     debugCapture?: DecodeBlockDebugCapture,
     externalSbrSeed?: number,
-    formatVersion: number = FORMAT_VERSION
+    formatVersion: number = FORMAT_VERSION,
+    rowDataCount: number = DATA_BLOCKS_PER_ROW
 ): Float32Array {
     decodeBlockToCoefficients(
         data, width, blockIndex, maxY, maxC, whiteningProfile, bandFactors, coeffBuffer, buffers, debugCapture, formatVersion
     );
 
-    const selection = selectSbrParamsForBlock(sbrBytes, colInAudioArea, formatVersion);
+    const selection = selectSbrParamsForBlock(sbrBytes, colInAudioArea, formatVersion, rowDataCount);
     if (selection) {
         applySBRSynthesis(
             coeffBuffer,
@@ -322,7 +325,8 @@ export function decodeStereoBlocks(
     sharedSeed?: number,
     midSeed?: number,
     sideSeed?: number,
-    formatVersion: number = FORMAT_VERSION
+    formatVersion: number = FORMAT_VERSION,
+    rowDataCount: number = DATA_BLOCKS_PER_ROW
 ): { midWindow: Float32Array; sideWindow: Float32Array } {
     decodeBlockToCoefficients(
         midBlock.data,
@@ -351,8 +355,8 @@ export function decodeStereoBlocks(
         formatVersion
     );
 
-    const midSelection = selectSbrParamsForBlock(midBlock.sbrBytes, colInAudioArea, formatVersion);
-    const sideSelection = selectSbrParamsForBlock(sideBlock.sbrBytes, colInAudioArea, formatVersion);
+    const midSelection = selectSbrParamsForBlock(midBlock.sbrBytes, colInAudioArea, formatVersion, rowDataCount);
+    const sideSelection = selectSbrParamsForBlock(sideBlock.sbrBytes, colInAudioArea, formatVersion, rowDataCount);
 
     if (midSelection && sideSelection) {
         applyJointStereoSBRSynthesis(

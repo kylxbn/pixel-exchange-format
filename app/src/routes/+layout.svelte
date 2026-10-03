@@ -4,35 +4,34 @@ Copyright (c) 2026 Kyle Alexander Buan
 -->
 
 <script lang="ts">
-    import './app.css';
-    import { browser } from '$app/environment';
-    import { asset, base } from '$app/paths';
-    import { page } from '$app/state';
-    import * as m from '$lib/paraglide/messages';
-    import { getLocale, locales, localizeHref, deLocalizeHref, type Locale } from '$lib/paraglide/runtime';
+	import './app.css';
+	import { browser } from '$app/environment';
+	import { asset, base } from '$app/paths';
+	import { page } from '$app/state';
+	import * as m from '$lib/paraglide/messages';
+	import { getLocale, locales, deLocalizeHref, type Locale } from '$lib/paraglide/runtime';
+	import { localizeRoute } from '$lib/navigation';
 	import { VERSION } from '@pixel-exchange-format/codec';
-    
-    let { children } = $props();
-    
-    let pathWithoutBase = $derived(base && page.url.pathname.startsWith(base)
-        ? page.url.pathname.slice(base.length) || '/'
-        : page.url.pathname);
-    let activePath = $derived(deLocalizeHref(pathWithoutBase));
 
-    function localizeRoute(path: string, options?: Parameters<typeof localizeHref>[1]) {
-        return `${base}${localizeHref(path, options)}`;
-    }
+	let { children } = $props();
 
-    function switchLocale(locale: Locale) {
-        if (browser) {
-            window.location.href = localizeRoute(pathWithoutBase, { locale });
-        }
-    }
+	let pathWithoutBase = $derived(
+		base && page.url.pathname.startsWith(base)
+			? page.url.pathname.slice(base.length) || '/'
+			: page.url.pathname
+	);
+	let activePath = $derived(deLocalizeHref(pathWithoutBase));
 
-    function isActive(path: string) {
-        if (path === '/decode' && (activePath === '/decode' || activePath === '/')) return true;
-        return activePath === path;
-    }
+	function switchLocale(locale: Locale) {
+		if (browser) {
+			window.location.href = localizeRoute(pathWithoutBase, { locale });
+		}
+	}
+
+	function isActive(path: string) {
+		if (path === '/decode' && (activePath === '/decode' || activePath === '/')) return true;
+		return activePath === path;
+	}
 </script>
 
 <div class="h-screen w-screen flex flex-col bg-gray-900 text-gray-300 overflow-hidden font-sans">
@@ -59,6 +58,7 @@ Copyright (c) 2026 Kyle Alexander Buan
 
 		<!-- Center: Mode Switcher -->
 		<nav class="flex items-center justify-center flex-1">
+			<!-- eslint-disable svelte/no-navigation-without-resolve -- locale-prefixed paths (/ja/...) are not in the typed Pathname union; they're handled by the reroute hook -->
 			<div class="flex items-center bg-gray-900/50 rounded p-1 border border-gray-700/50 gap-1">
 				<a
 					href={localizeRoute('/decode')}
@@ -82,6 +82,7 @@ Copyright (c) 2026 Kyle Alexander Buan
 					{m.nav_encode()}
 				</a>
 			</div>
+			<!-- eslint-enable svelte/no-navigation-without-resolve -->
 		</nav>
 
 		<!-- Right: Language & Tools -->
@@ -114,9 +115,7 @@ Copyright (c) 2026 Kyle Alexander Buan
 		</div>
 	</header>
 
-	<main
-		class="grow flex flex-col w-full h-[calc(100vh-3rem)] overflow-hidden relative bg-gray-900"
-	>
+	<main class="grow flex flex-col w-full h-[calc(100vh-3rem)] overflow-hidden relative bg-gray-900">
 		{@render children()}
 	</main>
 </div>
@@ -124,6 +123,7 @@ Copyright (c) 2026 Kyle Alexander Buan
 {#if browser}
 	<div style="display:none">
 		{#each locales as locale (locale)}
+			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- locale-prefixed paths are not in the typed Pathname union -->
 			<a href={localizeRoute(pathWithoutBase, { locale })} data-sveltekit-reload>{locale}</a>
 		{/each}
 	</div>

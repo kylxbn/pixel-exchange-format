@@ -7,8 +7,8 @@ import { createRNG } from "./rng";
 export function generateBinaryPermutation(rowIndex: number): Uint16Array {
     const rng = createRNG(BINARY_PERMUTATION_SEED + rowIndex);
 
-    // Permute at 2-bit pair level: 1984 bytes = 7936 pairs
-    const numPairs = BINARY_ROW_DATA_CAPACITY * 4; // 7936
+    // Permute at 2-bit pair level: 2480 bytes = 9920 pairs
+    const numPairs = BINARY_ROW_DATA_CAPACITY * 4; // 9920
     const perm = new Uint16Array(numPairs);
     for (let i = 0; i < numPairs; i++) {
         perm[i] = i;

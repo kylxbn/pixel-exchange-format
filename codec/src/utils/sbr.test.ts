@@ -9,12 +9,17 @@ import {
     analyzeStereoRowSbrCues,
     applySBRSynthesis,
     decodeSBRWord,
+    encodeRowSBR,
+    getSbrSubgroupIndexForBlock,
+    getSbrSubgroupRange,
     lockStereoRowPatchModes,
     projectStereoCueToHighFrequencies,
     encodeSBRWord,
     type SBRParams,
     type SBRParamsTemporal,
 } from './sbr';
+import { selectSbrParamsForBlock } from '../decoder/audioMath';
+import { DATA_BLOCKS_PER_ROW, FORMAT_VERSION } from '../constants';
 
 describe('SBR Bitfields', () => {
     it('preserves the legacy v300 normal layout', () => {
@@ -286,5 +291,52 @@ describe('SBR Silence Handling', () => {
         for (let bin = SBR_START_BIN; bin < SBR_END_BIN; bin++) {
             expect(coeffs[bin]).toBe(0);
         }
+    });
+});
+
+describe('SBR Subgroup Partition', () => {
+    function makeDistinctRow(rowDataCount: number): Float32Array[] {
+        // Subgroup 0 is tonal, subgroup 1 is loud and noisy, so the two
+        // analyzed parameter sets are easy to tell apart.
+        const { start: split } = getSbrSubgroupRange(rowDataCount, 1);
+        const rows: Float32Array[] = [];
+        for (let b = 0; b < rowDataCount; b++) {
+            const bins = new Float32Array(128);
+            const loud = b >= split;
+            for (let k = 0; k < 128; k++) {
+                bins[k] = loud ? ((k * 7919 + b * 104729) % 97 / 97 - 0.5) * 2.0 : (k % 8 === 0 ? 0.5 : 0.001);
+            }
+            rows.push(bins);
+        }
+        return rows;
+    }
+
+    it('selects the same subgroup the encoder analyzed for every block of a partial row', () => {
+        for (const rowDataCount of [1, 2, 3, 7, 10, 61, 62, 63, 100, DATA_BLOCKS_PER_ROW]) {
+            const rowParams = analyzeRowSBR(makeDistinctRow(rowDataCount), rowDataCount);
+            const sbrBytes = encodeRowSBR(rowParams);
+
+            for (let col = 0; col < rowDataCount; col++) {
+                const expectedIdx = getSbrSubgroupIndexForBlock(rowDataCount, col);
+                const { start, end } = getSbrSubgroupRange(rowDataCount, expectedIdx);
+                expect(col).toBeGreaterThanOrEqual(start);
+                expect(col).toBeLessThan(end);
+
+                const selection = selectSbrParamsForBlock(sbrBytes, col, FORMAT_VERSION, rowDataCount);
+                expect(selection).not.toBeNull();
+                expect(selection!.params.patchMode).toBe(rowParams.subgroups[expectedIdx].patchMode);
+                expect(selection!.params.temporalMode).toBe(rowParams.subgroups[expectedIdx].temporalMode);
+                expect(selection!.blockIdxInSubgroup).toBe(col - start);
+                expect(selection!.subgroupSize).toBe(end - start);
+            }
+        }
+    });
+
+    it('matches the fixed 62/62 split for a full row', () => {
+        const full = DATA_BLOCKS_PER_ROW;
+        expect(getSbrSubgroupRange(full, 0)).toEqual({ start: 0, end: 62 });
+        expect(getSbrSubgroupRange(full, 1)).toEqual({ start: 62, end: full });
+        expect(getSbrSubgroupIndexForBlock(full, 61)).toBe(0);
+        expect(getSbrSubgroupIndexForBlock(full, 62)).toBe(1);
     });
 });

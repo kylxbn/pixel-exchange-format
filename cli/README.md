@@ -4,95 +4,84 @@ CLI for PXF, exposing all features supported by the PXF codec library.
 
 ## Usage
 
-### Basic Syntax
-
 ```bash
 pxf <command> [options] <arguments>
+pxf --version      # CLI version and the codec version it was built with
 ```
 
-### Commands
+All output files are written to the current working directory unless `-o` is given.
+Existing files are never overwritten unless `-f, --force` is passed.
 
-#### `encode` - Encode data into images
+### `encode` - Encode data into images
 
-Encode audio or binary data into PXF image format.
-
-**Syntax:**
 ```bash
 pxf encode <source> [options]
 ```
 
-**Arguments:**
-- `<source>` - Source file (WAV audio or any binary file)
+`<source>` is a WAV file (PCM 8/16/24/32-bit or IEEE float, including
+WAVE_FORMAT_EXTENSIBLE) or any other file. WAV files are encoded as audio; anything
+else as binary. A WAV file that fails to parse is an error; use `--binary` to encode it
+as raw data instead.
 
-**Options:**
-- `-o, --output <path>` - Output image path (default: `<source>.png`)
-- `-n, --name <name>` - Custom filename to embed in metadata
-- `-c, --comment <text>` - Optional comment to embed in metadata
-- `-f, --force` - Overwrite existing output files
+| Option | Description |
+| --- | --- |
+| `-o, --output <path>` | Output image path (default: `<basename>.png`) |
+| `-n, --name <name>` | Filename to embed in metadata (default: source basename) |
+| `-c, --comment <text>` | Comment to embed in metadata |
+| `-m, --metadata <key=value>` | Extra metadata entry; repeatable. The value may contain `=` |
+| `-b, --binary` | Force binary mode, even for WAV input |
+| `-f, --force` | Overwrite existing output files |
 
-**Examples:**
+When the data does not fit in one image (stereo audio, or large files) a numbered set
+is written: `<basename>_1.png`, `<basename>_2.png`, ... (with `-o out.png`:
+`out_1.png`, `out_2.png`, ...). Decode by passing all images of the set together.
 
-Encode a WAV audio file:
 ```bash
-pxf encode audio.wav
+pxf encode song.wav -m album="Some Album" -m artist="Me"
+pxf encode backup.tar.gz -n backup.tar.gz -c "Weekly backup" -o backup.png
+pxf encode weird.wav --binary
 ```
 
-Encode with custom output path:
-```bash
-pxf encode audio.wav -o encoded_audio.png
-```
+### `decode` - Decode images back to data
 
-Encode binary data with metadata:
-```bash
-pxf encode data.bin -n "myfile.bin" -c "Data backup"
-```
-
-Encode with custom name for embedded metadata:
-```bash
-pxf encode song.wav -n "Some song" -c "LOL"
-```
-
-#### `decode` - Decode images back to data
-
-Decode PXF images back to audio or binary data.
-
-**Syntax:**
 ```bash
 pxf decode <sources...> [options]
 ```
 
-**Arguments:**
-- `<sources...>` - Source PXF image(s) - automatically recombines multiple images from the same file
+Accepts PNG, JPEG, GIF, BMP, WebP and TIFF. Images from the same encode are grouped and
+reassembled automatically, so order does not matter. Baseline JPEGs go through the bundled
+PXF-tuned decoder; everything else (and any JPEG it rejects) goes through sharp.
 
-**Options:**
-- `-o, --output <path>` - Output file path (default: auto-generated from metadata)
-- `-i, --info` - Display metadata information only, without decoding
+| Option | Description |
+| --- | --- |
+| `-o, --output <path>` | Output file path |
+| `-i, --info` | Print format version and metadata only, without decoding |
+| `-v, --verbose` | Print per-row and overall data health (binary only) |
+| `-f, --force` | Overwrite an existing output file |
 
-**Examples:**
+Default output paths: audio is written as 16-bit PCM to `<first source basename>_decoded.wav`;
+binary data is written to the filename embedded in the metadata (reduced to its basename),
+falling back to `<first source basename>_decoded.bin`.
 
-Decode a mono audio image:
 ```bash
-pxf decode encoded_audio.png
-```
-
-Decode stereo audio from two images:
-```bash
-pxf decode left_channel.png right_channel.png
-```
-
-Decode with custom output path:
-```bash
+pxf decode song_1.png song_2.png            # stereo set -> song_1_decoded.wav
 pxf decode encoded.png -o output.wav
+pxf decode backup.png -v                    # -> backup.tar.gz, with health stats
+pxf decode encoded.jpg --info
 ```
 
-Display metadata without decoding:
+### `check` - Validate images
+
 ```bash
-pxf decode encoded.png --info
+pxf check <sources...>
 ```
 
-Decode binary data:
+Decodes binary images without writing any output and prints the checksum result plus
+per-row data health. Exits with status 1 if the checksum does not match (and on any other
+error), so it can be used in scripts. Audio images are currently reported as unsupported.
+
 ```bash
-pxf decode encoded_data.png
+pxf check backup.png && echo "intact"
 ```
 
 ## License

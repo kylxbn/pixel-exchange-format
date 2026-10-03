@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  pull_request:
 
 jobs:
   codec:
@@ -135,5 +136,37 @@ jobs:
       - name: Install dependencies for app
         run: cd app && pnpm install --frozen-lockfile
 
+      - name: Lint app
+        run: cd app && pnpm run lint
+
+      - name: Type-check app
+        run: cd app && pnpm run check
+
       - name: Build app (web)
         run: cd app && pnpm run build
+
+  web:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: '10'
+
+      - name: Install dependencies for web
+        run: cd web && pnpm install --frozen-lockfile
+
+      - name: Type-check web
+        run: cd web && pnpm run check
+
+      - name: Build web
+        run: cd web && pnpm run build

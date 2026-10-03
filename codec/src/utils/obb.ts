@@ -4,6 +4,7 @@
 // Encode/decode between internal point within [-1..1]^3 and RGB using the maximal OBB based on tests.
 
 import { AUDIO_PSYCHOACOUSTICS } from "../psychoacoustics";
+import { MuLaw } from "./mulaw";
 
 // ---------- Types ----------
 export type Vec3 = [number, number, number];
@@ -36,20 +37,6 @@ function mat3_mul_vec3(M: number[][], v: Vec3): Vec3 {
   ];
 }
 
-// ---------- Mu-law ----------
-function muLawEncode(x: number, mu: number): number {
-  if (mu <= 0) return x;
-  const s = Math.sign(x);
-  const ax = Math.abs(x);
-  return s * Math.log1p(mu * ax) / Math.log1p(mu);
-}
-function muLawDecode(y: number, mu: number): number {
-  if (mu <= 0) return y;
-  const s = Math.sign(y);
-  const ay = Math.abs(y);
-  return s * (Math.expm1(ay * Math.log1p(mu)) / mu);
-}
-
 // ---------- BT.601 conversions ----------
 function YCbCr_to_RGB(y: number, cb: number, cr: number): Vec3 {
   const R = y + 1.402 * (cr - 128.0);
@@ -73,9 +60,11 @@ function RGB_to_YCbCr(R: number, G: number, B: number): Vec3 {
 function encodePointToYCbCr(point: Vec3, enableMuLaw: boolean = true): Vec3 {
   let pmu: Vec3;
   if (enableMuLaw) {
-    pmu = [muLawEncode(point[0], MU[0]),
-    muLawEncode(point[1], MU[1]),
-    muLawEncode(point[2], MU[2])];
+    pmu = [
+      MuLaw.encode(point[0], MU[0]),
+      MuLaw.encode(point[1], MU[1]),
+      MuLaw.encode(point[2], MU[2])
+    ];
   } else {
     pmu = point;
   }
@@ -108,7 +97,7 @@ function decodeYCbCrToPoint(ycbcr: Vec3, enableMuLaw: boolean = true): Vec3 {
   const normed: Vec3 = [rotatedBack[0] / OBB_EXTENTS[0], rotatedBack[1] / OBB_EXTENTS[1], rotatedBack[2] / OBB_EXTENTS[2]];
 
   if (enableMuLaw) {
-    return [muLawDecode(normed[0], MU[0]), muLawDecode(normed[1], MU[1]), muLawDecode(normed[2], MU[2])];
+    return [MuLaw.decode(normed[0], MU[0]), MuLaw.decode(normed[1], MU[1]), MuLaw.decode(normed[2], MU[2])];
   } else {
     return [normed[0], normed[1], normed[2]];
   }

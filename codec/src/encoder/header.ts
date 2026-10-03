@@ -12,24 +12,7 @@ import {
 } from '../constants';
 import { MurmurHash3_x64_128 } from '../utils/murmurHash';
 import { headerLdpc } from '../constants';
-
-export interface EncodedImageResult {
-    data: Uint8ClampedArray;
-    width: number;
-    height: number;
-    name: string;
-}
-
-export interface AudioData {
-    channels: Float32Array[];
-    sampleRate: number;
-}
-
-export interface SimpleImageData {
-    data: Uint8ClampedArray;
-    width: number;
-    height: number;
-}
+import type { SimpleImageData } from './types';
 
 export class HeaderEncoder {
     public static writeHeader(
@@ -45,7 +28,7 @@ export class HeaderEncoder {
         const payload = new Uint8Array(HEADER_PAYLOAD_BYTES); // 768 bytes
 
         // Serialize metadata
-        const entries = Object.entries(metadata).sort(([a], [b]) => a.localeCompare(b));
+        const entries = Object.entries(metadata).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
         const textEncoder = new TextEncoder();
         const metadataBuffer = new Uint8Array(MAX_STRING_DATA_BYTES);
         let ptr = 0;

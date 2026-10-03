@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PXF PEAQ Report</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f1e8;
+      --panel: #fffdf8;
+      --ink: #1f2933;
+      --muted: #5f6c7b;
+      --accent: #8a4f2d;
+      --accent-soft: #e8d7c8;
+      --line: #ddd2c5;
+      --ok: #1d6b49;
+      --fail: #9d2f2f;
+    }
+    body {
+      margin: 0;
+      font-family: "Iosevka Etoile", "IBM Plex Sans", sans-serif;
+      background: radial-gradient(circle at top, #fff7ec 0%, var(--bg) 55%, #efe6d8 100%);
+      color: var(--ink);
+    }
+    main {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 32px 24px 48px;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 2.2rem;
+      letter-spacing: -0.04em;
+    }
+    p {
+      margin: 6px 0;
+      color: var(--muted);
+    }
+    .meta {
+      margin-top: 20px;
+      padding: 18px 20px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: 0 12px 40px rgba(74, 45, 24, 0.08);
+    }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+      margin: 24px 0;
+    }
+    .card {
+      background: linear-gradient(180deg, var(--panel), #f8f3eb);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px;
+    }
+    .label {
+      color: var(--muted);
+      font-size: 0.88rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .value {
+      margin-top: 8px;
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow: 0 12px 40px rgba(74, 45, 24, 0.08);
+    }
+    th, td {
+      padding: 12px 10px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+      text-align: left;
+      font-size: 0.94rem;
+    }
+    th {
+      background: var(--accent-soft);
+      position: sticky;
+      top: 0;
+    }
+    tr:last-child td {
+      border-bottom: 0;
+    }
+    .footer {
+      margin-top: 18px;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>PXF ODG Report</h1>
+    <p>Generated with GstPEAQ in <strong>advanced</strong> mode.</p>
+    <div class="meta">
+      <p><strong>Generated:</strong> 2026-10-03T17:42:34+09:00</p>
+      <p><strong>Input directory:</strong> /mnt/dev/personal/projects/active/codec-bench-framework/input</p>
+      <p><strong>Report directory:</strong> /mnt/dev/personal/projects/active/pixel-exchange-format/doc/artifacts/peaq-reports/20261003-172352</p>
+      <p><strong>Transport path:</strong> magick &lt;png&gt; ppm:- | cjpeg -quality 92 -sample 2x2,1x1,1x1 -dct int -optimize &gt; &lt;jpg&gt;</p>
+    </div>
+    <section class="cards"><div class='card'><div class='label'>Files</div><div class='value'>36</div></div><div class='card'><div class='label'>Succeeded</div><div class='value'>36</div></div><div class='card'><div class='label'>Failed</div><div class='value'>0</div></div><div class='card'><div class='label'>Avg ODG</div><div class='value'>-1.405</div></div><div class='card'><div class='label'>Median ODG</div><div class='value'>-1.270</div></div><div class='card'><div class='label'>Avg DI</div><div class='value'>0.508</div></div><div class='card'><div class='label'>Avg kbps</div><div class='value'>205.445</div></div><div class='card'><div class='label'>Overall kbps</div><div class='value'>210.172</div></div><div class='card'><div class='label'>Avg PCM SNR</div><div class='value'>19.321</div></div><div class='card'><div class='label'>JPEG / Source</div><div class='value'>0.149</div></div></section>
+    <table>
+      <thead>
+        <tr>
+          <th>File</th>
+          <th>Status</th>
+          <th>Ch</th>
+          <th>Hz</th>
+          <th>Bits</th>
+          <th>Sec</th>
+          <th>Source</th>
+          <th>JPEG</th>
+          <th>JPEG Total</th>
+          <th>Eff. kbps</th>
+          <th>ODG</th>
+          <th>DI</th>
+          <th>PCM SNR</th>
+          <th>RMSE</th>
+          <th>Max Err</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Air Supply - Making Love Out Of Nothing At All (Digitally Remastered 1999).wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>341.67</td><td>57.48 MiB</td><td>4</td><td>9.32 MiB</td><td>228.722</td><td>-0.884</td><td>1.032</td><td>19.421</td><td>623.710</td><td>13991</td><td></td></tr><tr><td>Bad Bunny - Tití Me Preguntó.wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>243.72</td><td>41.00 MiB</td><td>4</td><td>5.96 MiB</td><td>205.121</td><td>-1.632</td><td>0.237</td><td>21.011</td><td>823.725</td><td>14029</td><td></td></tr><tr><td>Belphegor - Baphomet.wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>287.41</td><td>48.35 MiB</td><td>4</td><td>7.85 MiB</td><td>229.007</td><td>-0.512</td><td>1.555</td><td>19.595</td><td>1336.312</td><td>27503</td><td></td></tr><tr><td>Casiopea - Swear.wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>407.84</td><td>68.61 MiB</td><td>6</td><td>9.96 MiB</td><td>204.809</td><td>-1.140</td><td>0.736</td><td>17.917</td><td>634.070</td><td>14227</td><td></td></tr><tr><td>Chamillionaire - Ridin&#x27; (Album Version).wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>303.05</td><td>50.98 MiB</td><td>4</td><td>7.42 MiB</td><td>205.505</td><td>-0.407</td><td>1.740</td><td>19.540</td><td>998.168</td><td>14671</td><td></td></tr><tr><td>Chief Keef - Love Sosa.wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>246.21</td><td>41.42 MiB</td><td>4</td><td>6.22 MiB</td><td>211.805</td><td>-1.276</td><td>0.592</td><td>24.542</td><td>774.228</td><td>23026</td><td></td></tr><tr><td>Dave Brubeck - Take Five.wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>324.68</td><td>54.62 MiB</td><td>4</td><td>8.13 MiB</td><td>210.107</td><td>-1.936</td><td>-0.054</td><td>19.399</td><td>241.235</td><td>5486</td><td></td></tr><tr><td>Depeche Mode - People Are People (2006 Remaster).wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>232.08</td><td>39.04 MiB</td><td>4</td><td>5.76 MiB</td><td>208.047</td><td>-1.264</td><td>0.605</td><td>16.627</td><td>942.777</td><td>26416</td><td></td></tr><tr><td>Dragonforce - Through The Fire And Flames.wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>439.12</td><td>73.87 MiB</td><td>6</td><td>12.12 MiB</td><td>231.552</td><td>-0.689</td><td>1.287</td><td>17.704</td><td>1177.823</td><td>19416</td><td></td></tr><tr><td>EBU SQAM - Speech, Female English (Track 49).wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>23.00</td><td>3.87 MiB</td><td>2</td><td>412.27 KiB</td><td>146.840</td><td>-2.372</td><td>-0.477</td><td>18.649</td><td>254.914</td><td>5012</td><td></td></tr><tr><td>EBU SQAM - Speech, Male English (Track 50).wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>22.00</td><td>3.70 MiB</td><td>2</td><td>395.42 KiB</td><td>147.238</td><td>-1.373</td><td>0.493</td><td>19.806</td><td>257.432</td><td>3027</td><td></td></tr><tr><td>EBU SQAM - Speech, Male German (Track 54).wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>21.00</td><td>3.53 MiB</td><td>2</td><td>414.84 KiB</td><td>161.826</td><td>-1.336</td><td>0.530</td><td>18.729</td><td>220.658</td><td>3723</td><td></td></tr><tr><td>Eagles - Hotel California (2013 Remaster).wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>391.36</td><td>65.84 MiB</td><td>6</td><td>9.47 MiB</td><td>202.971</td><td>-2.234</td><td>-0.340</td><td>18.119</td><td>497.787</td><td>17623</td><td></td></tr><tr><td>Fearofdark - Rolling Down The Street, In My Katamari.wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>275.67</td><td>46.38 MiB</td><td>4</td><td>6.68 MiB</td><td>203.358</td><td>-2.116</td><td>-0.226</td><td>16.921</td><td>839.355</td><td>11530</td><td></td></tr><tr><td>Ludwig van Beethoven - Moonlight Sonata I. Adagio sostenuto.wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>436.65</td><td>73.46 MiB</td><td>6</td><td>7.95 MiB</td><td>152.795</td><td>-3.208</td><td>-1.491</td><td>27.903</td><td>26.785</td><td>645</td><td></td></tr><tr><td>Luis Fonsi &amp; Daddy Yankee - Despacito.wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>231.57</td><td>38.96 MiB</td><td>4</td><td>5.77 MiB</td><td>209.090</td><td>-1.119</td><td>0.759</td><td>19.253</td><td>997.040</td><td>27217</td><td></td></tr><tr><td>Mariah Carey - All I Want for Christmas Is You.wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>241.56</td><td>40.64 MiB</td><td>4</td><td>6.55 MiB</td><td>227.552</td><td>-1.244</td><td>0.626</td><td>17.243</td><td>925.288</td><td>29853</td><td></td></tr><tr><td>New Order - Regret.wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>250.57</td><td>42.15 MiB</td><td>4</td><td>6.56 MiB</td><td>219.523</td><td>-0.899</td><td>1.012</td><td>18.381</td><td>839.407</td><td>11095</td><td></td></tr><tr><td>Orchestre de Paris - Le Sacre du Printemps - Pt. 1: L&#x27;Adoration de la Terre: I. Introduction.wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>213.69</td><td>35.95 MiB</td><td>4</td><td>4.63 MiB</td><td>181.565</td><td>-2.899</td><td>-1.060</td><td>21.165</td><td>61.202</td><td>1665</td><td></td></tr><tr><td>Orchestre de Paris - Le Sacre du Printemps - Pt. 1: L&#x27;Adoration de la Terre: II. Les augures printaniers.wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>197.31</td><td>33.19 MiB</td><td>4</td><td>4.72 MiB</td><td>200.584</td><td>-1.585</td><td>0.283</td><td>20.563</td><td>153.551</td><td>4247</td><td></td></tr><tr><td>PrismCorp Virtual Enterprises - Seasons.wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>329.38</td><td>55.41 MiB</td><td>4</td><td>8.27 MiB</td><td>210.673</td><td>-1.600</td><td>0.268</td><td>23.587</td><td>339.435</td><td>8083</td><td></td></tr><tr><td>Samantha James - Rise.wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>263.84</td><td>44.39 MiB</td><td>4</td><td>6.18 MiB</td><td>196.463</td><td>-1.031</td><td>0.857</td><td>19.453</td><td>1040.750</td><td>15732</td><td></td></tr><tr><td>Scorpions - Always Somewhere.wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>297.52</td><td>50.05 MiB</td><td>4</td><td>7.84 MiB</td><td>220.915</td><td>-1.319</td><td>0.547</td><td>16.280</td><td>1253.230</td><td>23321</td><td></td></tr><tr><td>Sergio Mendes &amp; Brasil 66 - Batucada.wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>143.09</td><td>24.07 MiB</td><td>2</td><td>3.44 MiB</td><td>201.725</td><td>-1.947</td><td>-0.064</td><td>18.053</td><td>372.250</td><td>7282</td><td></td></tr><tr><td>Sergio Mendes &amp; Brasil 66 - The Look Of Love (Album Version).wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>166.07</td><td>27.94 MiB</td><td>2</td><td>3.95 MiB</td><td>199.354</td><td>-2.136</td><td>-0.245</td><td>16.684</td><td>439.093</td><td>10689</td><td></td></tr><tr><td>The Winstons - Amen Brother.wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>156.56</td><td>26.34 MiB</td><td>2</td><td>4.20 MiB</td><td>224.941</td><td>-1.149</td><td>0.726</td><td>19.017</td><td>768.941</td><td>10223</td><td></td></tr><tr><td>Vengaboys - Boom, Boom, Boom, Boom!!.wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>201.84</td><td>33.96 MiB</td><td>4</td><td>4.96 MiB</td><td>206.172</td><td>-1.168</td><td>0.706</td><td>20.135</td><td>828.555</td><td>22421</td><td></td></tr><tr><td>Whitechapel - Diabolic Slumber.wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>270.27</td><td>45.47 MiB</td><td>4</td><td>7.52 MiB</td><td>233.443</td><td>-0.785</td><td>1.156</td><td>20.241</td><td>1235.786</td><td>32739</td><td></td></tr><tr><td>Wolfgang Amadeus Mozart - Requiem - Lacrimosa.wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>250.07</td><td>42.07 MiB</td><td>4</td><td>6.35 MiB</td><td>213.076</td><td>-1.385</td><td>0.481</td><td>20.506</td><td>228.934</td><td>10527</td><td></td></tr><tr><td>Zachz Winner - doodle.wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>73.92</td><td>12.44 MiB</td><td>2</td><td>1.53 MiB</td><td>173.125</td><td>-2.680</td><td>-0.802</td><td>21.395</td><td>668.850</td><td>9669</td><td></td></tr><tr><td>キャラメル - ウッーウッーウマウマ(ﾟ∀ﾟ) (Speedycake Remix).wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>175.03</td><td>29.44 MiB</td><td>2</td><td>4.74 MiB</td><td>227.211</td><td>-0.673</td><td>1.309</td><td>16.771</td><td>1676.666</td><td>17424</td><td></td></tr><tr><td>ギガれをる feat. 初音ミク - ヒビカセ.wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>260.00</td><td>43.74 MiB</td><td>4</td><td>6.45 MiB</td><td>208.026</td><td>-0.175</td><td>2.265</td><td>16.725</td><td>1538.823</td><td>25862</td><td></td></tr><tr><td>山下達郎 - RIDE ON TIME (シングル・ヴァージョン).wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>265.00</td><td>44.58 MiB</td><td>4</td><td>6.90 MiB</td><td>218.501</td><td>-1.104</td><td>0.776</td><td>19.607</td><td>636.879</td><td>8091</td><td></td></tr><tr><td>広瀬香美 - Groovy!.wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>262.00</td><td>44.08 MiB</td><td>4</td><td>6.66 MiB</td><td>213.250</td><td>-1.525</td><td>0.342</td><td>17.432</td><td>1026.628</td><td>23536</td><td></td></tr><tr><td>石川さゆり - 女人荒野.wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>259.97</td><td>43.73 MiB</td><td>4</td><td>7.04 MiB</td><td>227.171</td><td>-1.207</td><td>0.664</td><td>19.312</td><td>751.206</td><td>9487</td><td></td></tr><tr><td>黄桜白鶴 - モノクロドロシー.wav</td><td>ok</td><td>2</td><td>44100</td><td>16</td><td>284.00</td><td>47.78 MiB</td><td>4</td><td>7.92 MiB</td><td>233.945</td><td>-0.559</td><td>1.480</td><td>17.854</td><td>1171.370</td><td>19778</td><td></td></tr>
+      </tbody>
+    </table>
+    <div class="footer">
+      CLI round-trip path: encode WAV to PXF PNG(s), convert each PNG through the documented Facebook-like JPEG path, decode back to WAV, then compare with GstPEAQ.
+    </div>
+  </main>
+</body>
+</html>

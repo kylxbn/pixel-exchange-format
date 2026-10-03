@@ -5,77 +5,14 @@ import { CHANNEL_MODE, BLOCK_SIZE } from '../constants';
 import { LLR_LOOKUP_1BIT_LUMA, LLR_LOOKUP_2BIT } from './models/generic';
 import { StreamingAudioDecoder } from './audio';
 import { BinaryDecoder } from './binary';
-import type { BinaryDecodeDebugCapture } from './binary';
 import { HeaderDecoder } from './header';
+import type { BinaryDecodeDebugCapture, DecodeResult, ImageSource, RawImageData } from './types';
 
-export interface VisualizationMetadata {
-    hopSize: number;
-    firstAudioBlockIndex: number;
-    sampleRate: number;
-    blocksPerRow: number;
-    totalAudioBlocks: number;
-    version: number;
-}
+export type {
+    AudioResult, AudioRowMetadata, BinaryDecodeDebugCapture, BinaryResult, BlockStats,
+    DecodeResult, ImageSource, RawImageData, VisualizationMetadata
+} from './types';
 
-export interface AudioResult {
-    type: 'audio';
-    channels: Float32Array[];
-    sampleRate: number;
-    metadata: Record<string, string>;
-    visualizationMetadata: VisualizationMetadata;
-    sourceImageIndex: number;
-    decoder: StreamingAudioDecoder;
-}
-
-export interface BlockStats {
-    lumaScale: number;
-    chromaScale: number;
-    bandFactors: Float32Array;
-    sbrData: Uint8Array | null;
-}
-
-export interface BinaryResult {
-    type: 'binary';
-    data: Uint8Array;
-    metadata: Record<string, string>;
-    visualizationMetadata: VisualizationMetadata;
-    validChecksum: boolean;
-}
-
-export type { BinaryDecodeDebugCapture };
-export type DecodeResult = AudioResult | BinaryResult;
-
-export interface ImageSource {
-    data: Uint8ClampedArray;
-    width: number;
-    height: number;
-    channelMode: number;
-    visualizationMetadata: VisualizationMetadata;
-    totalSamples: number; // Interpreted as File Size for binary
-    sampleRate: number;
-    metadata: Record<string, string>;
-    randomBytes: Uint8Array;
-    imageIndex: number;
-    totalImages: number;
-}
-
-export interface AudioRowMetadata {
-    scaleYA: number;
-    scaleYB: number;
-    scaleCAX: number;
-    scaleCAY: number;
-    scaleCBX: number;
-    scaleCBY: number;
-    bandFactorsA: Float32Array;
-    bandFactorsB: Float32Array;
-    sbrData: Uint8Array | null;
-}
-
-export interface RawImageData {
-    data: Uint8ClampedArray;
-    width: number;
-    height: number;
-}
 
 export class PxfDecoder {
     public static load(imgData: RawImageData): ImageSource {
@@ -144,17 +81,19 @@ export class PxfDecoder {
         return llrs;
     }
 
-    public static async decode(sources: ImageSource[], debugCapture?: BinaryDecodeDebugCapture | null): Promise<DecodeResult> {
+    /**
+     * Picks the set of images that belong together (largest group sharing the
+     * header's random salt) and returns them sorted by image index.
+     */
+    public static selectImageSet(sources: ImageSource[]): ImageSource[] {
         if (sources.length === 0) throw new Error("No valid sources found");
 
-        // Check for mixed audio/binary before processing
         const hasAudio = sources.some(s => s.channelMode !== CHANNEL_MODE.BINARY);
         const hasBinary = sources.some(s => s.channelMode === CHANNEL_MODE.BINARY);
         if (hasAudio && hasBinary) {
             throw new Error("Unable to decode images containing both audio and binary data.");
         }
 
-        // Group sources by randomBytes to identify images that belong together
         const groups = new Map<string, ImageSource[]>();
         for (const source of sources) {
             const key = Array.from(source.randomBytes).join(',');
@@ -164,7 +103,6 @@ export class PxfDecoder {
             groups.get(key)!.push(source);
         }
 
-        // Find the largest group (most complete set of images)
         let largestGroup: ImageSource[] = [];
         for (const group of groups.values()) {
             if (group.length > largestGroup.length) {
@@ -172,43 +110,44 @@ export class PxfDecoder {
             }
         }
 
-        if (largestGroup.length === 0) {
-            throw new Error("No valid image sources found");
+        const imageSet = [...largestGroup].sort((a, b) => a.imageIndex - b.imageIndex);
+
+        const totalImages = imageSet[0].totalImages;
+        if (imageSet.length !== totalImages) {
+            console.warn(`Incomplete image sequence: found ${imageSet.length} of ${totalImages} images. Proceeding with available images.`);
         }
 
-        // Sort the group by imageIndex
-        largestGroup.sort((a, b) => a.imageIndex - b.imageIndex);
+        return imageSet;
+    }
 
-        // Validate that we have a complete sequence
-        const totalImages = largestGroup[0].totalImages;
-        if (largestGroup.length !== totalImages) {
-            console.warn(`Incomplete image sequence: found ${largestGroup.length} of ${totalImages} images. Proceeding with available images.`);
+    public static async decode(sources: ImageSource[], debugCapture?: BinaryDecodeDebugCapture | null): Promise<DecodeResult> {
+        const imageSet = PxfDecoder.selectImageSet(sources);
+
+        if (imageSet[0].channelMode === CHANNEL_MODE.BINARY) {
+            return await BinaryDecoder.decodeBinaryImages(imageSet, debugCapture);
         }
 
-        // Check if Binary Mode (use first file)
-        if (largestGroup[0].channelMode === CHANNEL_MODE.BINARY) {
-            return await BinaryDecoder.decodeBinaryImages(largestGroup, debugCapture);
-        }
-
-        const decoder = new StreamingAudioDecoder(largestGroup);
+        const decoder = new StreamingAudioDecoder(imageSet);
         return decoder.decodeAll();
     }
 
+    /**
+     * Like decode(), but audio is not decoded: the returned result carries a
+     * StreamingAudioDecoder for progressive playback. Binary still decodes fully.
+     */
     public static async decodeMetadataOnly(sources: ImageSource[], debugCapture?: BinaryDecodeDebugCapture | null): Promise<DecodeResult> {
-        if (sources.length === 0) throw new Error("No valid sources found");
+        const imageSet = PxfDecoder.selectImageSet(sources);
 
-        // Check if Binary Mode (use first file) - binary still decodes fully
-        if (sources[0].channelMode === CHANNEL_MODE.BINARY) {
-            return await BinaryDecoder.decodeBinaryImages(sources, debugCapture);
+        if (imageSet[0].channelMode === CHANNEL_MODE.BINARY) {
+            return await BinaryDecoder.decodeBinaryImages(imageSet, debugCapture);
         }
 
-        // For audio: create decoder without calling decodeAll()
-        const decoder = new StreamingAudioDecoder(sources);
+        const decoder = new StreamingAudioDecoder(imageSet);
         const primarySource = decoder.primarySource;
 
         return {
             type: 'audio',
-            channels: [], // empty for metadata only
+            channels: [],
             sampleRate: decoder.sampleRate,
             metadata: primarySource.metadata,
             visualizationMetadata: decoder.visualizationMetadata,

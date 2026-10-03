@@ -4,477 +4,459 @@ Copyright (c) 2026 Kyle Alexander Buan
 -->
 
 <script lang="ts">
-    import Button from '../Button.svelte';
-    import Slider from '../Slider.svelte';
-    import MiniBar from '../MiniBar.svelte';
-    import PlayIcon from '../icons/PlayIcon.svelte';
-    import StopIcon from '../icons/StopIcon.svelte';
-    import PauseIcon from '../icons/PauseIcon.svelte';
-    import DownloadIcon from '../icons/DownloadIcon.svelte';
-    import type { AudioDecoderState } from '../../audioDecoder.svelte';
-    import * as m from '$lib/paraglide/messages';
+	import Button from '../Button.svelte';
+	import Slider from '../Slider.svelte';
+	import MiniBar from '../MiniBar.svelte';
+	import PlayIcon from '../icons/PlayIcon.svelte';
+	import StopIcon from '../icons/StopIcon.svelte';
+	import PauseIcon from '../icons/PauseIcon.svelte';
+	import DownloadIcon from '../icons/DownloadIcon.svelte';
+	import type { AudioDecoderState } from '../../audioDecoder.svelte';
+	import * as m from '$lib/paraglide/messages';
 
-    import {
-        DATA_BLOCKS_PER_ROW, IMAGE_WIDTH, BLOCK_SIZE, CHANNEL_MODE,
-        decodeRowSBR, SBR_SUBGROUPS_PER_ROW, PROCESSING_MODE_NAMES, PATCH_MODE_NAMES, TRANSIENT_SHAPE_NAMES,
-        type SBRParams, type SBRParamsTemporal
-    } from '../../constants';
-    import type { AudioResult, BlockStats, VisualizationMetadata } from '@pixel-exchange-format/codec';
+	import {
+		BLOCK_SIZE,
+		CHANNEL_MODE,
+		DATA_BLOCKS_PER_ROW,
+		FORMAT_VERSION,
+		IMAGE_WIDTH,
+		PATCH_MODE_NAMES,
+		PROCESSING_MODE_NAMES,
+		TRANSIENT_SHAPE_NAMES,
+		decodeRowSBR,
+		getSbrSubgroupIndexForBlock,
+		getSbrSubgroupRange,
+		type AudioResult,
+		type BlockStats,
+		type SBRParams,
+		type SBRParamsTemporal,
+		type VisualizationMetadata
+	} from '@pixel-exchange-format/codec';
 
-	const { decoderState, imagePreviewUrls, isSaving, onDownload }: {
+	const {
+		decoderState,
+		imagePreviewUrls,
+		isSaving,
+		onDownload
+	}: {
 		decoderState: AudioDecoderState;
 		imagePreviewUrls: string[];
 		isSaving: boolean;
 		onDownload: () => void;
-		onReset: () => void;
-	} = $props<{
-		decoderState: AudioDecoderState;
-		imagePreviewUrls: string[];
-		isSaving: boolean;
-		onDownload: () => void;
-		onReset: () => void;
-	}>();
-    
-    // Visualizer Refs
-    let requestRef = 0;
-    // svelte-ignore non_reactive_update
-    let imageContainer: HTMLDivElement;
-    // svelte-ignore non_reactive_update
-    let imageElement: HTMLImageElement;
-    // svelte-ignore non_reactive_update
-    let rowHighlight: HTMLDivElement;
-    // svelte-ignore non_reactive_update
-    let blockHighlight: HTMLDivElement;
-    let prevScale = 0;
+	} = $props();
 
-    // HUD State - Reactive values and bar widths
-    let hudLumaVal = $state("0.0");
-    let hudLumaBarWidth = $state(0);
-    let hudChromaVal = $state("0.0");
-    let hudChromaBarWidth = $state(0);
-    
-    let hudBand0Val = $state("0 dB");
-    let hudBand0BarWidth = $state(0);
-    let hudBand1Val = $state("0 dB");
-    let hudBand1BarWidth = $state(0);
-    let hudBand2Val = $state("0 dB");
-    let hudBand2BarWidth = $state(0);
-    let hudBand3Val = $state("0 dB");
-    let hudBand3BarWidth = $state(0);
+	// Visualizer Refs
+	let requestRef = 0;
+	let imageContainer: HTMLDivElement;
+	let imageElement = $state<HTMLImageElement>();
+	let rowHighlight: HTMLDivElement;
+	let blockHighlight: HTMLDivElement;
+	let prevScale = 0;
 
-    // SBR HUD State
-    let hudSbrMode = $state("Normal");  // Normal or Temporal
-    let hudSbrGain = $state("0 dB");
-    let hudSbrGainBarWidth = $state(0);
-    let hudSbrNoise = $state("0");
-    let hudSbrTonality = $state("0");
-    let hudSbrPatch = $state("Adjacent");
-    let hudSbrProcLabel = $state("Proc");
-    let hudSbrProc = $state("Normal");
-    let hudSbrTransient = $state("Flat");
-    let hudSbrEnvelope = $state("0, 0, 0, 0");
+	// HUD State - Reactive values and bar widths
+	let hudLumaVal = $state('0.0');
+	let hudLumaBarWidth = $state(0);
+	let hudChromaVal = $state('0.0');
+	let hudChromaBarWidth = $state(0);
 
-    // Playback State
-    let currentTime = $state(0);
-    let duration = $derived(decoderState.result && decoderState.result.type === 'audio' ? (decoderState.result as AudioResult).decoder.duration : 0);
-    let isSeeking = $state(false);
+	let hudBand0Val = $state('0 dB');
+	let hudBand0BarWidth = $state(0);
+	let hudBand1Val = $state('0 dB');
+	let hudBand1BarWidth = $state(0);
+	let hudBand2Val = $state('0 dB');
+	let hudBand2BarWidth = $state(0);
+	let hudBand3Val = $state('0 dB');
+	let hudBand3BarWidth = $state(0);
 
-    // Track last processed block to avoid redundant stats calculations
-    let lastProcessedBlock = $state(-1);
+	// SBR HUD State
+	let hudSbrMode = $state('Normal'); // Normal or Temporal
+	let hudSbrGain = $state('0 dB');
+	let hudSbrGainBarWidth = $state(0);
+	let hudSbrNoise = $state('0');
+	let hudSbrTonality = $state('0');
+	let hudSbrPatch = $state('Adjacent');
+	let hudSbrProcLabel = $state('Proc');
+	let hudSbrProc = $state('Normal');
+	let hudSbrTransient = $state('Flat');
+	let hudSbrEnvelope = $state('0, 0, 0, 0');
 
-    // Current source and image index based on playback position
-    let currentSourceInfo = $derived(() => {
-        if (!decoderState.result || decoderState.result.type !== 'audio') {
-            return { sourceIndex: 0, imageIndex: 0, localBlockIndex: 0 };
-        }
+	// Playback State
+	let currentTime = $state(0);
+	let duration = $derived(
+		decoderState.result && decoderState.result.type === 'audio'
+			? (decoderState.result as AudioResult).decoder.duration
+			: 0
+	);
+	let isSeeking = $state(false);
 
-        const decoder = (decoderState.result as AudioResult).decoder;
-        const sources = decoder.sources;
-        const time = currentTime;
-        const sampleRate = decoder.sampleRate;
-        const hopSize = decoder.visualizationMetadata.hopSize;
-        const currentSample = Math.floor(time * sampleRate);
-        const globalBlockIndex = Math.floor(currentSample / hopSize);
+	// Track last processed block to avoid redundant stats calculations
+	let lastProcessedBlock = $state(-1);
 
-        // Check if we have multi-part stereo
-        const midSrcs = sources.filter(s => s.channelMode === CHANNEL_MODE.STEREO_MID);
-        if (midSrcs.length > 1) {
-            // Multi-part stereo: calculate part and local block
-            const blocksPerPart = Math.ceil(midSrcs[0].totalSamples / hopSize);
-            const partIndex = Math.floor(globalBlockIndex / blocksPerPart);
-            const localBlockInPart = globalBlockIndex % blocksPerPart;
+	// Current source and image index based on playback position
+	let currentSourceInfo = $derived.by(() => {
+		const empty = { src: null, imageIndex: 0, localBlockIndex: 0, firstGlobalBlock: 0 };
+		if (!decoderState.result || decoderState.result.type !== 'audio') return empty;
 
-            // Find the mid source for this part
-            const midSrc = midSrcs.find(s => s.imageIndex === partIndex * 2 + 1);
-            if (midSrc) {
-                const sourceIndex = sources.indexOf(midSrc);
-                const imageIndex = partIndex; // Each part has one image (mid channel)
-                return {
-                    sourceIndex,
-                    imageIndex,
-                    localBlockIndex: localBlockInPart
-                };
-            }
-        } else {
-            // Single file or mono multi-part: use sequential logic
-            let remainingBlocks = globalBlockIndex;
-            let imageIndex = 0;
+		const decoder = (decoderState.result as AudioResult).decoder;
+		const hopSize = decoder.visualizationMetadata.hopSize;
+		const globalBlockIndex = Math.floor(Math.floor(currentTime * decoder.sampleRate) / hopSize);
 
-            for (let i = 0; i < sources.length; i++) {
-                const src = sources[i];
-                const blocksInThisSource = Math.ceil(src.totalSamples / hopSize);
+		const located = decoder.locateBlock(globalBlockIndex);
+		if (!located) {
+			// Past the end: stay on the last image
+			const last = decoder.primarySources.length - 1;
+			return { ...empty, src: decoder.primarySources[last] ?? null, imageIndex: Math.max(0, last) };
+		}
 
-                if (remainingBlocks < blocksInThisSource) {
-                    // This is the source containing our current position
-                    return {
-                        sourceIndex: i,
-                        imageIndex: imageIndex,
-                        localBlockIndex: remainingBlocks
-                    };
-                }
+		return {
+			src: located.src,
+			imageIndex: decoder.primarySources.indexOf(located.src),
+			localBlockIndex: located.localBlockIdx,
+			firstGlobalBlock: globalBlockIndex - located.localBlockIdx
+		};
+	});
 
-                remainingBlocks -= blocksInThisSource;
-                // Only increment imageIndex if this source is shown (mid or mono channel)
-                if (src.channelMode === 0 || src.channelMode === 1) { // MONO or STEREO_MID
-                    imageIndex++;
-                }
-            }
-        }
+	function formatTime(seconds: number): string {
+		const m = Math.floor(seconds / 60);
+		const s = Math.floor(seconds % 60);
+		return `${m}:${s.toString().padStart(2, '0')}`;
+	}
 
-        // Fallback to last visible image
-        return {
-            sourceIndex: sources.length - 1,
-            imageIndex: Math.max(0, sources.filter(s => s.channelMode === 0 || s.channelMode === 1).length - 1),
-            localBlockIndex: 0
-        };
-    });
+	async function handleSeek(e: Event) {
+		const target = e.target as HTMLInputElement;
+		const time = parseFloat(target.value);
+		if (!Number.isFinite(time)) return;
+		isSeeking = false;
+		await decoderState.player.seek(time);
+		currentTime = time;
+	}
 
-    function formatTime(seconds: number): string {
-        const m = Math.floor(seconds / 60);
-        const s = Math.floor(seconds % 60);
-        return `${m}:${s.toString().padStart(2, '0')}`;
-    }
-    
-    async function handleSeek(e: Event) {
-        const target = e.target as HTMLInputElement;
-        const time = parseFloat(target.value);
-        await decoderState.player.seek(time);
-        currentTime = time;
-    }
+	async function togglePlayback() {
+		if (decoderState.player.isPlaying) {
+			decoderState.player.pause();
+		} else {
+			await decoderState.playDecodedAudio();
+		}
+	}
 
-    function toDecibels(factor: number): string {
-        const dB = 20 * Math.log10(factor);
-        return (dB > 0 ? '+' + dB.toFixed(1) : dB.toFixed(1)) + ' dB'
-    }
+	function toDecibels(factor: number): string {
+		const dB = 20 * Math.log10(factor);
+		return (dB > 0 ? '+' + dB.toFixed(1) : dB.toFixed(1)) + ' dB';
+	}
 
-    function describeStereoCue(cue: number): string {
-        const sign = ((cue >>> 2) & 0x01) === 1 ? '-' : '+';
-        const coherenceClass = cue & 0x03;
-        return `${sign} C${coherenceClass}`;
-    }
+	function describeStereoCue(cue: number): string {
+		const sign = ((cue >>> 2) & 0x01) === 1 ? '-' : '+';
+		const coherenceClass = cue & 0x03;
+		return `${sign} C${coherenceClass}`;
+	}
 
-    // Helper: Determine audio channel status
-    function getAudioChannelStatus(): string {
-        if (!decoderState.result || decoderState.result.type !== 'audio') {
-            return "Unknown";
-        }
+	// Helper: Determine audio channel status
+	function getAudioChannelStatus(): string {
+		if (!decoderState.result || decoderState.result.type !== 'audio') {
+			return m.val_unknown();
+		}
 
-        const decoder = (decoderState.result as AudioResult).decoder;
-        const sources = decoder.sources;
-        
-        const hasMono = sources.some(s => s.channelMode === CHANNEL_MODE.MONO);
-        const hasMid = sources.some(s => s.channelMode === CHANNEL_MODE.STEREO_MID);
-        const hasSide = sources.some(s => s.channelMode === CHANNEL_MODE.STEREO_SIDE);
+		const decoder = (decoderState.result as AudioResult).decoder;
+		const sources = decoder.sources;
 
-        if (hasMid && hasSide) {
-            return "Stereo";
-        } else if (hasMono) {
-            return "Mono (Original)";
-        } else if (hasMid) {
-            return "Mono (Side Missing)";
-        } else {
-            return "Mono";
-        }
-    }
+		const hasMono = sources.some((s) => s.channelMode === CHANNEL_MODE.MONO);
+		const hasMid = sources.some((s) => s.channelMode === CHANNEL_MODE.STEREO_MID);
+		const hasSide = sources.some((s) => s.channelMode === CHANNEL_MODE.STEREO_SIDE);
 
-    // Helper: Convert time to audio block index
-    function timeToAudioBlockIndex(time: number, sampleRate: number, hopSize: number): number {
-        const sampleIndex = time * sampleRate;
-        return Math.floor(sampleIndex / hopSize);
-    }
+		if (hasMid && hasSide) {
+			return m.channel_stereo();
+		} else if (hasMono) {
+			return m.channel_mono_original();
+		} else if (hasMid) {
+			return m.channel_mono_side_missing();
+		} else {
+			return m.channel_mono();
+		}
+	}
 
-    // Helper: Convert audio block index to absolute image block coordinates
-    function audioBlockToImageBlock(audioBlockIndex: number, metadata: VisualizationMetadata): { row: number, col: number } {
-        const { firstAudioBlockIndex, blocksPerRow } = metadata;
-        const rowIndex = Math.floor(audioBlockIndex / DATA_BLOCKS_PER_ROW);
-        const colIndexInData = audioBlockIndex % DATA_BLOCKS_PER_ROW;
-        const absoluteImageBlockIndex = firstAudioBlockIndex + (rowIndex * blocksPerRow) + colIndexInData;
-        
-        return {
-            row: Math.floor(absoluteImageBlockIndex / blocksPerRow),
-            col: absoluteImageBlockIndex % blocksPerRow
-        };
-    }
+	// Helper: Convert time to audio block index
+	function timeToAudioBlockIndex(time: number, sampleRate: number, hopSize: number): number {
+		const sampleIndex = time * sampleRate;
+		return Math.floor(sampleIndex / hopSize);
+	}
 
-    // Helper: Convert image block to audio block index
-    function imageBlockToAudioBlock(imageRow: number, imageCol: number): number | null {
-        // Validate click is in audio area
-        if (imageRow < 2 || imageCol < 0 || imageCol >= DATA_BLOCKS_PER_ROW) {
-            return null;
-        }
-        
-        const rowInAudioArea = imageRow - 2;
-        return rowInAudioArea * DATA_BLOCKS_PER_ROW + imageCol;
-    }
+	// Helper: Convert audio block index to absolute image block coordinates
+	function audioBlockToImageBlock(
+		audioBlockIndex: number,
+		metadata: VisualizationMetadata
+	): { row: number; col: number } {
+		const { firstAudioBlockIndex, blocksPerRow } = metadata;
+		const rowIndex = Math.floor(audioBlockIndex / DATA_BLOCKS_PER_ROW);
+		const colIndexInData = audioBlockIndex % DATA_BLOCKS_PER_ROW;
+		const absoluteImageBlockIndex = firstAudioBlockIndex + rowIndex * blocksPerRow + colIndexInData;
 
-    // Helper: Convert audio block index to time
-    function audioBlockToTime(audioBlockIndex: number, sampleRate: number, hopSize: number): number {
-        const sampleIndex = audioBlockIndex * hopSize;
-        return sampleIndex / sampleRate;
-    }
+		return {
+			row: Math.floor(absoluteImageBlockIndex / blocksPerRow),
+			col: absoluteImageBlockIndex % blocksPerRow
+		};
+	}
 
-    // Helper: Calculate viewport scale
-    function calculateScale(viewportWidth: number): number {
-        return viewportWidth / IMAGE_WIDTH;
-    }
+	// Helper: Convert image block to audio block index
+	function imageBlockToAudioBlock(imageRow: number, imageCol: number): number | null {
+		// Validate click is in audio area
+		if (imageRow < 2 || imageCol < 0 || imageCol >= DATA_BLOCKS_PER_ROW) {
+			return null;
+		}
 
-    // Helper: Calculate vertical translation for centering current row
-    function calculateVerticalTranslation(
-        currentRow: number,
-        viewportHeight: number,
-        scale: number
-    ): number {
-        const rowY = currentRow * BLOCK_SIZE;
-        const rowHeight = BLOCK_SIZE;
-        const viewCenterY_unscaled = (viewportHeight / 2) / scale;
-        return viewCenterY_unscaled - (rowY + rowHeight / 2);
-    }
+		const rowInAudioArea = imageRow - 2;
+		return rowInAudioArea * DATA_BLOCKS_PER_ROW + imageCol;
+	}
 
-    function updateVisualizer() {
-        if (!decoderState.result || decoderState.result.type !== 'audio') return;
-        
-        const container = imageContainer;
-        const img = imageElement;
-        
-        if (img && container) {
-            const time = decoderState.player.getCurrentTime();
-            
-            if (!isSeeking) {
-                currentTime = time; // Update reactive state only if not seeking
-            }
+	// Helper: Convert audio block index to time
+	function audioBlockToTime(audioBlockIndex: number, sampleRate: number, hopSize: number): number {
+		const sampleIndex = audioBlockIndex * hopSize;
+		return sampleIndex / sampleRate;
+	}
 
-            const { visualizationMetadata } = decoderState.result;
-            const { sampleRate, hopSize } = visualizationMetadata;
+	// Helper: Calculate viewport scale
+	function calculateScale(viewportWidth: number): number {
+		return viewportWidth / IMAGE_WIDTH;
+	}
 
-            // Get current source info and use local block index within that source
-            const sourceInfo = currentSourceInfo();
-            const localBlockIndex = sourceInfo.localBlockIndex;
-            
-            // Calculate position within the current source image
-            const { row, col } = audioBlockToImageBlock(localBlockIndex, visualizationMetadata);
+	// Helper: Calculate vertical translation for centering current row
+	function calculateVerticalTranslation(
+		currentRow: number,
+		viewportHeight: number,
+		scale: number
+	): number {
+		const rowY = currentRow * BLOCK_SIZE;
+		const rowHeight = BLOCK_SIZE;
+		const viewCenterY_unscaled = viewportHeight / 2 / scale;
+		return viewCenterY_unscaled - (rowY + rowHeight / 2);
+	}
 
-            const viewportWidth = container.clientWidth;
-            const viewportHeight = container.clientHeight;
-            
-            if (viewportWidth > 0 && viewportHeight > 0) {
-                const scale = calculateScale(viewportWidth);
-                const translateY_unscaled = calculateVerticalTranslation(row, viewportHeight, scale);
-                
-                img.style.transform = `scale(${scale}) translate(0px, ${translateY_unscaled}px)`;
-                img.style.transformOrigin = '0 0';
+	function updateVisualizer() {
+		if (!decoderState.result || decoderState.result.type !== 'audio') return;
 
-                // Update highlights when scale changes
-                if (Math.abs(scale - prevScale) > 0.001) {
-                    const sizePx = `${BLOCK_SIZE * scale}px`;
-                    const topPx = `calc(50% - ${(BLOCK_SIZE * scale)/2}px)`;
+		const container = imageContainer;
+		const img = imageElement;
 
-                    if (rowHighlight) {
-                        rowHighlight.style.height = sizePx;
-                        rowHighlight.style.top = topPx;
-                    }
+		if (img && container) {
+			const time = decoderState.player.getCurrentTime();
 
-                    if (blockHighlight) {
-                        blockHighlight.style.width = sizePx;
-                        blockHighlight.style.height = sizePx;
-                        blockHighlight.style.top = topPx;
-                    }
-                    prevScale = scale;
-                }
+			if (!isSeeking) {
+				currentTime = time; // Update reactive state only if not seeking
+			}
 
-                // Position block highlight
-                if (blockHighlight) {
-                    const blockX = col * BLOCK_SIZE;
-                    blockHighlight.style.left = `${blockX * scale}px`;
-                }
-            }
+			const { visualizationMetadata } = decoderState.result;
+			const { sampleRate, hopSize } = visualizationMetadata;
 
-            // Update stats using global block index
-            const globalBlockIndex = timeToAudioBlockIndex(time, sampleRate, hopSize);
-            if (globalBlockIndex !== lastProcessedBlock) {
-                lastProcessedBlock = globalBlockIndex;
-                const stats: BlockStats | null = decoderState.result.decoder.getStatsAtBlock(globalBlockIndex);
-                if (stats) {
-                    updateHUD(stats, globalBlockIndex);
-                }
-            }
-        }
+			// Get current source info and use local block index within that source
+			const sourceInfo = currentSourceInfo;
+			const localBlockIndex = sourceInfo.localBlockIndex;
 
-        requestRef = requestAnimationFrame(updateVisualizer);
-    }
+			// Calculate position within the current source image
+			const { row, col } = audioBlockToImageBlock(localBlockIndex, visualizationMetadata);
 
-    function updateHUD(stats: BlockStats, currentAudioBlockIndex: number) {
-        hudLumaVal = stats.lumaScale.toFixed(4);
-        hudLumaBarWidth = Math.min(100, (stats.lumaScale / 2.0) * 100);
-        
-        hudChromaVal = stats.chromaScale.toFixed(4);
-        hudChromaBarWidth = Math.min(100, (stats.chromaScale / 2.0) * 100);
-        
-        const bands = stats.bandFactors;
-        
-        hudBand0Val = toDecibels(bands[0])
-        hudBand0BarWidth = 100.0 * bands[0] / 2;
+			const viewportWidth = container.clientWidth;
+			const viewportHeight = container.clientHeight;
 
-        hudBand1Val = toDecibels(bands[1]);
-        hudBand1BarWidth = 100.0 * bands[1] / 2;
-        
-        hudBand2Val = toDecibels(bands[2]);
-        hudBand2BarWidth = 100.0 * bands[2] / 2;
-        
-        hudBand3Val = toDecibels(bands[3]);
-        hudBand3BarWidth = 100.0 * bands[3] / 2;
+			if (viewportWidth > 0 && viewportHeight > 0) {
+				const scale = calculateScale(viewportWidth);
+				const translateY_unscaled = calculateVerticalTranslation(row, viewportHeight, scale);
 
-        // Decode SBR parameters
-        if (stats.sbrData && stats.sbrData.length === 8) {
-            const formatVersion = decoderState.result && decoderState.result.type === 'audio'
-                ? decoderState.result.visualizationMetadata.version
-                : 301;
-            const rowSBRParams = decodeRowSBR(stats.sbrData, formatVersion);
-            
-            // Determine which SBR subgroup this block belongs to (2 subgroups)
-            const colInAudioArea = currentAudioBlockIndex % DATA_BLOCKS_PER_ROW;
-            const blocksPerSubgroup = Math.floor(DATA_BLOCKS_PER_ROW / SBR_SUBGROUPS_PER_ROW);
-            const sbrSubgroupIndex = Math.min(SBR_SUBGROUPS_PER_ROW - 1, Math.floor(colInAudioArea / blocksPerSubgroup));
-            const sbrParams = rowSBRParams.subgroups[sbrSubgroupIndex];
-            
-            // Check if temporal mode
-            if (sbrParams.temporalMode) {
-                const temporal = sbrParams as SBRParamsTemporal;
-                const blockInSubgroup = colInAudioArea - (sbrSubgroupIndex * blocksPerSubgroup);
-                const isSecondHalf = blockInSubgroup >= Math.floor(blocksPerSubgroup / 2);
-                
-                hudSbrMode = `Temporal (${isSecondHalf ? 'B' : 'A'})`;
-                const gain = isSecondHalf ? temporal.hfGainB : temporal.hfGainA;
-                hudSbrGain = `${gain >= 0 ? '+' : ''}${gain.toFixed(1)} dB`;
-                hudSbrGainBarWidth = Math.min(100, Math.max(0, (gain + 48) / 63 * 100));
-                hudSbrNoise = `${isSecondHalf ? temporal.noiseFloorRatioB : temporal.noiseFloorRatioA}/3`;
-                hudSbrTonality = `${temporal.tonality}/3`;
-                hudSbrPatch = PATCH_MODE_NAMES[temporal.patchMode] || 'Adjacent';
-                hudSbrProcLabel = formatVersion >= 301 ? 'Stereo' : 'Proc';
-                hudSbrProc = formatVersion >= 301
-                    ? describeStereoCue(temporal.stereoCue)
-                    : (PROCESSING_MODE_NAMES[temporal.procMode] || 'Normal');
-                hudSbrTransient = (isSecondHalf ? temporal.transientB : temporal.transientA) ? 'Attack' : 'Flat';
-                hudSbrEnvelope = temporal.bandEnvelope.map(v => (v >= 0 ? '+' : '') + v.toFixed(1)).join(', ');
-            } else {
-                const normal = sbrParams as SBRParams;
-                hudSbrMode = 'Normal';
-                hudSbrGain = `${normal.hfGain >= 0 ? '+' : ''}${normal.hfGain.toFixed(1)} dB`;
-                hudSbrGainBarWidth = Math.min(100, Math.max(0, (normal.hfGain + 48) / 63 * 100));
-                hudSbrNoise = `${normal.noiseFloorRatio}/15`;
-                hudSbrTonality = `${normal.tonality}/${formatVersion >= 301 ? 3 : 7}`;
-                hudSbrPatch = PATCH_MODE_NAMES[normal.patchMode] || 'Adjacent';
-                hudSbrProcLabel = formatVersion >= 301 ? 'Stereo' : 'Proc';
-                hudSbrProc = formatVersion >= 301
-                    ? describeStereoCue(normal.stereoCue)
-                    : (PROCESSING_MODE_NAMES[normal.procMode] || 'Normal');
-                hudSbrTransient = TRANSIENT_SHAPE_NAMES[normal.transientShape] || 'Flat';
-                hudSbrEnvelope = normal.bandEnvelope.map(v => (v >= 0 ? '+' : '') + v.toFixed(1)).join(', ');
-            }
-        }
-    }
+				img.style.transform = `scale(${scale}) translate(0px, ${translateY_unscaled}px)`;
+				img.style.transformOrigin = '0 0';
 
-    async function handleImageClick(event: MouseEvent) {
-        if (!decoderState.result || decoderState.result.type !== 'audio') return;
+				// Update highlights when scale changes
+				if (Math.abs(scale - prevScale) > 0.001) {
+					const sizePx = `${BLOCK_SIZE * scale}px`;
+					const topPx = `calc(50% - ${(BLOCK_SIZE * scale) / 2}px)`;
 
-        const container = imageContainer;
-        const img = imageElement;
-        if (!img || !container) return;
+					if (rowHighlight) {
+						rowHighlight.style.height = sizePx;
+						rowHighlight.style.top = topPx;
+					}
 
-        const decoder = (decoderState.result as AudioResult).decoder;
-        const sources = decoder.sources;
-        const { visualizationMetadata } = decoderState.result;
-        const { sampleRate, hopSize } = visualizationMetadata;
+					if (blockHighlight) {
+						blockHighlight.style.width = sizePx;
+						blockHighlight.style.height = sizePx;
+						blockHighlight.style.top = topPx;
+					}
+					prevScale = scale;
+				}
 
-        // Get click position and current transform state
-        const rect = container.getBoundingClientRect();
-        const clickX = event.clientX - rect.left;
-        const clickY = event.clientY - rect.top;
+				// Position block highlight
+				if (blockHighlight) {
+					const blockX = col * BLOCK_SIZE;
+					blockHighlight.style.left = `${blockX * scale}px`;
+				}
+			}
 
-        const scale = calculateScale(container.clientWidth);
+			// Update stats using global block index
+			const globalBlockIndex = timeToAudioBlockIndex(time, sampleRate, hopSize);
+			if (globalBlockIndex !== lastProcessedBlock) {
+				lastProcessedBlock = globalBlockIndex;
+				const stats: BlockStats | null =
+					decoderState.result.decoder.getStatsAtBlock(globalBlockIndex);
+				if (stats) {
+					updateHUD(stats);
+				}
+			}
+		}
 
-        // Convert click to unscaled image coordinates
-        const clickX_unscaled = clickX / scale;
-        const clickY_unscaled = clickY / scale;
+		requestRef = requestAnimationFrame(updateVisualizer);
+	}
 
-        // Get current source info and local block index for vertical translation
-        const sourceInfo = currentSourceInfo();
-        const localBlockIndex = sourceInfo.localBlockIndex;
-        const currentBlock = audioBlockToImageBlock(localBlockIndex, visualizationMetadata);
+	function updateHUD(stats: BlockStats) {
+		hudLumaVal = stats.lumaScale.toFixed(4);
+		hudLumaBarWidth = Math.min(100, (stats.lumaScale / 2.0) * 100);
 
-        // Calculate vertical translation and reverse it
-        const translateY_unscaled = calculateVerticalTranslation(
-            currentBlock.row,
-            container.clientHeight,
-            scale
-        );
-        const imageY = clickY_unscaled - translateY_unscaled;
+		hudChromaVal = stats.chromaScale.toFixed(4);
+		hudChromaBarWidth = Math.min(100, (stats.chromaScale / 2.0) * 100);
 
-        // Convert to block coordinates within the current source
-        const clickedRow = Math.floor(imageY / BLOCK_SIZE);
-        const clickedCol = Math.floor(clickX_unscaled / BLOCK_SIZE);
+		const bands = stats.bandFactors;
 
-        // Convert image block to local audio block index within current source (validates bounds)
-        const clickedLocalBlockIndex = imageBlockToAudioBlock(clickedRow, clickedCol);
-        if (clickedLocalBlockIndex === null) return; // Outside audio area
+		hudBand0Val = toDecibels(bands[0]);
+		hudBand0BarWidth = (100.0 * bands[0]) / 2;
 
-        // Convert local block index to global block index
-        let globalBlockIndex = 0;
+		hudBand1Val = toDecibels(bands[1]);
+		hudBand1BarWidth = (100.0 * bands[1]) / 2;
 
-        // Check if we have multi-part stereo
-        const midSrcs = sources.filter(s => s.channelMode === CHANNEL_MODE.STEREO_MID);
-        if (midSrcs.length > 1) {
-            // Multi-part stereo: calculate global block from part and local block
-            const partIndex = sourceInfo.imageIndex;
-            const blocksPerPart = Math.ceil(midSrcs[0].totalSamples / hopSize);
-            globalBlockIndex = partIndex * blocksPerPart + clickedLocalBlockIndex;
-        } else {
-            // Single file or mono multi-part: use sequential logic
-            for (let i = 0; i < sourceInfo.sourceIndex; i++) {
-                const src = sources[i];
-                globalBlockIndex += Math.ceil(src.totalSamples / hopSize);
-            }
-            globalBlockIndex += clickedLocalBlockIndex;
-        }
+		hudBand2Val = toDecibels(bands[2]);
+		hudBand2BarWidth = (100.0 * bands[2]) / 2;
 
-        // Convert to time and seek
-        const clickedTime = audioBlockToTime(globalBlockIndex, sampleRate, hopSize);
-        const maxTime = decoder.duration;
-        const seekTime = Math.max(0, Math.min(clickedTime, maxTime));
+		hudBand3Val = toDecibels(bands[3]);
+		hudBand3BarWidth = (100.0 * bands[3]) / 2;
 
-        await decoderState.player.seek(seekTime);
-    }
+		// Decode SBR parameters
+		if (stats.sbrData && stats.sbrData.length === 8) {
+			const formatVersion =
+				decoderState.result && decoderState.result.type === 'audio'
+					? decoderState.result.visualizationMetadata.version
+					: FORMAT_VERSION;
+			const rowSBRParams = decodeRowSBR(stats.sbrData, formatVersion);
 
-    $effect(() => {
-        prevScale = 0;
-        lastProcessedBlock = -1; // Reset when effect re-runs
+			// Subgroups are split relative to the row's actual block count (same as the decoder)
+			const { src, localBlockIndex: localIdx } = currentSourceInfo;
+			const colInAudioArea = localIdx % DATA_BLOCKS_PER_ROW;
+			const rowDataCount = src
+				? decoderState.result!.type === 'audio'
+					? (decoderState.result as AudioResult).decoder.rowDataCountAt(
+							src,
+							Math.floor(localIdx / DATA_BLOCKS_PER_ROW)
+						)
+					: DATA_BLOCKS_PER_ROW
+				: DATA_BLOCKS_PER_ROW;
+			const sbrSubgroupIndex = getSbrSubgroupIndexForBlock(rowDataCount, colInAudioArea);
+			const subgroupRange = getSbrSubgroupRange(rowDataCount, sbrSubgroupIndex);
+			const subgroupSize = Math.max(1, subgroupRange.end - subgroupRange.start);
+			const sbrParams = rowSBRParams.subgroups[sbrSubgroupIndex];
 
-        if (decoderState.result && decoderState.result.type == "audio" && imagePreviewUrls.length > 0) {
-            requestRef = requestAnimationFrame(updateVisualizer);
-            return () => cancelAnimationFrame(requestRef);
-        } else {
-            return () => {};
-        }
-    });
+			// Check if temporal mode
+			if (sbrParams.temporalMode) {
+				const temporal = sbrParams as SBRParamsTemporal;
+				const blockInSubgroup = colInAudioArea - subgroupRange.start;
+				const isSecondHalf = blockInSubgroup >= Math.floor(subgroupSize / 2);
+
+				hudSbrMode = `Temporal (${isSecondHalf ? 'B' : 'A'})`;
+				const gain = isSecondHalf ? temporal.hfGainB : temporal.hfGainA;
+				hudSbrGain = `${gain >= 0 ? '+' : ''}${gain.toFixed(1)} dB`;
+				hudSbrGainBarWidth = Math.min(100, Math.max(0, ((gain + 48) / 63) * 100));
+				hudSbrNoise = `${isSecondHalf ? temporal.noiseFloorRatioB : temporal.noiseFloorRatioA}/3`;
+				hudSbrTonality = `${temporal.tonality}/3`;
+				hudSbrPatch = PATCH_MODE_NAMES[temporal.patchMode] || 'Adjacent';
+				hudSbrProcLabel = formatVersion >= 301 ? 'Stereo' : 'Proc';
+				hudSbrProc =
+					formatVersion >= 301
+						? describeStereoCue(temporal.stereoCue)
+						: PROCESSING_MODE_NAMES[temporal.procMode] || 'Normal';
+				hudSbrTransient = (isSecondHalf ? temporal.transientB : temporal.transientA)
+					? 'Attack'
+					: 'Flat';
+				hudSbrEnvelope = temporal.bandEnvelope
+					.map((v) => (v >= 0 ? '+' : '') + v.toFixed(1))
+					.join(', ');
+			} else {
+				const normal = sbrParams as SBRParams;
+				hudSbrMode = 'Normal';
+				hudSbrGain = `${normal.hfGain >= 0 ? '+' : ''}${normal.hfGain.toFixed(1)} dB`;
+				hudSbrGainBarWidth = Math.min(100, Math.max(0, ((normal.hfGain + 48) / 63) * 100));
+				hudSbrNoise = `${normal.noiseFloorRatio}/15`;
+				hudSbrTonality = `${normal.tonality}/${formatVersion >= 301 ? 3 : 7}`;
+				hudSbrPatch = PATCH_MODE_NAMES[normal.patchMode] || 'Adjacent';
+				hudSbrProcLabel = formatVersion >= 301 ? 'Stereo' : 'Proc';
+				hudSbrProc =
+					formatVersion >= 301
+						? describeStereoCue(normal.stereoCue)
+						: PROCESSING_MODE_NAMES[normal.procMode] || 'Normal';
+				hudSbrTransient = TRANSIENT_SHAPE_NAMES[normal.transientShape] || 'Flat';
+				hudSbrEnvelope = normal.bandEnvelope
+					.map((v) => (v >= 0 ? '+' : '') + v.toFixed(1))
+					.join(', ');
+			}
+		}
+	}
+
+	async function handleImageClick(event: MouseEvent) {
+		if (!decoderState.result || decoderState.result.type !== 'audio') return;
+
+		const container = imageContainer;
+		const img = imageElement;
+		if (!img || !container) return;
+
+		const decoder = (decoderState.result as AudioResult).decoder;
+		const { visualizationMetadata } = decoderState.result;
+		const { sampleRate, hopSize } = visualizationMetadata;
+
+		// Get click position and current transform state
+		const rect = container.getBoundingClientRect();
+		const clickX = event.clientX - rect.left;
+		const clickY = event.clientY - rect.top;
+
+		const scale = calculateScale(container.clientWidth);
+
+		// Convert click to unscaled image coordinates
+		const clickX_unscaled = clickX / scale;
+		const clickY_unscaled = clickY / scale;
+
+		// Get current source info and local block index for vertical translation
+		const sourceInfo = currentSourceInfo;
+		const localBlockIndex = sourceInfo.localBlockIndex;
+		const currentBlock = audioBlockToImageBlock(localBlockIndex, visualizationMetadata);
+
+		// Calculate vertical translation and reverse it
+		const translateY_unscaled = calculateVerticalTranslation(
+			currentBlock.row,
+			container.clientHeight,
+			scale
+		);
+		const imageY = clickY_unscaled - translateY_unscaled;
+
+		// Convert to block coordinates within the current source
+		const clickedRow = Math.floor(imageY / BLOCK_SIZE);
+		const clickedCol = Math.floor(clickX_unscaled / BLOCK_SIZE);
+
+		// Convert image block to local audio block index within current source (validates bounds)
+		const clickedLocalBlockIndex = imageBlockToAudioBlock(clickedRow, clickedCol);
+		if (clickedLocalBlockIndex === null) return; // Outside audio area
+
+		const globalBlockIndex = sourceInfo.firstGlobalBlock + clickedLocalBlockIndex;
+
+		// Convert to time and seek
+		const clickedTime = audioBlockToTime(globalBlockIndex, sampleRate, hopSize);
+		if (!Number.isFinite(clickedTime)) return;
+		const seekTime = Math.max(0, Math.min(clickedTime, decoder.duration));
+
+		await decoderState.player.seek(seekTime);
+	}
+
+	$effect(() => {
+		prevScale = 0;
+		lastProcessedBlock = -1; // Reset when effect re-runs
+
+		if (decoderState.result && decoderState.result.type == 'audio' && imagePreviewUrls.length > 0) {
+			requestRef = requestAnimationFrame(updateVisualizer);
+			return () => cancelAnimationFrame(requestRef);
+		} else {
+			return () => {};
+		}
+	});
 </script>
 
 <div class="flex flex-col w-full h-full bg-gray-950">
@@ -568,31 +550,31 @@ Copyright (c) 2026 Kyle Alexander Buan
 					<div
 						class="col-span-2 flex justify-between items-center border-b border-gray-800/50 pb-0.5"
 					>
-						<span class="text-gray-400 text-xs">Envelope</span>
+						<span class="text-gray-400 text-xs">{m.stat_envelope()}</span>
 						<span class="text-amber-400 text-xs font-mono">{hudSbrEnvelope}</span>
 					</div>
 
 					<!-- Row 3: Noise, Tonality, Transient -->
 					<div class="flex justify-between items-center">
-						<span class="text-gray-400 text-xs">Mode</span>
+						<span class="text-gray-400 text-xs">{m.stat_mode()}</span>
 						<span class="text-sky-400 text-xs">{hudSbrMode}</span>
 					</div>
 					<div class="flex justify-between items-center">
-						<span class="text-gray-400 text-xs">Noise</span>
+						<span class="text-gray-400 text-xs">{m.stat_noise()}</span>
 						<span class="text-sky-400 text-xs">{hudSbrNoise}</span>
 					</div>
 					<div class="flex justify-between items-center">
-						<span class="text-gray-400 text-xs">Tonal</span>
+						<span class="text-gray-400 text-xs">{m.stat_tonal()}</span>
 						<span class="text-rose-400 text-xs">{hudSbrTonality}</span>
 					</div>
 					<div class="flex justify-between items-center">
-						<span class="text-gray-400 text-xs">Trans</span>
+						<span class="text-gray-400 text-xs">{m.stat_trans()}</span>
 						<span class="text-lime-400 text-xs">{hudSbrTransient}</span>
 					</div>
 
 					<!-- Row 4: Patch, Proc -->
 					<div class="flex justify-between items-center">
-						<span class="text-gray-400 text-xs">Patch</span>
+						<span class="text-gray-400 text-xs">{m.stat_patch()}</span>
 						<span class="text-violet-400 text-xs">{hudSbrPatch}</span>
 					</div>
 					<div class="flex justify-between items-center">
@@ -612,9 +594,9 @@ Copyright (c) 2026 Kyle Alexander Buan
 			<div class="flex items-center justify-between">
 				<div
 					class="font-mono text-gray-400 font-bold truncate max-w-md"
-					title={decoderState.result.metadata.fn || 'Unknown'}
+					title={decoderState.result.metadata.fn || m.val_unknown()}
 				>
-					{decoderState.result.metadata.fn || 'Unknown'}
+					{decoderState.result.metadata.fn || m.val_unknown()}
 				</div>
 				<div
 					class="flex items-center gap-4 text-xs text-gray-400 font-mono uppercase tracking-wider"
@@ -634,7 +616,7 @@ Copyright (c) 2026 Kyle Alexander Buan
 				</div>
 			</div>
 			<div class="flex items-baseline flex-wrap gap-2 text-xs">
-				{#each Object.entries(decoderState.result.metadata) as [key, value]}
+				{#each Object.entries(decoderState.result.metadata) as [key, value] (key)}
 					{#if key !== 'fn'}<!-- filename is already shown above -->
 						<span class="text-gray-400 leading-none">
 							<span class="font-medium">{key}:</span> <span class="text-gray-300">{value}</span>
@@ -651,14 +633,19 @@ Copyright (c) 2026 Kyle Alexander Buan
 		onclick={handleImageClick}
 		role="button"
 		tabindex="0"
-		onkeydown={(e) => e.key === 'Enter' && handleImageClick(e as unknown as MouseEvent)}
+		onkeydown={(e) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				togglePlayback();
+			}
+		}}
 		class="grow relative bg-black overflow-hidden cursor-crosshair w-full h-full shadow-inner"
 	>
 		{#if imagePreviewUrls.length > 0}
 			<img
 				bind:this={imageElement}
-				src={imagePreviewUrls[currentSourceInfo().imageIndex] || imagePreviewUrls[0]}
-				alt="Visualizer"
+				src={imagePreviewUrls[currentSourceInfo.imageIndex] || imagePreviewUrls[0]}
+				alt={m.alt_visualizer()}
 				class="absolute left-0 top-0 rendering-pixelated will-change-transform opacity-90"
 				style="image-rendering: pixelated; width: 1024px; max-width: none;"
 			/>
@@ -678,7 +665,6 @@ Copyright (c) 2026 Kyle Alexander Buan
 	<div class="flex-none bg-gray-900 border-t border-gray-800 p-4 z-40">
 		<div class="max-w-4xl mx-auto w-full flex flex-col gap-4">
 			<!-- Seek Bar -->
-			<!-- Seek Bar -->
 			<div class="w-full h-8 flex flex-col justify-end group relative">
 				<!-- Time Markers -->
 				<div
@@ -693,11 +679,11 @@ Copyright (c) 2026 Kyle Alexander Buan
 					max={duration}
 					step={0.01}
 					bind:value={currentTime}
-					oninput={handleSeek}
+					onchange={handleSeek}
 					onpointerdown={() => (isSeeking = true)}
 					onpointerup={() => (isSeeking = false)}
 					onpointercancel={() => (isSeeking = false)}
-					label="Seek"
+					label={m.aria_label_seek()}
 				/>
 			</div>
 
@@ -707,18 +693,15 @@ Copyright (c) 2026 Kyle Alexander Buan
 					<Button
 						variant="secondary"
 						onclick={() => decoderState.player.stop()}
-						title="Stop"
+						title={m.btn_stop()}
 						class="px-3 py-2 bg-gray-800 border-gray-700"
 					>
 						<StopIcon class="w-5 h-5" />
 					</Button>
 					<Button
-						primary={true}
-						onclick={async () =>
-							decoderState.player.isPlaying
-								? decoderState.player.pause()
-								: await decoderState.playDecodedAudio()}
-						title={decoderState.player.isPlaying ? 'Pause' : 'Play'}
+						variant="primary"
+						onclick={togglePlayback}
+						title={decoderState.player.isPlaying ? m.btn_pause() : m.btn_play()}
 						class="px-6 py-2 shadow-lg shadow-primary-900/20"
 					>
 						{#if decoderState.player.isPlaying}
@@ -755,7 +738,7 @@ Copyright (c) 2026 Kyle Alexander Buan
 							oninput={(e: Event) =>
 								decoderState.player.setVolume(parseFloat((e.target as HTMLInputElement).value))}
 							class="w-32 min-w-25"
-							label="Volume"
+							label={m.midi_volume()}
 						/>
 					</div>
 

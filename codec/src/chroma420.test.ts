@@ -18,6 +18,7 @@ import { PxfDecoder } from './decoder';
 import { getSineWindow } from './utils/audioUtils';
 import { getMdctWhiteningProfile } from './utils/mdctWhitening';
 import { createRNG } from './utils/rng';
+import { AUDIO_PIXEL_MAPPING_PRESETS, AUDIO_PSYCHOACOUSTICS, getBlockMapForVersion } from './psychoacoustics';
 import {
     BLOCKS_PER_ROW,
     DATA_BLOCKS_PER_ROW,
@@ -243,5 +244,13 @@ describe('4:2:0 chroma (v301 superblocks)', () => {
             errorSum += diff * diff;
         }
         expect(Math.sqrt(errorSum / len)).toBeLessThan(0.06);
+    });
+});
+
+describe('format-version coefficient map', () => {
+    it('reads v300 images with the zigzag map they were written with', () => {
+        expect(getBlockMapForVersion(300)).toBe(AUDIO_PIXEL_MAPPING_PRESETS.zigzag);
+        expect(getBlockMapForVersion(301)).toBe(AUDIO_PSYCHOACOUSTICS.blockMap);
+        expect(AUDIO_PSYCHOACOUSTICS.blockMap).not.toBe(AUDIO_PIXEL_MAPPING_PRESETS.zigzag);
     });
 });

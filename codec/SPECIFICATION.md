@@ -111,12 +111,13 @@ Preset selection and active block maps are configured in `psychoacoustics.ts`:
 Band-map assignment and active coefficient placement are configured in `psychoacoustics.ts`:
 - `AUDIO_PSYCHOACOUSTICS.bandMap`
 - `AUDIO_PSYCHOACOUSTICS.blockMap.luma8x8`
-- `AUDIO_PSYCHOACOUSTICS.blockMap.chroma4x4`
+- `AUDIO_PSYCHOACOUSTICS.blockMap.chroma8x8` (v301+ superblock chroma)
+- `AUDIO_PSYCHOACOUSTICS.blockMap.chroma4x4` (v300 per-block chroma)
 
 The `q92pm1` and `q92pm8` presets are JPEG-tuned permutations derived from
 ImageMagick/libjpeg quantization tables. `q92pm8` uses weighted Q84..Q100
-tables centered on Q92 and is the current default. Chroma uses one shared 4x4
-map for both Cb and Cr because the targeted JPEG family uses one shared chroma
+tables centered on Q92 and is the current default. Chroma uses one shared map
+for both Cb and Cr because the targeted JPEG family uses one shared chroma
 quantization table.
 
 Mu-law values and audio stage toggles are configured in `psychoacoustics.ts`:
@@ -519,6 +520,7 @@ PXF SBR reconstructs high-frequency bins `96..127` from lower bins, using 8 byte
 ## Row Layout
 
 - `SBR_SUBGROUPS_PER_ROW = 2`
+- Subgroups are partitioned relative to the row's actual data block count (`getSbrSubgroupRange`): subgroup 0 covers blocks `[0, floor(n/2))`, subgroup 1 covers `[floor(n/2), n)`. A full row splits 62/62; a partial last row still gets two subgroups. Encoder analysis and decoder synthesis share this partition.
 - `SBR_BYTES_PER_ROW = 8`
 - Each subgroup carries one 32-bit SBR word.
 
@@ -845,11 +847,13 @@ Per row, the encoder then:
 3. Computes subgroup band factors (4 bands over bins `0..63`).
 4. Applies subgroup band factors to bins `0..63`.
 5. Maps coefficients to:
-- 8x8 luma DCT coefficients (`bins 0..63`)
-- 4x4 chroma DCT coefficients (`bins 64..95`, interleaved Cb/Cr)
+- 8x8 luma DCT coefficients (`bins 0..63`), one block per audio block
+- 8x8 chroma DCT coefficients (`bins 64..95`, interleaved Cb/Cr), one block shared by a 2x2 group of audio blocks (v301+; v300 used per-block 4x4 chroma)
 6. Runs IDCT to spatial domain.
-7. Computes row scaling factors to avoid clipping.
+7. Computes row scaling factors to avoid clipping (chroma scales are resolved per row pair).
 8. Writes pixels via OBB mapping (point space -> YCbCr -> RGB).
+
+Because chroma superblocks span two data rows, v301 images always contain an even number of data rows (the last row may be padded with silent luma).
 
 ## Row Metadata Encoding
 
@@ -948,7 +952,7 @@ The header occupies the first row of every Pixel Exchange Format image, containi
 ## Header Structure
 
 ### Fixed Fields (21 bytes)
-- Bytes 0-1: format version (`300`, uint16 little-endian)
+- Bytes 0-1: format version (`301`; uint16 little-endian; the decoder also accepts `300`)
 - Bytes 2-5: sample rate for audio (`uint32 LE`), `0` for binary mode
 - Bytes 6-9: total samples for audio, or chunk byte size for binary (`uint32 LE`)
 - Bytes 10-11: metadata byte length (`uint16 LE`)
@@ -1416,24 +1420,33 @@ This makes runtime version reporting deterministic for debugging and compatibili
 
 ## Audio Row Math (Encoder)
 
-`processRow(...)` is the core per-row audio DSP pipeline used by `AudioEncoder`.
+`processRowPair(...)` is the core audio DSP pipeline used by `AudioEncoder`. Since v301 the encoder works on pairs of data rows, because one 8x8 chroma block spans a 2x2 group of luma blocks (a 16x16 px superblock at 4:2:0).
 
 ## Responsibilities
 
-For each audio row, it:
+`prepareAudioRow(...)` runs per row and:
 1. Builds MDCT blocks (128 bins) from windowed audio
-2. Runs row-level SBR analysis and serializes 8 SBR bytes
+2. Runs row-level SBR analysis
 3. Applies static whitening to stored bins `0..95`
 4. Computes subgroup band maxima and quantized band factors (A/B)
-5. Maps bins to luma/chroma coefficient planes and runs IDCT
-6. Computes subgroup scaling factors via `ScalingUtils`
-7. Scales, upsamples chroma (4x4 -> 8x8), and writes RGB pixels through OBB mapping
-8. Emits row metadata through injected callback (`writeRowMetadata`)
+5. Maps bins `0..63` to the 8x8 luma coefficient plane and runs IDCT
+6. Computes subgroup luma scaling factors via `ScalingUtils`
+7. Keeps the 16 Cb and 16 Cr coefficients (bins `64..95`) for the pair step
+
+`prepareRowPairChroma(top, bottom)` then, per superblock column:
+1. Places each block's 16 chroma coefficients into the shared 8x8 chroma plane at importance rank `4k + ordinal`, where `ordinal = rowParity * 2 + colParity` (so the four blocks of a superblock interleave by importance)
+2. Runs IDCT per block (the IDCT is linear, so the superblock is the sum of scaled per-block contributions)
+3. Derives per-(row, quadrant) chroma scales (`scaleCAX/CAY/CBX/CBY` for top and bottom) and shrinks them until no superblock sample exceeds `|1|`
+
+`writePreparedAudioRowPair(...)` scales luma per block, NN-upsamples the shared chroma to 16x16 px, writes RGB pixels through OBB mapping, and emits row metadata through the injected callback (`writeRowMetadata`).
+
+`writePreparedAudioRow(...)` is the legacy v300 writer (per-block 4x4 chroma); it is kept for decoder compatibility tests only.
 
 ## Storage Mapping
 
 - Luma: bins `0..63` -> `8x8` coefficients (selected by `AUDIO_PSYCHOACOUSTICS.blockMap.luma8x8`)
-- Chroma: bins `64..95` interleaved Cb/Cr -> `4x4` coefficients (selected by `AUDIO_PSYCHOACOUSTICS.blockMap.chroma4x4`)
+- Chroma (v301+): bins `64..95` interleaved Cb/Cr -> 16 ranks each of the shared superblock `8x8` chroma plane (selected by `AUDIO_PSYCHOACOUSTICS.blockMap.chroma8x8`)
+- Chroma (v300): bins `64..95` interleaved Cb/Cr -> per-block `4x4` coefficients (selected by `AUDIO_PSYCHOACOUSTICS.blockMap.chroma4x4`)
 
 Band factors are computed over bins `0..63` and quantization is mirrored in analysis by `logDecode(logEncode(...))`.
 
@@ -1447,13 +1460,13 @@ Band factors are computed over bins `0..63` and quantization is mirrored in anal
 
 Given one 8x8 image block plus row metadata, it:
 1. Reads RGB pixels and converts to point-space Y/Cb/Cr via inverse OBB
-2. Averages chroma from 8x8 samples into 4x4 planes (4:2:0 style)
-3. Reverses row scaling (divide by `maxY` / `maxC`)
-4. Runs forward DCT (`8x8` luma, `4x4` chroma)
-5. Rebuilds flattened coefficient vector (bins `0..95`)
+2. Averages chroma 2x2 (4:2:0 style). For v301+ the whole 16x16 px superblock containing the block is read, producing one 8x8 chroma plane shared by four luma blocks; for v300 the block's own 8x8 px produce a 4x4 plane
+3. Reverses luma row scaling (divide by `maxY`)
+4. Runs forward DCT (`8x8` luma; `8x8` chroma for v301+, `4x4` for v300)
+5. Rebuilds flattened coefficient vector (bins `0..95`). For v301+ this block's chroma bins sit at importance rank `4k + ordinal` of the shared plane, and are unscaled per coefficient by this block's own `maxC` (neighbouring blocks in the superblock may have different scales)
 6. Reverses subgroup band scaling (divide by band factors)
 7. Reverses static MDCT whitening
-8. Reconstructs bins `96..127` with SBR (or zero-fills if no SBR bytes)
+8. Reconstructs bins `96..127` with SBR (or zero-fills if no SBR bytes). SBR subgroup selection uses the row's actual data block count, matching the encoder's analysis partition (see SBR)
 9. Runs IMDCT and applies MDCT window
 
 ## Determinism Notes

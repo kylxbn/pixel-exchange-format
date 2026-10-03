@@ -42,6 +42,10 @@ export const HEADER_FIXED_BYTES = 21;
 // // Default max string bytes
 export const MAX_STRING_DATA_BYTES = HEADER_PAYLOAD_BYTES - HEADER_FIXED_BYTES; // 747
 
+// // Metadata entry limits (4-bit key length, 12-bit value length)
+export const MAX_METADATA_KEY_BYTES = 15;
+export const MAX_METADATA_VALUE_BYTES = 4095;
+
 // // Row Metadata Layout (LDPC)
 // // Blocks 124-127 have 256 pixels -> 256 bits -> 32 bytes capacity
 export const ROW_META_TOTAL_BYTES = 32;

@@ -4,25 +4,29 @@ Copyright (c) 2026 Kyle Alexander Buan
 -->
 
 <script lang="ts">
-  type ButtonVariant = 'primary' | 'secondary' | 'danger';
-  
-  let { 
-    children, 
-    disabled = false, 
-    variant = 'secondary', 
-    onclick = () => {}, 
-    class: className = '',
-    ...props 
-  } = $props();
+	type ButtonVariant = 'primary' | 'secondary' | 'danger';
 
-  const variants = {
-    primary: 'bg-primary-600 hover:bg-primary-500 text-white shadow-md hover:shadow-lg hover:shadow-primary-500/20 border border-transparent',
-    secondary: 'bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 hover:border-gray-600 shadow-sm hover:shadow-md',
-    danger: 'bg-red-900/50 hover:bg-red-900/80 text-red-200 border border-red-900/50 hover:border-red-800 focus:ring-red-500'
-  };
+	let {
+		children,
+		disabled = false,
+		variant = 'secondary',
+		onclick = () => {},
+		class: className = '',
+		...props
+	} = $props();
+
+	const variants = {
+		primary:
+			'bg-primary-600 hover:bg-primary-500 text-white shadow-md hover:shadow-lg hover:shadow-primary-500/20 border border-transparent',
+		secondary:
+			'bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 hover:border-gray-600 shadow-sm hover:shadow-md',
+		danger:
+			'bg-red-900/50 hover:bg-red-900/80 text-red-200 border border-red-900/50 hover:border-red-800 focus:ring-red-500'
+	};
 </script>
 
 <button
+	type="button"
 	{disabled}
 	{...props}
 	class={`

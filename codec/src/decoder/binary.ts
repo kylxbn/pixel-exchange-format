@@ -13,48 +13,11 @@ import { PxfDecoder } from '.';
 import { generateBinaryPermutation } from '../utils/shuffle';
 import { decodeBinaryRGBToPoint } from '../utils/obb';
 import { LLR_LOOKUP_2BIT, LLR_LOOKUP_1BIT_CHROMA } from './models/generic';
-
-export interface BinaryResult {
-    type: 'binary';
-    data: Uint8Array;
-    metadata: Record<string, string>;
-    visualizationMetadata: VisualizationMetadata;
-    validChecksum: boolean;
-}
-
-export interface BinaryDecodeDebugCapture {
-    rowHealth: number[];
-    overallHealth?: number;
-}
-
-export interface VisualizationMetadata {
-    hopSize: number;
-    firstAudioBlockIndex: number;
-    sampleRate: number;
-    blocksPerRow: number;
-    totalAudioBlocks: number;
-    version: number;
-}
-
-export interface ImageSource {
-    data: Uint8ClampedArray;
-    width: number;
-    height: number;
-    channelMode: number;
-    visualizationMetadata: VisualizationMetadata;
-    totalSamples: number;
-    sampleRate: number;
-    metadata: Record<string, string>;
-    randomBytes: Uint8Array;
-    imageIndex: number;
-    totalImages: number;
-}
-
+import type { BinaryDecodeDebugCapture, BinaryResult, ImageSource } from './types';
 
 export class BinaryDecoder {
     public static async decodeBinaryImages(sources: ImageSource[], debugCapture?: BinaryDecodeDebugCapture | null): Promise<BinaryResult> {
-        // Sort sources by imageIndex
-        sources.sort((a, b) => a.imageIndex - b.imageIndex);
+        sources = [...sources].sort((a, b) => a.imageIndex - b.imageIndex);
 
         // Calculate total file size from all chunks
         let totalFileSize = 0;

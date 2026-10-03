@@ -6,14 +6,12 @@ import { base } from '$app/paths';
 import { deLocalizeUrl } from '$lib/paraglide/runtime';
 
 export const reroute: Reroute = (request) => {
-    const url = new URL(request.url);
+	const url = new URL(request.url);
 
-    if (base && url.pathname.startsWith(base)) {
-        url.pathname = url.pathname.slice(base.length) || '/';
-        return `${base}${deLocalizeUrl(url).pathname}`;
-    }
+	if (base && url.pathname.startsWith(base)) {
+		url.pathname = url.pathname.slice(base.length) || '/';
+		return `${base}${deLocalizeUrl(url).pathname}`;
+	}
 
-    return deLocalizeUrl(url).pathname;
+	return deLocalizeUrl(url).pathname;
 };
-
-export const transport = undefined;

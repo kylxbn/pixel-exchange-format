@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Kyle Alexander Buan
 
-import type { HuffmanTable } from './parser';
+import type { HuffmanTable } from './parser.js';
 
 export class HuffmanDecoder {
   private minCode: Int32Array = new Int32Array(16).fill(0);

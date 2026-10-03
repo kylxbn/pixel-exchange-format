@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Kyle Alexander Buan
 
 import { readFile, writeFile } from 'fs/promises';
+import { existsSync } from 'fs';
 import { basename, extname } from 'path';
 
 /**
@@ -20,6 +21,29 @@ export async function readFileBuffer(filepath: string): Promise<Buffer> {
  */
 export async function writeFileBuffer(filepath: string, data: Buffer | Uint8Array): Promise<void> {
     await writeFile(filepath, data);
+}
+
+/**
+ * Throws if any of the given output paths already exists, unless force is set
+ */
+export function assertOutputsWritable(filepaths: string[], force: boolean | undefined): void {
+    if (force) return;
+    for (const filepath of filepaths) {
+        if (existsSync(filepath)) {
+            throw new Error(`Output file exists: ${filepath} (use --force to overwrite)`);
+        }
+    }
+}
+
+/**
+ * Reduces an untrusted filename (e.g. from embedded metadata) to a safe basename
+ * @returns The basename, or null if nothing usable remains
+ */
+export function sanitizeFilename(name: string | undefined): string | null {
+    if (!name) return null;
+    const base = basename(name.replace(/\\/g, '/'));
+    if (base === '' || base === '.' || base === '..') return null;
+    return base;
 }
 
 /**

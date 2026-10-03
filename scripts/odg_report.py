@@ -44,6 +44,12 @@ def parse_args() -> argparse.Namespace:
         default=Path("cli/dist/index.cjs"),
         help="CLI entrypoint used for encode/decode round-trips.",
     )
+    parser.add_argument(
+        "--decode-cli-entry",
+        type=Path,
+        default=None,
+        help="CLI entrypoint used for decoding when it differs from --cli-entry (cross-version runs).",
+    )
     parser.add_argument("--node-bin", default="node", help="Node.js executable.")
     parser.add_argument("--peaq-bin", default="peaq", help="GstPEAQ CLI executable.")
     parser.add_argument("--magick-bin", default="magick", help="ImageMagick executable used for PNG -> PPM.")
@@ -482,6 +488,7 @@ def process_file(
     source_path: Path,
     repo_root: Path,
     cli_entry: Path,
+    decode_cli_entry: Path,
     args: argparse.Namespace,
     work_root: Path,
     index: int,
@@ -526,7 +533,7 @@ def process_file(
         if args.keep_work:
             row["transport_files"] = [str(path) for path in transport_files]
 
-        decode_command = [args.node_bin, str(cli_entry), "decode", *[str(path) for path in transport_files], "-o", str(decoded_path)]
+        decode_command = [args.node_bin, str(decode_cli_entry), "decode", *[str(path) for path in transport_files], "-o", str(decoded_path)]
         run_command(decode_command, cwd=repo_root)
         if not decoded_path.exists():
             raise RuntimeError("Decoding did not produce a WAV file.")
@@ -568,6 +575,7 @@ def main() -> int:
     args = parse_args()
     repo_root = Path(__file__).resolve().parent.parent
     cli_entry = (repo_root / args.cli_entry).resolve()
+    decode_cli_entry = (repo_root / args.decode_cli_entry).resolve() if args.decode_cli_entry else cli_entry
     input_dir = args.input_dir.resolve()
 
     if not command_exists(args.node_bin):
@@ -581,6 +589,9 @@ def main() -> int:
         return 1
     if not command_exists(args.cjpeg_bin):
         print(f"Missing cjpeg executable: {args.cjpeg_bin}", file=sys.stderr)
+        return 1
+    if not decode_cli_entry.exists():
+        print(f"Decode CLI entrypoint not found: {decode_cli_entry}", file=sys.stderr)
         return 1
     if not cli_entry.exists():
         print(f"CLI entrypoint not found: {cli_entry}", file=sys.stderr)
@@ -607,7 +618,7 @@ def main() -> int:
     try:
         for index, source_path in enumerate(inputs, start=1):
             print(f"[{index}/{len(inputs)}] {source_path.name}", flush=True)
-            rows.append(process_file(source_path, repo_root, cli_entry, args, work_root, index))
+            rows.append(process_file(source_path, repo_root, cli_entry, decode_cli_entry, args, work_root, index))
     finally:
         if not args.keep_work:
             shutil.rmtree(work_root, ignore_errors=True)
@@ -619,6 +630,7 @@ def main() -> int:
         "input_dir": str(input_dir),
         "report_dir": str(report_dir),
         "cli_entry": str(cli_entry),
+        "decode_cli_entry": str(decode_cli_entry),
         "keep_work": args.keep_work,
         "transport_recipe": FACEBOOK_JPEG_RECIPE,
     }

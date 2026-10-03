@@ -4,256 +4,263 @@ Copyright (c) 2026 Kyle Alexander Buan
 -->
 
 <script lang="ts">
-    import { onMount, onDestroy, tick } from 'svelte';
-    import { Sequencer, WorkletSynthesizer } from 'spessasynth_lib';
-    import spessasynthProcessorUrl from 'spessasynth_lib/dist/spessasynth_processor.min.js?url';
-    import PlayIcon from '../icons/PlayIcon.svelte';
-    import PauseIcon from '../icons/PauseIcon.svelte';
-    import StopIcon from '../icons/StopIcon.svelte';
-    import DownloadIcon from '../icons/DownloadIcon.svelte';
-    import Button from '../Button.svelte';
-    import Slider from '../Slider.svelte';
-    import { asset } from '$app/paths';
-    import { extractMidiInfo, type MidiInfo } from '../../midiLoader';
-    import * as m from '$lib/paraglide/messages';
+	import { onMount, onDestroy, tick } from 'svelte';
+	import { Sequencer, WorkletSynthesizer } from 'spessasynth_lib';
+	import spessasynthProcessorUrl from 'spessasynth_lib/dist/spessasynth_processor.min.js?url';
+	import PlayIcon from '../icons/PlayIcon.svelte';
+	import PauseIcon from '../icons/PauseIcon.svelte';
+	import StopIcon from '../icons/StopIcon.svelte';
+	import DownloadIcon from '../icons/DownloadIcon.svelte';
+	import Button from '../Button.svelte';
+	import Slider from '../Slider.svelte';
+	import { asset } from '$app/paths';
+	import { extractMidiInfo, type MidiInfo } from '../../midiLoader';
+	import * as m from '$lib/paraglide/messages';
 
-    let { 
-        data, 
-        filename,
-        comment,
-        onClose, 
-        validChecksum 
-    }: { 
-        data: ArrayBuffer | Uint8Array; 
-        filename: string; 
-        comment: string; 
-        onClose: () => void; 
-        validChecksum: boolean; 
-    } = $props();
+	let {
+		data,
+		filename,
+		comment,
+		onClose,
+		validChecksum
+	}: {
+		data: ArrayBuffer | Uint8Array;
+		filename: string;
+		comment: string;
+		onClose: () => void;
+		validChecksum: boolean;
+	} = $props();
 
-    let isPlaying = $state(false);
-    let duration = $state(0);
-    let tempo = $state(0);
-    let playbackRate = $state(0);
-    let currentTime = $state(0);
-    let isLoaded = $state(false);
-    let loadError = $state<string | null>(null);
-    let volume = $state(1);
+	let isPlaying = $state(false);
+	let duration = $state(0);
+	let tempo = $state(0);
+	let currentTime = $state(0);
+	let isLoaded = $state(false);
+	let loadError = $state<string | null>(null);
+	let volume = $state(1);
 
-    let midiInfo = $state<MidiInfo | null>(null);
+	let midiInfo = $state<MidiInfo | null>(null);
 
-    let synth: WorkletSynthesizer | undefined;
-    let sequencer: Sequencer | undefined;
-    let audioContext: AudioContext;
-    let gainNode: GainNode | undefined;
-    let analyser: AnalyserNode | undefined;
-    // svelte-ignore non_reactive_update
-    let canvas: HTMLCanvasElement;
-    let animationId: number;
+	let synth: WorkletSynthesizer | undefined;
+	let sequencer: Sequencer | undefined;
+	let audioContext: AudioContext | undefined;
+	let gainNode: GainNode | undefined;
+	let analyser: AnalyserNode | undefined;
+	let canvas = $state<HTMLCanvasElement>();
+	let animationId: number;
+	let destroyed = false;
 
-    // svelte-ignore non_reactive_update
-    let progressBar: HTMLInputElement;
-    let updateInterval: number;
+	let updateInterval: number;
 
-    function formatTime(seconds: number): string {
-        const m = Math.floor(seconds / 60);
-        const s = Math.floor(seconds % 60);
-        return `${m}:${s.toString().padStart(2, '0')}`;
-    }
+	function formatTime(seconds: number): string {
+		const m = Math.floor(seconds / 60);
+		const s = Math.floor(seconds % 60);
+		return `${m}:${s.toString().padStart(2, '0')}`;
+	}
 
-    function animateVisualizer() {
-        if (!canvas || !analyser) return;
+	function animateVisualizer() {
+		if (!canvas || !analyser) return;
 
-        animationId = requestAnimationFrame(animateVisualizer);
+		animationId = requestAnimationFrame(animateVisualizer);
 
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
+		const ctx = canvas.getContext('2d');
+		if (!ctx) return;
 
-        // Auto-resize canvas to match display size
-        if (canvas.width !== canvas.clientWidth || canvas.height !== canvas.clientHeight) {
-            canvas.width = canvas.clientWidth;
-            canvas.height = canvas.clientHeight;
-        }
+		// Auto-resize canvas to match display size
+		if (canvas.width !== canvas.clientWidth || canvas.height !== canvas.clientHeight) {
+			canvas.width = canvas.clientWidth;
+			canvas.height = canvas.clientHeight;
+		}
 
-        const width = canvas.width;
-        const height = canvas.height;
-        const bufferLength = analyser.frequencyBinCount;
-        const dataArray = new Uint8Array(bufferLength);
-        
-        analyser.getByteFrequencyData(dataArray);
+		const width = canvas.width;
+		const height = canvas.height;
+		const bufferLength = analyser.frequencyBinCount;
+		const dataArray = new Uint8Array(bufferLength);
 
-        ctx.clearRect(0, 0, width, height);
+		analyser.getByteFrequencyData(dataArray);
 
-        // Styling
-        const barWidth = width / bufferLength;
-        let barHeight;
-        let x = 0;
+		ctx.clearRect(0, 0, width, height);
 
-        const gradient = ctx.createLinearGradient(0, height, 0, 0);
-        gradient.addColorStop(0, 'rgba(59, 130, 246, 0.9)'); // primary-500
-        gradient.addColorStop(1, 'rgba(147, 197, 253, 0.5)'); // blue-300 transparent
+		// Styling
+		const barWidth = width / bufferLength;
+		let barHeight;
+		let x = 0;
 
-        ctx.fillStyle = gradient;
+		const gradient = ctx.createLinearGradient(0, height, 0, 0);
+		gradient.addColorStop(0, 'rgba(59, 130, 246, 0.9)'); // primary-500
+		gradient.addColorStop(1, 'rgba(147, 197, 253, 0.5)'); // blue-300 transparent
 
-        for (let i = 0; i < bufferLength; i++) {
-            // Scale bar height to fit nicely
-            barHeight = (dataArray[i] / 255) * height;
-            
-            // Draw rects
-            ctx.fillRect(x, height - barHeight, barWidth + 1, barHeight); // +1 to overlap slightly and avoid gaps
-            x += barWidth;
-        }
-    }
+		ctx.fillStyle = gradient;
 
-    onMount(async () => {
-        try {
-            audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-            
-            // Add AudioWorklet module
-            await audioContext.audioWorklet.addModule(spessasynthProcessorUrl);
+		for (let i = 0; i < bufferLength; i++) {
+			// Scale bar height to fit nicely
+			barHeight = (dataArray[i] / 255) * height;
 
-            // Create gain node for volume control
-            gainNode = audioContext.createGain();
-            gainNode.gain.value = volume;
-            gainNode.connect(audioContext.destination);
+			// Draw rects
+			ctx.fillRect(x, height - barHeight, barWidth + 1, barHeight); // +1 to overlap slightly and avoid gaps
+			x += barWidth;
+		}
+	}
 
-            // Create Analyser
-            analyser = audioContext.createAnalyser();
-            analyser.fftSize = 256;
-            analyser.smoothingTimeConstant = 0.75;
-            analyser.connect(gainNode);
+	onMount(async () => {
+		try {
+			const AudioContextClass =
+				window.AudioContext ||
+				(window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+			const ctx = new AudioContextClass();
+			audioContext = ctx;
 
-            // Initialize Synthesizer
-            synth = new WorkletSynthesizer(audioContext);
-            synth.connect(analyser); // Synth -> Analyser -> Gain -> Destination
+			// Add AudioWorklet module
+			await ctx.audioWorklet.addModule(spessasynthProcessorUrl);
+			if (destroyed) return;
 
-            // Load SoundFont
-            const sfResponse = await fetch(asset('/GeneralUser-GS.sf2'));
-            if (!sfResponse.ok) throw new Error(`Failed to load SoundFont: ${sfResponse.statusText}`);
-            const sfArrayBuffer = await sfResponse.arrayBuffer();
+			// Create gain node for volume control
+			gainNode = ctx.createGain();
+			gainNode.gain.value = volume;
+			gainNode.connect(ctx.destination);
 
-            await synth.soundBankManager.addSoundBank(sfArrayBuffer, "main");
+			// Create Analyser
+			analyser = ctx.createAnalyser();
+			analyser.fftSize = 256;
+			analyser.smoothingTimeConstant = 0.75;
+			analyser.connect(gainNode);
 
-            // Initialize Sequencer
-            sequencer = new Sequencer(synth);
+			// Initialize Synthesizer
+			synth = new WorkletSynthesizer(ctx);
+			synth.connect(analyser); // Synth -> Analyser -> Gain -> Destination
 
-            // Load MIDI Data
-            let midiBuffer: ArrayBuffer;
-            if (data instanceof ArrayBuffer) {
-                midiBuffer = data;
-            } else {
-                midiBuffer = new Uint8Array(data).buffer.slice(0, data.byteLength);
-            }
+			// Load SoundFont
+			const sfResponse = await fetch(asset('/GeneralUser-GS.sf2'));
+			if (destroyed) return;
+			if (!sfResponse.ok)
+				throw new Error(m.midi_error_soundfont({ status: sfResponse.statusText }));
+			const sfArrayBuffer = await sfResponse.arrayBuffer();
+			if (destroyed) return;
 
-            midiInfo = extractMidiInfo(midiBuffer);
+			await synth.soundBankManager.addSoundBank(sfArrayBuffer, 'main');
+			if (destroyed) return;
 
-            sequencer.skipToFirstNoteOn = true;
-            sequencer.loadNewSongList([{ binary: midiBuffer, fileName: filename }]);
-            
-            if (sequencer.duration) {
-                duration = sequencer.duration;
-            }
-            if (sequencer.currentTempo) {
-                tempo = sequencer.currentTempo;
-            }
+			// Initialize Sequencer
+			sequencer = new Sequencer(synth);
 
-            isLoaded = true;
-            await tick(); // Wait for DOM to update and canvas to be bound
-            updateInterval = window.setInterval(updateUI, 100);
-            
-            // Start Visualizer
-            animateVisualizer();
+			// Load MIDI Data
+			const midiBuffer: ArrayBuffer =
+				data instanceof ArrayBuffer
+					? data
+					: (data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer);
 
-        } catch (e: any) {
-            console.error("MIDI Init Failed:", e);
-            loadError = e.message || "Failed to initialize MIDI player";
-        }
-    });
+			midiInfo = extractMidiInfo(midiBuffer);
 
-    onDestroy(() => {
-        if (updateInterval) clearInterval(updateInterval);
-        if (animationId) cancelAnimationFrame(animationId);
-        if (sequencer) {
-            sequencer.pause(); 
-            if (synth) synth.destroy();
-        }
-        if (gainNode) {
-            gainNode.disconnect();
-        }
-        if (analyser) {
-            analyser.disconnect();
-        }
-        if (audioContext && audioContext.state !== 'closed') {
-            audioContext.close();
-        }
-    });
+			sequencer.skipToFirstNoteOn = true;
+			sequencer.loadNewSongList([{ binary: midiBuffer, fileName: filename }]);
 
-    function togglePlay() {
-        if (!sequencer || !isLoaded) return;
-        
-        if (audioContext.state === 'suspended') {
-            audioContext.resume();
-        }
+			if (sequencer.duration) {
+				duration = sequencer.duration;
+			}
+			if (sequencer.currentTempo) {
+				tempo = sequencer.currentTempo;
+			}
 
-        if (sequencer.paused) {
-            sequencer.play();
-            isPlaying = true;
-        } else {
-            sequencer.pause();
-            isPlaying = false;
-        }
-    }
+			isLoaded = true;
+			await tick(); // Wait for DOM to update and canvas to be bound
+			if (destroyed) return;
+			updateInterval = window.setInterval(updateUI, 100);
 
-    function stop() {
-        if (!sequencer) return;
-        sequencer.currentTime = 0;
-        sequencer.pause();
-        isPlaying = false;
-        currentTime = 0;
-    }
+			// Start Visualizer
+			animateVisualizer();
+		} catch (e: unknown) {
+			console.error('MIDI Init Failed:', e);
+			if (destroyed) return;
+			loadError = e instanceof Error && e.message ? e.message : m.midi_error_init();
+		}
+	});
 
-    let isSeeking = false;
+	onDestroy(() => {
+		destroyed = true;
+		if (updateInterval) clearInterval(updateInterval);
+		if (animationId) cancelAnimationFrame(animationId);
+		if (sequencer) {
+			sequencer.pause();
+		}
+		if (synth) {
+			synth.destroy();
+		}
+		if (gainNode) {
+			gainNode.disconnect();
+		}
+		if (analyser) {
+			analyser.disconnect();
+		}
+		if (audioContext && audioContext.state !== 'closed') {
+			audioContext.close();
+		}
+	});
 
-    function handleSeek(e: Event) {
-        if (!sequencer) return;
-        const target = e.target as HTMLInputElement;
-        const time = parseFloat(target.value);
-        sequencer.currentTime = time;
-        currentTime = time;
-    }
+	function togglePlay() {
+		if (!sequencer || !isLoaded || !audioContext) return;
 
-    function updateUI() {
-        if (sequencer) {
-            if (!isSeeking) {
-                currentTime = sequencer.currentTime;
-            }
-            duration = sequencer.duration || 0;
-            isPlaying = !sequencer.paused;
-            tempo = sequencer.currentTempo;
-            playbackRate = sequencer.playbackRate;
-        }
-    }
+		if (audioContext.state === 'suspended') {
+			audioContext.resume();
+		}
 
-    function handleVolumeChange(e: Event) {
-        if (!gainNode) return;
-        const target = e.target as HTMLInputElement;
-        const newVolume = parseFloat(target.value);
-        volume = newVolume;
-        gainNode.gain.value = newVolume;
-    }
+		if (sequencer.paused) {
+			sequencer.play();
+			isPlaying = true;
+		} else {
+			sequencer.pause();
+			isPlaying = false;
+		}
+	}
 
-    function handleDownload() {
-        const downloadData = data instanceof ArrayBuffer ? new Uint8Array(data) : new Uint8Array(data);
-        const blob = new Blob([downloadData], { type: 'audio/midi' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-    }
+	function stop() {
+		if (!sequencer) return;
+		sequencer.currentTime = 0;
+		sequencer.pause();
+		isPlaying = false;
+		currentTime = 0;
+	}
+
+	let isSeeking = false;
+
+	function handleSeek(e: Event) {
+		if (!sequencer) return;
+		const target = e.target as HTMLInputElement;
+		const time = parseFloat(target.value);
+		sequencer.currentTime = time;
+		currentTime = time;
+	}
+
+	function updateUI() {
+		if (sequencer) {
+			if (!isSeeking) {
+				currentTime = sequencer.currentTime;
+			}
+			duration = sequencer.duration || 0;
+			isPlaying = !sequencer.paused;
+			tempo = sequencer.currentTempo;
+		}
+	}
+
+	function handleVolumeChange(e: Event) {
+		if (!gainNode) return;
+		const target = e.target as HTMLInputElement;
+		const newVolume = parseFloat(target.value);
+		volume = newVolume;
+		gainNode.gain.value = newVolume;
+	}
+
+	function handleDownload() {
+		const downloadData = data instanceof ArrayBuffer ? new Uint8Array(data) : data;
+		const blob = new Blob([downloadData as Uint8Array<ArrayBuffer>], { type: 'audio/midi' });
+		const url = URL.createObjectURL(blob);
+		const link = document.createElement('a');
+		link.href = url;
+		link.download = filename;
+		document.body.appendChild(link);
+		link.click();
+		document.body.removeChild(link);
+		URL.revokeObjectURL(url);
+	}
 </script>
 
 <div class="flex flex-col w-full h-full bg-gray-950 animate-in fade-in duration-300">
@@ -359,7 +366,6 @@ Copyright (c) 2026 Kyle Alexander Buan
 		{:else}
 			<!-- Visualizer -->
 			<div class="absolute inset-0 z-10 w-full h-full">
-				<!-- svelte-ignore non_reactive_update -->
 				<canvas bind:this={canvas} class="w-full h-full block"></canvas>
 				{#if !isPlaying}
 					<div
@@ -380,7 +386,6 @@ Copyright (c) 2026 Kyle Alexander Buan
 	<!-- BOTTOM CONTROLS STICKY -->
 	<div class="flex-none bg-gray-900 border-t border-gray-800 p-4 z-20">
 		<div class="max-w-4xl mx-auto w-full flex flex-col gap-4">
-			<!-- Seek Bar -->
 			<!-- Seek Bar -->
 			<div class="w-full h-8 flex flex-col justify-end group relative">
 				<!-- Time Markers -->
@@ -417,7 +422,7 @@ Copyright (c) 2026 Kyle Alexander Buan
 						<StopIcon class="w-5 h-5" />
 					</Button>
 					<Button
-						primary={true}
+						variant="primary"
 						onclick={togglePlay}
 						title={isPlaying ? m.btn_pause() : m.btn_play()}
 						class="px-6 py-2 shadow-lg shadow-primary-900/20"

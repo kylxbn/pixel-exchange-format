@@ -6,35 +6,7 @@ import { PxfDecoder } from ".";
 import { bytesToNumber, decodeBytesFromBlocks } from "../utils/audioUtils";
 import { MurmurHash3_x64_128 } from "../utils/murmurHash";
 import { createRNG } from "../utils/rng";
-
-export interface RawImageData {
-    data: Uint8ClampedArray;
-    width: number;
-    height: number;
-}
-
-export interface VisualizationMetadata {
-    hopSize: number;
-    firstAudioBlockIndex: number;
-    sampleRate: number;
-    blocksPerRow: number;
-    totalAudioBlocks: number;
-    version: number;
-}
-
-export interface ImageSource {
-    data: Uint8ClampedArray;
-    width: number;
-    height: number;
-    channelMode: number;
-    visualizationMetadata: VisualizationMetadata;
-    totalSamples: number;
-    sampleRate: number;
-    metadata: Record<string, string>;
-    randomBytes: Uint8Array;
-    imageIndex: number;
-    totalImages: number;
-}
+import type { ImageSource, RawImageData } from './types';
 
 export class HeaderDecoder {
     public static parseHeader(imgData: RawImageData): ImageSource {

@@ -8,6 +8,7 @@ PXF SBR reconstructs high-frequency bins `96..127` from lower bins, using 8 byte
 ## Row Layout
 
 - `SBR_SUBGROUPS_PER_ROW = 2`
+- Subgroups are partitioned relative to the row's actual data block count (`getSbrSubgroupRange`): subgroup 0 covers blocks `[0, floor(n/2))`, subgroup 1 covers `[floor(n/2), n)`. A full row splits 62/62; a partial last row still gets two subgroups. Encoder analysis and decoder synthesis share this partition.
 - `SBR_BYTES_PER_ROW = 8`
 - Each subgroup carries one 32-bit SBR word.
 

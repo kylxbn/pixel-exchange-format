@@ -11,9 +11,7 @@ import {
     SUBGROUP_A_SIZE,
     SUBGROUP_X_SIZE,
 } from '../constants';
-import {
-    AUDIO_PSYCHOACOUSTICS,
-} from '../psychoacoustics';
+import { AUDIO_PSYCHOACOUSTICS, getBlockMapForVersion } from '../psychoacoustics';
 import { analyzeRowSBR, createDefaultRowSBR, encodeRowSBR, type RowSBRParams } from '../utils/sbr';
 import {
     idct4x4,
@@ -26,11 +24,9 @@ import { applyMdctWhiteningWithProfile } from '../utils/mdctWhitening';
 import type { MdctWhiteningProfile } from '../utils/mdctWhitening';
 import { encodePointToRGB } from '../utils/obb';
 import { ScalingUtils } from './scaling';
-import type { SimpleImageData } from './audio';
+import type { SimpleImageData } from './types';
 
 const BAND_MAP = AUDIO_PSYCHOACOUSTICS.bandMap;
-const BLOCK_MAP_8X8 = AUDIO_PSYCHOACOUSTICS.blockMap.luma8x8;
-const BLOCK_MAP_4X4 = AUDIO_PSYCHOACOUSTICS.blockMap.chroma4x4;
 const BLOCK_MAP_CHROMA_8X8 = AUDIO_PSYCHOACOUSTICS.blockMap.chroma8x8;
 
 // v301: one 8x8 chroma block spans a 2x2 group of luma blocks (16x16 px)
@@ -97,6 +93,7 @@ export function prepareAudioRow(
     formatVersion: number = FORMAT_VERSION
 ): PreparedAudioRow {
     const isV301 = formatVersion >= 301;
+    const blockMap = getBlockMapForVersion(formatVersion);
     const rowCoeffsBuffer = new Float32Array(rowDataCount * 96);
     const rowMDCTCoeffs: Float32Array[] = [];
 
@@ -188,7 +185,7 @@ export function prepareAudioRow(
         buffers.dctCr.fill(0);
 
         for (let k = 0; k < 64; k++) {
-            buffers.dctY[BLOCK_MAP_8X8[k]] = buffers.mdctCoeffs[k];
+            buffers.dctY[blockMap.luma8x8[k]] = buffers.mdctCoeffs[k];
         }
 
         idct8x8(buffers.dctY, buffers.spatialY, buffers.temp);
@@ -208,8 +205,8 @@ export function prepareAudioRow(
             }
         } else {
             for (let k = 0; k < 16; k++) {
-                buffers.dctCb[BLOCK_MAP_4X4[k]] = buffers.mdctCoeffs[64 + 2 * k];
-                buffers.dctCr[BLOCK_MAP_4X4[k]] = buffers.mdctCoeffs[65 + 2 * k];
+                buffers.dctCb[blockMap.chroma4x4[k]] = buffers.mdctCoeffs[64 + 2 * k];
+                buffers.dctCr[blockMap.chroma4x4[k]] = buffers.mdctCoeffs[65 + 2 * k];
             }
 
             idct4x4(buffers.dctCb, buffers.spatialCb, buffers.temp);

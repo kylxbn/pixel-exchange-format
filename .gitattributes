@@ -1,0 +1,20 @@
+# Normalize line endings to LF in the repo and on checkout.
+* text=auto eol=lf
+
+# Binary assets
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.jxl binary
+*.ico binary
+*.icns binary
+*.sf2 binary
+*.wav binary
+*.flac binary
+*.mp3 binary
+*.ogg binary
+*.mid binary
+*.pxf binary
+*.woff binary
+*.woff2 binary

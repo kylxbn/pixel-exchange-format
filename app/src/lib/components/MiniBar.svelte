@@ -4,14 +4,14 @@ Copyright (c) 2026 Kyle Alexander Buan
 -->
 
 <script lang="ts">
-  let { 
-    label, 
-    value, 
-    percent, 
-    colorClass = 'bg-primary-500', 
-    labelClass = 'text-gray-400', 
-    valueClass = 'text-gray-400',
-  } = $props();
+	let {
+		label,
+		value,
+		percent,
+		colorClass = 'bg-primary-500',
+		labelClass = 'text-gray-400',
+		valueClass = 'text-gray-400'
+	} = $props();
 </script>
 
 <div class="grid grid-cols-1 gap-1 my-0.5">

@@ -37,9 +37,10 @@ export const RASTER_8X8_FLAT = new Uint8Array([
     56, 57, 58, 59, 60, 61, 62, 63
 ]);
 
-// Derived from the average of ImageMagick/libjpeg Q91/Q92/Q93 luma tables.
-// Order is sorted by lower quantization first, with ties broken by lower Q92
-// value and then the original JPEG zigzag slot. See:
+// Derived from ImageMagick/libjpeg Q91/Q92/Q93 luma tables with triangular
+// weights 1/2/1 centered on Q92. Order is sorted by lower weighted quantization
+// first, with ties broken by lower Q92 value and then the original JPEG zigzag
+// slot. See:
 // doc/notes/jpeg-q91-q92-q93-quant-rankings.txt
 export const Q92PM1_LUMA_8X8_FLAT = new Uint8Array([
     2, 1, 8, 9, 17, 16, 10, 24,
@@ -52,7 +53,7 @@ export const Q92PM1_LUMA_8X8_FLAT = new Uint8Array([
     38, 62, 45, 37, 46, 60, 53, 54
 ]);
 
-// Derived from the average of ImageMagick/libjpeg Q91/Q92/Q93 chroma tables
+// Derived from the same Q91/Q92/Q93 1/2/1 weighting of the chroma tables
 // over the first 16 JPEG chroma zigzag slots. The current codec uses one
 // shared 4x4 chroma map for both Cb and Cr because the JPEGs we are targeting
 // also use one shared chroma quantization table.
@@ -63,7 +64,7 @@ export const Q92PM1_CHROMA_4X4_FLAT = new Uint8Array([
     11, 13, 14, 15
 ]);
 
-// Derived from the average of ImageMagick/libjpeg Q91/Q92/Q93 chroma tables
+// Derived from the same Q91/Q92/Q93 1/2/1 weighting of the chroma tables
 // over all 64 JPEG chroma zigzag slots. Used by v301+ where one 8x8 chroma
 // block spans a 2x2 group of luma blocks (16x16 px at 4:2:0). The chroma
 // tables flatten beyond the early slots, so the tail resolves to zigzag order.
@@ -145,6 +146,17 @@ export const AUDIO_PIXEL_MAPPING_PRESETS = {
         chroma8x8: RASTER_8X8_FLAT,
     },
 } as const;
+
+export type AudioPixelMapping = typeof AUDIO_PIXEL_MAPPING_PRESETS[keyof typeof AUDIO_PIXEL_MAPPING_PRESETS];
+
+/**
+ * Coefficient map used by a given format version. v300 images were written
+ * with the plain zigzag map; v301 introduced the JPEG-tuned presets. The
+ * decoder must pick the map from the header version, not the encoder default.
+ */
+export function getBlockMapForVersion(formatVersion: number): AudioPixelMapping {
+    return formatVersion >= 301 ? AUDIO_PSYCHOACOUSTICS.blockMap : AUDIO_PIXEL_MAPPING_PRESETS.zigzag;
+}
 
 export const AUDIO_PSYCHOACOUSTICS = {
     // High-frequency reconstruction for bins 96..127

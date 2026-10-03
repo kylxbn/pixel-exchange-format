@@ -82,6 +82,26 @@ const STD_HUFFMAN_TABLES = {
   }
 };
 
+const SOF_NAMES: Record<number, string> = {
+  0xC1: 'extended sequential',
+  0xC2: 'progressive',
+  0xC3: 'lossless',
+  0xC5: 'differential sequential',
+  0xC6: 'differential progressive',
+  0xC7: 'differential lossless',
+  0xC9: 'arithmetic sequential',
+  0xCA: 'arithmetic progressive',
+  0xCB: 'arithmetic lossless',
+  0xCD: 'arithmetic differential sequential',
+  0xCE: 'arithmetic differential progressive',
+  0xCF: 'arithmetic differential lossless'
+};
+
+function isStandaloneMarker(marker: number): boolean {
+  // TEM, RST0-7, SOI: no length field
+  return marker === 0x01 || (marker >= 0xD0 && marker <= 0xD8);
+}
+
 export function parseJPEG(data: Uint8Array): JPEGData {
   let offset = 0;
 
@@ -100,8 +120,17 @@ export function parseJPEG(data: Uint8Array): JPEGData {
   let restartInterval: number | undefined;
   let scanData: Uint8Array | null = null;
   let scanComponentIds: number[] = [];
+  let adobeTransform: number | null = null;
 
   while (offset < data.length) {
+    // Skip 0xFF fill bytes preceding a marker
+    while (data[offset] === 0xFF && data[offset + 1] === 0xFF) offset++;
+
+    if (offset + 1 >= data.length) {
+      // End of data without EOI
+      break;
+    }
+
     if (data[offset] !== 0xFF) {
       throw new Error(`Invalid JPEG marker at offset ${offset}: 0x${data[offset].toString(16)}`);
     }
@@ -113,6 +142,14 @@ export function parseJPEG(data: Uint8Array): JPEGData {
       break;
     }
 
+    if (isStandaloneMarker(marker)) {
+      continue;
+    }
+
+    if (offset + 2 > data.length) {
+      break;
+    }
+
     const length = (data[offset] << 8) | data[offset + 1];
     // Length includes its own 2 bytes
     const nextMarkerOffset = offset + length;
@@ -121,10 +158,11 @@ export function parseJPEG(data: Uint8Array): JPEGData {
       case 0xC0: // SOF0 (Start of Frame - Baseline)
         ({ width, height, components } = parseSOF(data, offset + 2));
         break;
-      case 0xC1: // SOF1 (Extended Sequential)
-      case 0xC2: // SOF2 (Progressive)
-      case 0xC3: // SOF3 (Lossless)
-        throw new Error(`Unsupported JPEG SOF marker 0x${marker.toString(16)}. Only Baseline (SOF0) is supported.`);
+      case 0xC1: case 0xC2: case 0xC3:
+      case 0xC5: case 0xC6: case 0xC7:
+      case 0xC9: case 0xCA: case 0xCB:
+      case 0xCD: case 0xCE: case 0xCF:
+        throw new Error(`Unsupported JPEG: ${SOF_NAMES[marker]} (SOF marker 0x${marker.toString(16)}). Only baseline (SOF0) is supported.`);
       case 0xC4: // DHT (Define Huffman Table)
         parseDHT(data, offset + 2, length - 2).forEach(table => {
           if (table.tableClass === 0) huffmanTablesDC.set(table.id, table);
@@ -139,25 +177,42 @@ export function parseJPEG(data: Uint8Array): JPEGData {
       case 0xDD: // DRI (Define Restart Interval)
         restartInterval = (data[offset + 2] << 8) | data[offset + 3];
         break;
-      case 0xDA: // SOS (Start of Scan)
+      case 0xEE: { // APP14 (Adobe)
+        const transform = parseAdobeTransform(data, offset + 2, length - 2);
+        if (transform !== null) adobeTransform = transform;
+        break;
+      }
+      case 0xDA: { // SOS (Start of Scan)
+        if (components.length === 0) {
+          throw new Error('No SOF found before SOS');
+        }
+        if (scanData) {
+          throw new Error('Unsupported JPEG: multiple scans (non-interleaved or progressive). Only a single interleaved scan is supported.');
+        }
+
         const sosInfo = parseSOSHeader(data, offset + 2);
+        if (sosInfo.components.length !== components.length) {
+          throw new Error(`Unsupported JPEG: scan covers ${sosInfo.components.length} of ${components.length} components (non-interleaved). Only a single interleaved scan is supported.`);
+        }
+
         scanComponentIds = sosInfo.components.map(c => c.id);
         // Map Huffman tables to components
         sosInfo.components.forEach(sosComp => {
           const comp = components.find(c => c.id === sosComp.id);
-          if (comp) {
-            comp.huffmanTableDC = sosComp.huffmanTableDC;
-            comp.huffmanTableAC = sosComp.huffmanTableAC;
+          if (!comp) {
+            throw new Error(`Component ID ${sosComp.id} in scan not found in frame`);
           }
+          comp.huffmanTableDC = sosComp.huffmanTableDC;
+          comp.huffmanTableAC = sosComp.huffmanTableAC;
         });
 
+        validateColorModel(components, adobeTransform);
+
         // Scan data starts after the SOS header
-        const headerLength = (data[offset] << 8) | data[offset + 1];
-        const scanStart = offset + headerLength;
-        scanData = findScanData(data, scanStart);
-        // Skip to end of scan data
-        offset = scanStart + scanData.length;
+        scanData = findScanData(data, nextMarkerOffset);
+        offset = nextMarkerOffset + scanData.length;
         continue; // offset is already advanced correctly
+      }
       default:
         // Skip unknown markers
         break;
@@ -190,8 +245,42 @@ export function parseJPEG(data: Uint8Array): JPEGData {
   };
 }
 
+function validateColorModel(components: ComponentInfo[], adobeTransform: number | null): void {
+  if (components.length !== 1 && components.length !== 3) {
+    throw new Error(`Unsupported JPEG: ${components.length} components (CMYK/YCCK or unknown). Only grayscale and YCbCr are supported.`);
+  }
+
+  if (components.length === 3) {
+    if (adobeTransform === 0) {
+      throw new Error('Unsupported JPEG: Adobe RGB color space (transform 0). Only YCbCr is supported.');
+    }
+    if (adobeTransform === 2) {
+      throw new Error('Unsupported JPEG: Adobe YCCK color space (transform 2). Only YCbCr is supported.');
+    }
+    // libjpeg heuristic: component IDs 'R','G','B' without an Adobe marker mean RGB
+    if (adobeTransform === null &&
+      components[0].id === 0x52 && components[1].id === 0x47 && components[2].id === 0x42) {
+      throw new Error('Unsupported JPEG: RGB color space (component IDs R/G/B). Only YCbCr is supported.');
+    }
+  }
+}
+
+function parseAdobeTransform(data: Uint8Array, offset: number, length: number): number | null {
+  // "Adobe" + version(2) + flags0(2) + flags1(2) + transform(1)
+  if (length < 12) return null;
+  if (data[offset] !== 0x41 || data[offset + 1] !== 0x64 || data[offset + 2] !== 0x6F ||
+    data[offset + 3] !== 0x62 || data[offset + 4] !== 0x65) {
+    return null;
+  }
+  return data[offset + 11];
+}
+
 function parseSOF(data: Uint8Array, offset: number) {
   const precision = data[offset];
+  if (precision !== 8) {
+    throw new Error(`Unsupported JPEG: ${precision}-bit sample precision. Only 8-bit is supported.`);
+  }
+
   const height = (data[offset + 1] << 8) | data[offset + 2];
   const width = (data[offset + 3] << 8) | data[offset + 4];
   const numComponents = data[offset + 5];
@@ -286,7 +375,7 @@ function parseSOSHeader(data: Uint8Array, offset: number) {
 
 function findScanData(data: Uint8Array, startOffset: number): Uint8Array {
   let endOffset = startOffset;
-  while (endOffset < data.length - 1) {
+  while (endOffset < data.length) {
     if (data[endOffset] === 0xFF) {
       const nextByte = data[endOffset + 1];
       if (nextByte === 0x00) {
@@ -298,7 +387,7 @@ function findScanData(data: Uint8Array, startOffset: number): Uint8Array {
         endOffset += 2;
         continue;
       } else {
-        // New marker (e.g. SOS, EOI), end of scan data
+        // New marker (e.g. SOS, EOI) or end of data, end of scan data
         break;
       }
     }

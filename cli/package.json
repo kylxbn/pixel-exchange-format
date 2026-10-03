@@ -1,6 +1,6 @@
 {
     "name": "@pixel-exchange-format/cli",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "PXF CLI",
     "main": "dist/index.cjs",
     "type": "module",
@@ -8,15 +8,13 @@
         "pxf": "./dist/index.cjs"
     },
     "scripts": {
-        "build": "rimraf dist && tsc && esbuild src/index.ts --bundle --format=cjs --platform=node --external:sharp --external:node-addon-api --external:node-gyp --minify --outfile=dist/index.cjs",
+        "build": "rimraf dist && tsc && esbuild src/index.ts --bundle --format=cjs --platform=node --external:sharp --minify --outfile=dist/index.cjs",
         "watch": "tsc -w"
     },
     "dependencies": {
         "@pixel-exchange-format/codec": "file:../codec",
         "@pixel-exchange-format/jpeg-decoder": "file:../jpeg-decoder",
         "commander": "^12.1.0",
-        "node-addon-api": "^8.5.0",
-        "node-gyp": "^12.1.0",
         "sharp": "^0.34.5"
     },
     "devDependencies": {

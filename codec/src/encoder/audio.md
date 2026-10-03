@@ -44,11 +44,13 @@ Per row, the encoder then:
 3. Computes subgroup band factors (4 bands over bins `0..63`).
 4. Applies subgroup band factors to bins `0..63`.
 5. Maps coefficients to:
-   - 8x8 luma DCT coefficients (`bins 0..63`)
-   - 4x4 chroma DCT coefficients (`bins 64..95`, interleaved Cb/Cr)
+   - 8x8 luma DCT coefficients (`bins 0..63`), one block per audio block
+   - 8x8 chroma DCT coefficients (`bins 64..95`, interleaved Cb/Cr), one block shared by a 2x2 group of audio blocks (v301+; v300 used per-block 4x4 chroma)
 6. Runs IDCT to spatial domain.
-7. Computes row scaling factors to avoid clipping.
+7. Computes row scaling factors to avoid clipping (chroma scales are resolved per row pair).
 8. Writes pixels via OBB mapping (point space -> YCbCr -> RGB).
+
+Because chroma superblocks span two data rows, v301 images always contain an even number of data rows (the last row may be padded with silent luma).
 
 ## Row Metadata Encoding
 

@@ -4,281 +4,206 @@ Copyright (c) 2026 Kyle Alexander Buan
 -->
 
 <script lang="ts">
-    import { AudioEncoderState } from '../audioEncoder.svelte';
-    import FileInput from './FileInput.svelte';
-    import Button from './Button.svelte';
-    import MetadataInput from './MetadataInput.svelte';
-    import DownloadIcon from './icons/DownloadIcon.svelte';
-    import ArrowRightIcon from './icons/ArrowRightIcon.svelte';
-    import { calculateMaxSamplesPerImage, getWavMetadata } from '../constants';
-    import { transcodeViaFacebook } from '$lib/facebookRoundtrip';
-    import { env } from '$env/dynamic/public';
-    import * as m from '$lib/paraglide/messages';
+	import { AudioEncoderState } from '../audioEncoder.svelte';
+	import FileInput from './FileInput.svelte';
+	import Button from './Button.svelte';
+	import MetadataInput from './MetadataInput.svelte';
+	import DownloadIcon from './icons/DownloadIcon.svelte';
+	import ArrowRightIcon from './icons/ArrowRightIcon.svelte';
+	import { getWavMetadata } from '../wav';
+	import { ChunkingUtils } from '@pixel-exchange-format/codec';
+	import * as m from '$lib/paraglide/messages';
 
-    let { onTransfer } = $props();
+	let { onTransfer } = $props();
 
-    const encoderState = new AudioEncoderState();
+	const encoderState = new AudioEncoderState();
 
-    type MetadataEntry = {
-        key: string;
-        value: string;
-        systemManaged?: boolean;
-    };
+	type MetadataEntry = {
+		key: string;
+		value: string;
+		systemManaged?: boolean;
+	};
 
-    let sourceFile = $state<File | null>(null);
-    let metadata = $state<Array<MetadataEntry>>([]);
-    let detectedSampleRate = $state<number | null>(null);
-    let detectedTotalSamples = $state<number | null>(null);
-    let detectedChannels = $state<number | null>(null);
-    let detectedDuration = $state<number | null>(null);
-    let targetSampleRate = $state<string>('');
-    let isOverLimit = $state(false);
-    let forceMono = $state(false);
-    let isFacebookTranscoding = $state(false);
-    let facebookStatus = $state<string | null>(null);
-    let facebookError = $state<string | null>(null);
+	let sourceFile = $state<File | null>(null);
+	let metadata = $state<Array<MetadataEntry>>([]);
+	let detectedSampleRate = $state<number | null>(null);
+	let detectedTotalSamples = $state<number | null>(null);
+	let detectedChannels = $state<number | null>(null);
+	let detectedDuration = $state<number | null>(null);
+	let targetSampleRate = $state<string>('');
+	let isOverLimit = $state(false);
+	let forceMono = $state(false);
+	let isWavInput = $state(false);
+	let imageUrls = $state<string[]>([]);
 
-    function parseBooleanValue(value: string | undefined, fallback: boolean): boolean {
-        if (!value) return fallback;
-        const normalized = value.trim().toLowerCase();
-        if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
-        if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
-        return fallback;
-    }
+	$effect(() => {
+		const urls = encoderState.images.map((image) => URL.createObjectURL(image.blob));
+		imageUrls = urls;
+		return () => {
+			urls.forEach((url) => URL.revokeObjectURL(url));
+		};
+	});
 
-    function getEffectiveSampleRate(): number | null {
-        const parsed = Number(targetSampleRate);
-        if (Number.isFinite(parsed) && parsed > 0) return parsed;
-        return detectedSampleRate;
-    }
+	function getEffectiveSampleRate(): number | null {
+		const parsed = Number(targetSampleRate);
+		if (Number.isFinite(parsed) && parsed > 0) return parsed;
+		return detectedSampleRate;
+	}
 
-    function getDetectedDuration(): number | null {
-        if (detectedDuration !== null) return detectedDuration;
-        if (!detectedSampleRate || !detectedTotalSamples) return null;
-        const duration = detectedTotalSamples / detectedSampleRate;
-        if (!Number.isFinite(duration) || duration <= 0) return null;
-        return duration;
-    }
+	function getDetectedDuration(): number | null {
+		if (detectedDuration !== null) return detectedDuration;
+		if (!detectedSampleRate || !detectedTotalSamples) return null;
+		const duration = detectedTotalSamples / detectedSampleRate;
+		if (!Number.isFinite(duration) || duration <= 0) return null;
+		return duration;
+	}
 
-    function getRecommendedSampleRate(): number | null {
-        const duration = getDetectedDuration();
-        if (!detectedSampleRate || !duration) return null;
-        const maxSamples = calculateMaxSamplesPerImage();
-        const rate = Math.floor(maxSamples / duration);
-        if (!Number.isFinite(rate) || rate <= 0) return null;
-        return Math.min(detectedSampleRate, rate);
-    }
+	function getRecommendedSampleRate(): number | null {
+		const duration = getDetectedDuration();
+		if (!detectedSampleRate || !duration) return null;
+		const maxSamples = ChunkingUtils.calculateMaxSamplesPerImage();
+		const rate = Math.floor(maxSamples / duration);
+		if (!Number.isFinite(rate) || rate <= 0) return null;
+		return Math.min(detectedSampleRate, rate);
+	}
 
-    function getEstimatedSamplesAtTargetRate(): number | null {
-        const duration = getDetectedDuration();
-        const rate = getEffectiveSampleRate();
-        if (!duration || !rate) return null;
-        return Math.ceil(duration * rate);
-    }
+	function getEstimatedSamplesAtTargetRate(): number | null {
+		const duration = getDetectedDuration();
+		const rate = getEffectiveSampleRate();
+		if (!duration || !rate) return null;
+		return Math.ceil(duration * rate);
+	}
 
-    function getFitsInOneChunk(): boolean {
-        const estimated = getEstimatedSamplesAtTargetRate();
-        if (!estimated) return false;
-        return estimated <= calculateMaxSamplesPerImage();
-    }
+	function getFitsInOneChunk(): boolean {
+		const estimated = getEstimatedSamplesAtTargetRate();
+		if (!estimated) return false;
+		return estimated <= ChunkingUtils.calculateMaxSamplesPerImage();
+	}
 
-    // Initialize filename when file is selected
-    $effect(() => {
-        if (sourceFile) {
-            const filenameEntry = metadata.find(e => e.key === 'fn');
-            if (!filenameEntry) {
-                metadata.push({key: 'fn', value: sourceFile.name, systemManaged: true});
-                metadata = [...metadata];
-            } else {
-                filenameEntry.value = sourceFile.name;
-            }
-        }
-    });
+	// Initialize filename when file is selected
+	$effect(() => {
+		if (sourceFile) {
+			const filenameEntry = metadata.find((e) => e.key === 'fn');
+			if (!filenameEntry) {
+				metadata.push({ key: 'fn', value: sourceFile.name, systemManaged: true });
+				metadata = [...metadata];
+			} else {
+				filenameEntry.value = sourceFile.name;
+			}
+		}
+	});
 
-    function handleMetadataStateChange(state: { isOverLimit: boolean; bytesRemaining: number }) {
-        isOverLimit = state.isOverLimit;
-    }
+	function handleMetadataStateChange(state: { isOverLimit: boolean; bytesRemaining: number }) {
+		isOverLimit = state.isOverLimit;
+	}
 
-    function handleProcess() {
-        if (sourceFile && !isOverLimit) {
-            facebookError = null;
-            facebookStatus = null;
-            // Validate no duplicate keys exist
-            const keys = metadata.map(e => e.key);
-            if (keys.length !== new Set(keys).size) {
-                // Duplicate keys found, don't process
-                return;
-            }
+	function handleProcess() {
+		if (sourceFile && !isOverLimit) {
+			// Validate no duplicate keys exist
+			const keys = metadata.map((e) => e.key);
+			if (keys.length !== new Set(keys).size) {
+				// Duplicate keys found, don't process
+				return;
+			}
 
-            const targetRate = targetSampleRate ? parseInt(targetSampleRate) : undefined;
-            encoderState.processAudio(
-                sourceFile,
-                Object.fromEntries(metadata.map(e => [e.key, e.value])),
-                targetRate,
-                forceMono
-            );
-        }
-    }
+			const targetRate = targetSampleRate ? parseInt(targetSampleRate) : undefined;
+			encoderState.processAudio(
+				sourceFile,
+				Object.fromEntries(metadata.map((e) => [e.key, e.value])),
+				targetRate,
+				forceMono
+			);
+		}
+	}
 
-    async function handleFileChange(event: Event) {
-        const target = event.target as HTMLInputElement;
-        const file = target.files?.[0];
-        if (file) {
-            sourceFile = file;
+	async function handleFileChange(event: Event) {
+		const target = event.target as HTMLInputElement;
+		const file = target.files?.[0];
+		if (file) {
+			sourceFile = file;
 
-            // Detect sample rate if WAV
-            detectedSampleRate = null;
-            detectedTotalSamples = null;
-            detectedChannels = null;
-            detectedDuration = null;
-            forceMono = false;
-            targetSampleRate = '';
-            if (file.type.startsWith('audio/') || file.type === '') {
-                try {
-                    const arrayBuffer = await file.arrayBuffer();
-                    const wavMetadata = getWavMetadata(arrayBuffer);
-                    if (wavMetadata) {
-                        detectedSampleRate = wavMetadata.sampleRate;
-                        detectedTotalSamples = wavMetadata.totalSamples;
-                        detectedChannels = wavMetadata.numberOfChannels;
-                        targetSampleRate = wavMetadata.sampleRate.toString();
-                    }
+			// Detect sample rate if WAV
+			detectedSampleRate = null;
+			detectedTotalSamples = null;
+			detectedChannels = null;
+			detectedDuration = null;
+			forceMono = false;
+			targetSampleRate = '';
+			isWavInput = false;
+			if (file.type.startsWith('audio/') || file.type === '') {
+				try {
+					const arrayBuffer = await file.arrayBuffer();
+					const wavMetadata = getWavMetadata(arrayBuffer);
+					if (!wavMetadata) return;
 
-                    try {
-                        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-                        const audioCtx = new AudioContextClass();
-                        const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer.slice(0));
-                        detectedDuration = audioBuffer.duration;
-                        detectedChannels = audioBuffer.numberOfChannels;
-                        if (!detectedSampleRate) {
-                            detectedSampleRate = audioBuffer.sampleRate;
-                            targetSampleRate = audioBuffer.sampleRate.toString();
-                        }
-                        if (detectedSampleRate) {
-                            detectedTotalSamples = Math.round(audioBuffer.duration * detectedSampleRate);
-                        }
-                        if (audioCtx.state !== 'closed') await audioCtx.close();
-                    } catch (e) {
-                        // Ignore decode errors, fallback to WAV header metadata
-                    }
-                } catch (e) {
-                    // Ignore errors, just don't set sample rate
-                }
-            }
+					isWavInput = true;
+					detectedSampleRate = wavMetadata.sampleRate;
+					detectedTotalSamples = wavMetadata.totalSamples;
+					detectedChannels = wavMetadata.numberOfChannels;
+					targetSampleRate = wavMetadata.sampleRate.toString();
 
-            const filenameEntry = metadata.find(e => e.key === 'fn');
-            if (filenameEntry) {
-                filenameEntry.value = file.name;
-            } else {
-                metadata.push({key: 'fn', value: file.name});
-                metadata = [...metadata];
-            }
-        }
-    }
+					const AudioContextClass =
+						window.AudioContext ||
+						(window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+					const audioCtx = new AudioContextClass();
+					try {
+						const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer.slice(0));
+						detectedDuration = audioBuffer.duration;
+						detectedChannels = audioBuffer.numberOfChannels;
+						detectedTotalSamples = Math.round(audioBuffer.duration * wavMetadata.sampleRate);
+					} catch {
+						// Ignore decode errors, fall back to WAV header metadata
+					} finally {
+						if (audioCtx.state !== 'closed') await audioCtx.close();
+					}
+				} catch {
+					// Ignore errors, just don't set sample rate
+				}
+			}
+		}
+	}
 
-    function handleFitToChunk() {
-        const rate = getRecommendedSampleRate();
-        if (!rate) return;
-        targetSampleRate = rate.toString();
-    }
+	function handleFitToChunk() {
+		const rate = getRecommendedSampleRate();
+		if (!rate) return;
+		targetSampleRate = rate.toString();
+	}
 
-    function formatNumber(value: unknown, digits: number): string {
-        if (typeof value !== 'number' || !Number.isFinite(value)) return 'n/a';
-        return value.toFixed(digits);
-    }
+	function formatNumber(value: unknown, digits: number): string {
+		if (typeof value !== 'number' || !Number.isFinite(value)) return m.val_not_available();
+		return value.toFixed(digits);
+	}
 
+	function handleDownload(imageUrl: string, downloadName: string) {
+		if (!imageUrl) return;
+		const link = document.createElement('a');
+		link.download = downloadName;
+		link.href = imageUrl;
+		document.body.appendChild(link);
+		link.click();
+		document.body.removeChild(link);
+	}
 
-    function handleDownload(imageUrl: string, downloadName: string) {
-        if (!imageUrl) return;
-        const link = document.createElement('a');
-        link.download = downloadName;
-        link.href = imageUrl;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    }
-    
-    function handleTransferClick() {
-        if (encoderState.images.length === 0) return;
+	function handleTransferClick() {
+		if (encoderState.images.length === 0) return;
 
-        const files: File[] = encoderState.images.map(img => new File([img.blob], img.name, {type: 'image/png'}));
+		const files: File[] = encoderState.images.map(
+			(img) => new File([img.blob], img.name, { type: 'image/png' })
+		);
 
-        onTransfer(files);
-    }
+		onTransfer(files);
+	}
 
-    async function handleFacebookTranscodeThenDecode() {
-        if (encoderState.images.length === 0 || isFacebookTranscoding) return;
-
-        facebookError = null;
-        facebookStatus = null;
-
-        const pageId = env.PUBLIC_FACEBOOK_PAGE_ID;
-        const accessToken = env.PUBLIC_FACEBOOK_PAGE_ACCESS_TOKEN;
-        const appId = env.PUBLIC_FACEBOOK_APP_ID;
-        const appSecret = env.PUBLIC_FACEBOOK_APP_SECRET;
-        const userAccessToken = env.PUBLIC_FACEBOOK_USER_ACCESS_TOKEN;
-        const postMessage = env.PUBLIC_FACEBOOK_POST_MESSAGE;
-        const deleteAfterRoundtrip = parseBooleanValue(env.PUBLIC_FACEBOOK_DELETE_AFTER_ROUNDTRIP, true);
-
-        const hasDirectPageToken = Boolean(accessToken);
-        const hasAppCredentialFlow = Boolean(appId && appSecret && userAccessToken);
-
-        if (!pageId || (!hasDirectPageToken && !hasAppCredentialFlow)) {
-            facebookError =
-                'Facebook env vars are missing. Set PUBLIC_FACEBOOK_PAGE_ID and either PUBLIC_FACEBOOK_PAGE_ACCESS_TOKEN or PUBLIC_FACEBOOK_APP_ID + PUBLIC_FACEBOOK_APP_SECRET + PUBLIC_FACEBOOK_USER_ACCESS_TOKEN.';
-            return;
-        }
-
-        isFacebookTranscoding = true;
-        try {
-            const files = await transcodeViaFacebook(
-                encoderState.images.map(image => ({
-                    name: image.name,
-                    blob: image.blob
-                })),
-                {
-                    pageId,
-                    pageAccessToken: accessToken || '',
-                    appId: appId || undefined,
-                    appSecret: appSecret || undefined,
-                    userAccessToken: userAccessToken || undefined,
-                    postMessage: postMessage || undefined,
-                    deleteAfterRoundtrip,
-                    onProgress: status => {
-                        facebookStatus = status;
-                    }
-                }
-            );
-
-            facebookStatus = 'Sending transcoded image(s) to decoder...';
-            onTransfer(files);
-        } catch (error) {
-            facebookError =
-                error instanceof Error
-                    ? error.message
-                    : 'Facebook transcode failed. Please verify the token and page configuration.';
-        } finally {
-            isFacebookTranscoding = false;
-            if (!facebookError) {
-                facebookStatus = null;
-            }
-        }
-    }
-
-    function handleDownloadAll() {
-        if (encoderState.images.length === 0) return;
-
-        for (const image of encoderState.images) {
-            handleDownload(URL.createObjectURL(image.blob), image.name);
-        }
-    }
+	function handleDownloadAll() {
+		encoderState.images.forEach((image, index) => {
+			handleDownload(imageUrls[index], image.name);
+		});
+	}
 </script>
 
 <div class="flex h-full w-full overflow-hidden">
 	<!-- LEFT PANEL: Controls -->
-	<div
-		class="w-90 flex-none bg-gray-900 border-r border-gray-800 flex flex-col overflow-y-auto"
-	>
+	<div class="w-90 flex-none bg-gray-900 border-r border-gray-800 flex flex-col overflow-y-auto">
 		<div class="p-6">
 			<h2 class="text-lg font-bold text-gray-100 mb-6">{m.encode_page_title()}</h2>
 
@@ -297,15 +222,15 @@ Copyright (c) 2026 Kyle Alexander Buan
 				</div>
 
 				<!-- Sample Rate (only for WAV files) -->
-				{#if detectedSampleRate !== null}
+				{#if isWavInput && detectedSampleRate !== null}
 					<div>
 						<div class="block mb-2 font-medium text-xs text-gray-400 uppercase tracking-wide">
-							Sample Rate (Hz)
+							{m.label_sample_rate_hz()}
 						</div>
 						<input
 							type="number"
 							bind:value={targetSampleRate}
-							placeholder="Sample Rate"
+							placeholder={m.placeholder_sample_rate()}
 							min="1"
 							class="w-full bg-gray-950 border border-gray-800 text-gray-200 text-sm rounded px-2 py-1 disabled:opacity-50 focus:outline-none focus:border-primary-600 transition-colors"
 							disabled={encoderState.isProcessing}
@@ -318,7 +243,7 @@ Copyright (c) 2026 Kyle Alexander Buan
 									disabled={encoderState.isProcessing}
 									class="accent-primary-600"
 								/>
-								<span>Force mono (downmix)</span>
+								<span>{m.label_force_mono()}</span>
 							</label>
 						{/if}
 						<div class="mt-2 flex items-center gap-2">
@@ -330,23 +255,25 @@ Copyright (c) 2026 Kyle Alexander Buan
 									encoderState.isProcessing}
 								class="text-xs font-medium bg-gray-800 text-gray-200 px-2 py-1 rounded border border-gray-700 hover:bg-gray-700 hover:border-gray-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
 							>
-								Fit to 1 chunk
+								{m.btn_fit_to_chunk()}
 							</button>
 							{#if getFitsInOneChunk()}
-								<span class="text-xs text-gray-500">Already fits in 1 chunk.</span>
+								<span class="text-xs text-gray-500">{m.msg_fits_in_chunk()}</span>
 							{:else if getRecommendedSampleRate()}
-								<span class="text-xs text-gray-500">Suggested: {getRecommendedSampleRate()} Hz</span
+								<span class="text-xs text-gray-500"
+									>{m.msg_suggested_rate({ rate: getRecommendedSampleRate() ?? 0 })}</span
 								>
 							{/if}
 						</div>
 						<div class="mt-2 text-[11px] text-gray-500">
-							{#if detectedSampleRate && detectedTotalSamples}
-								<span>
-									Duration: {formatNumber(getDetectedDuration(), 2)} s | Samples/ch: {detectedTotalSamples}
-								</span>
-							{:else}
-								<span>Duration: n/a | Samples/ch: n/a</span>
-							{/if}
+							<span>
+								{m.msg_duration_samples({
+									duration: detectedTotalSamples
+										? formatNumber(getDetectedDuration(), 2)
+										: m.val_not_available(),
+									samples: detectedTotalSamples ?? m.val_not_available()
+								})}
+							</span>
 						</div>
 					</div>
 				{/if}
@@ -399,41 +326,22 @@ Copyright (c) 2026 Kyle Alexander Buan
 				<div class="flex flex-col items-end gap-2">
 					<div class="flex items-center gap-2">
 						<button
+							type="button"
 							onclick={handleDownloadAll}
-							disabled={isFacebookTranscoding}
 							class="flex items-center gap-2 text-xs font-medium bg-gray-800 text-gray-200 px-3 py-1.5 rounded border border-gray-700 hover:bg-gray-700 hover:border-gray-600 transition-all cursor-pointer shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
 						>
-							<span>Download all</span>
+							<span>{m.btn_download_all()}</span>
 							<DownloadIcon class="w-3 h-3" />
 						</button>
-                        <!--
 						<button
-							onclick={handleFacebookTranscodeThenDecode}
-							disabled={isFacebookTranscoding}
-							class="flex items-center gap-2 text-xs font-medium bg-gray-800 text-gray-200 px-3 py-1.5 rounded border border-gray-700 hover:bg-gray-700 hover:border-gray-600 transition-all cursor-pointer shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-						>
-							<span
-								>{isFacebookTranscoding
-									? 'Facebook roundtrip...'
-									: 'Facebook Transcode then Decode'}</span
-							>
-						</button>
-                        -->
-						<button
+							type="button"
 							onclick={handleTransferClick}
-							disabled={isFacebookTranscoding}
 							class="flex items-center gap-2 text-xs font-medium bg-gray-800 text-gray-200 px-3 py-1.5 rounded border border-gray-700 hover:bg-gray-700 hover:border-gray-600 transition-all cursor-pointer shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
 						>
 							<span>{m.btn_send_to_decoder()}</span>
 							<ArrowRightIcon class="w-3 h-3" />
 						</button>
 					</div>
-					{#if facebookStatus}
-						<p class="text-[11px] text-gray-500">{facebookStatus}</p>
-					{/if}
-					{#if facebookError}
-						<p class="text-[11px] text-red-400">{facebookError}</p>
-					{/if}
 				</div>
 			{/if}
 		</div>
@@ -452,7 +360,7 @@ Copyright (c) 2026 Kyle Alexander Buan
 			</div>
 		{:else}
 			<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-				{#each encoderState.images as image, index}
+				{#each encoderState.images as image, index (image.name)}
 					<div
 						class="bg-gray-800 border border-gray-700 rounded-md shadow-sm overflow-hidden flex flex-col group"
 					>
@@ -465,17 +373,16 @@ Copyright (c) 2026 Kyle Alexander Buan
 								style="background-image: radial-gradient(#4b5563 1px, transparent 1px); background-size: 10px 10px;"
 							></div>
 							<img
-								src={URL.createObjectURL(image.blob)}
-								alt="Encoded"
-								class="max-w-full max-h-full object-contain image-pixelated relative z-10"
-								style="image-rendering: pixelsated"
+								src={imageUrls[index]}
+								alt={m.alt_encoded_image()}
+								class="max-w-full max-h-full object-contain [image-rendering:pixelated] relative z-10"
 							/>
 
 							<div
 								class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-20"
 							>
 								<Button
-									onclick={() => handleDownload(URL.createObjectURL(image.blob), image.name)}
+									onclick={() => handleDownload(imageUrls[index], image.name)}
 									class="p-2! h-8 w-8 rounded-full! bg-gray-900/80! backdrop-blur-sm border-gray-600"
 								>
 									<DownloadIcon class="w-4 h-4" />

@@ -1,12 +1,7 @@
 <script lang="ts">
-	import { asset } from '$app/paths';
-
 	const links = {
-		app: 'https://pxf.kylxbn.com',
 		repo: 'https://github.com/kylxbn/pixel-exchange-format'
 	};
-
-	
 </script>
 
 <svelte:head>

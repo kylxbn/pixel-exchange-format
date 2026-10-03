@@ -4,62 +4,66 @@ Copyright (c) 2026 Kyle Alexander Buan
 -->
 
 <script lang="ts">
-    import Button from '../Button.svelte';
-    import DownloadIcon from '../icons/DownloadIcon.svelte';
-    import MidiPlayer from './MidiPlayer.svelte';
-    import type { DecodeResult } from '@pixel-exchange-format/codec';
-    import * as m from '$lib/paraglide/messages';
+	import Button from '../Button.svelte';
+	import DownloadIcon from '../icons/DownloadIcon.svelte';
+	import MidiPlayer from './MidiPlayer.svelte';
+	import type { BinaryResult } from '@pixel-exchange-format/codec';
+	import * as m from '$lib/paraglide/messages';
 
-	const { result, onDownload, onReset }: {
-		result: DecodeResult;
+	const {
+		result,
+		onDownload,
+		onReset
+	}: {
+		result: BinaryResult;
 		onDownload: () => void;
 		onReset: () => void;
-	} = $props<{
-		result: DecodeResult;
-		onDownload: () => void;
-		onReset: () => void;
-	}>();
+	} = $props();
 
-    let binaryAudioUrl = $state<string | null>(null);
+	let binaryAudioUrl = $state<string | null>(null);
+	let fn = $derived(result.metadata.fn ?? '');
 
-    // Effect for binary audio preview
-    $effect(() => {
-        if (result && result.type === 'binary') {
-            const ext = result.metadata.fn.split('.').pop()?.toLowerCase();
-            const mimeTypes: Record<string, string> = {
-                'flac': 'audio/flac',
-                'ogg': 'audio/ogg',
-                'oga': 'audio/ogg',
-                'mp3': 'audio/mpeg',
-                'opus': 'audio/opus'
-            };
-            const mimeType = mimeTypes[ext || ''];
-            
-            if (mimeType) {
-                const blob = new Blob(
-					[result.data as Uint8Array<ArrayBuffer>],
-					{ type: mimeType }
-				);
-                const url = URL.createObjectURL(blob);
-                binaryAudioUrl = url;
-                return () => URL.revokeObjectURL(url);
-            }
-        }
-        binaryAudioUrl = null;
-    });
+	// Effect for binary audio preview
+	$effect(() => {
+		if (result && result.type === 'binary') {
+			const ext = fn.split('.').pop()?.toLowerCase();
+			const mimeTypes: Record<string, string> = {
+				flac: 'audio/flac',
+				ogg: 'audio/ogg',
+				oga: 'audio/ogg',
+				mp3: 'audio/mpeg',
+				opus: 'audio/opus'
+			};
+			const mimeType = mimeTypes[ext || ''];
 
-    function isMidiFile(filename: string): boolean {
-        const lower = filename.toLowerCase();
-        return lower.endsWith('.mid') || lower.endsWith('.midi') || lower.endsWith('.rmi') || lower.endsWith('.xmf') || lower.endsWith('.mxmf');
-    }
+			if (mimeType) {
+				const blob = new Blob([result.data as Uint8Array<ArrayBuffer>], { type: mimeType });
+				const url = URL.createObjectURL(blob);
+				binaryAudioUrl = url;
+				return () => URL.revokeObjectURL(url);
+			}
+		}
+		binaryAudioUrl = null;
+	});
+
+	function isMidiFile(filename: string): boolean {
+		const lower = filename.toLowerCase();
+		return (
+			lower.endsWith('.mid') ||
+			lower.endsWith('.midi') ||
+			lower.endsWith('.rmi') ||
+			lower.endsWith('.xmf') ||
+			lower.endsWith('.mxmf')
+		);
+	}
 </script>
 
 {#if result && result.type === 'binary'}
-	{#if isMidiFile(result.metadata.fn)}
+	{#if isMidiFile(fn)}
 		<MidiPlayer
 			validChecksum={result.validChecksum}
 			data={result.data}
-			filename={result.metadata.fn}
+			filename={fn}
 			comment={result.metadata.comment}
 			onClose={onReset}
 		/>
@@ -112,7 +116,7 @@ Copyright (c) 2026 Kyle Alexander Buan
 							<span class="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-2"
 								>{m.label_filename()}</span
 							>
-							<span class="text-gray-200 text-sm break-all">{result.metadata.fn}</span>
+							<span class="text-gray-200 text-sm break-all">{fn}</span>
 						</div>
 						<div class="bg-gray-900 border border-gray-800 rounded p-4">
 							<span class="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-2"
@@ -132,7 +136,9 @@ Copyright (c) 2026 Kyle Alexander Buan
 							>{m.label_comment()}</span
 						>
 						{#if result.metadata.comment}
-							<span class="text-gray-300 text-sm whitespace-pre-wrap">{result.metadata.comment}</span>
+							<span class="text-gray-300 text-sm whitespace-pre-wrap"
+								>{result.metadata.comment}</span
+							>
 						{:else}
 							<span class="text-gray-300 text-sm">{m.val_none()}</span>
 						{/if}
@@ -152,7 +158,7 @@ Copyright (c) 2026 Kyle Alexander Buan
 
 			<!-- FOOTER -->
 			<div class="flex-none bg-gray-850 p-4 border-t border-gray-700 flex justify-end">
-				<Button onclick={onDownload} primary={true} class="shadow-lg shadow-primary-900/20">
+				<Button onclick={onDownload} variant="primary" class="shadow-lg shadow-primary-900/20">
 					<DownloadIcon class="w-4 h-4 mr-2" />
 					{m.btn_save_file()}
 				</Button>
@@ -162,8 +168,8 @@ Copyright (c) 2026 Kyle Alexander Buan
 {/if}
 
 <style>
-    /* Styling for the audio element in dark mode */
-    .dark-audio {
-        filter: invert(1) hue-rotate(180deg) saturate(0.5);
-    }
+	/* Styling for the audio element in dark mode */
+	.dark-audio {
+		filter: invert(1) hue-rotate(180deg) saturate(0.5);
+	}
 </style>

@@ -8,7 +8,7 @@ The header occupies the first row of every Pixel Exchange Format image, containi
 ## Header Structure
 
 ### Fixed Fields (21 bytes)
-- Bytes 0-1: format version (`300`, uint16 little-endian)
+- Bytes 0-1: format version (`301`; uint16 little-endian; the decoder also accepts `300`)
 - Bytes 2-5: sample rate for audio (`uint32 LE`), `0` for binary mode
 - Bytes 6-9: total samples for audio, or chunk byte size for binary (`uint32 LE`)
 - Bytes 10-11: metadata byte length (`uint16 LE`)

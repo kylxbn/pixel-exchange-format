@@ -27,6 +27,16 @@ export const PATCH_MODE_NAMES = [
 ];
 
 /**
+ * Transient Shape Names (normal mode `transientShape`)
+ */
+export const TRANSIENT_SHAPE_NAMES = [
+    'Flat',
+    'Attack',
+    'Decay',
+    'Impulse'
+];
+
+/**
  * Processing Mode Names
  */
 export const PROCESSING_MODE_NAMES = [
@@ -108,6 +118,31 @@ export interface StereoSbrCueInfo {
     coherenceClass: number;
     sharedAmount: number;
     residualScale: number;
+}
+
+export interface SbrSubgroupRange {
+    start: number;
+    end: number;
+}
+
+/**
+ * Block range [start, end) covered by an SBR subgroup within a row.
+ * Subgroups are split relative to the row's actual data block count, so a
+ * partial (last) row still gets two subgroups. The decoder must use the same
+ * partition to pick the parameters the encoder analyzed for each block.
+ */
+export function getSbrSubgroupRange(rowDataCount: number, subgroupIdx: number): SbrSubgroupRange {
+    const blocksPerSubgroup = Math.max(1, Math.floor(rowDataCount / SBR_SUBGROUPS_PER_ROW));
+    const start = subgroupIdx * blocksPerSubgroup;
+    const end = (subgroupIdx === SBR_SUBGROUPS_PER_ROW - 1)
+        ? rowDataCount
+        : Math.min(rowDataCount, (subgroupIdx + 1) * blocksPerSubgroup);
+    return { start, end };
+}
+
+export function getSbrSubgroupIndexForBlock(rowDataCount: number, colInRow: number): number {
+    const blocksPerSubgroup = Math.max(1, Math.floor(rowDataCount / SBR_SUBGROUPS_PER_ROW));
+    return Math.min(SBR_SUBGROUPS_PER_ROW - 1, Math.floor(colInRow / blocksPerSubgroup));
 }
 
 // Encoding / Decoding
@@ -730,13 +765,9 @@ export function analyzeRowSBR(
     rowDataCount: number,
 ): RowSBRParams {
     const subgroups: SBRParamsUnion[] = [];
-    const blocksPerSubgroup = Math.max(1, Math.floor(rowDataCount / SBR_SUBGROUPS_PER_ROW));
 
     for (let s = 0; s < SBR_SUBGROUPS_PER_ROW; s++) {
-        const start = s * blocksPerSubgroup;
-        const end = (s === SBR_SUBGROUPS_PER_ROW - 1)
-            ? rowDataCount
-            : Math.min(rowDataCount, (s + 1) * blocksPerSubgroup);
+        const { start, end } = getSbrSubgroupRange(rowDataCount, s);
 
         if (start >= rowDataCount || end <= start) {
             subgroups.push(createDefaultSBRParams());
@@ -1183,7 +1214,6 @@ export function lockStereoRowPatchModes(
     sideMdctCoeffsArray: Float32Array[],
     rowDataCount: number
 ): { mid: RowSBRParams; side: RowSBRParams } {
-    const blocksPerSubgroup = Math.max(1, Math.floor(rowDataCount / SBR_SUBGROUPS_PER_ROW));
     const midSubgroups = [...midRowParams.subgroups] as [SBRParamsUnion, SBRParamsUnion];
     const sideSubgroups = [...sideRowParams.subgroups] as [SBRParamsUnion, SBRParamsUnion];
 
@@ -1191,10 +1221,7 @@ export function lockStereoRowPatchModes(
         const cue = decodeStereoSbrCue(stereoCues[subgroup] ?? 0);
         if (cue.coherenceClass < 2) continue;
 
-        const start = subgroup * blocksPerSubgroup;
-        const end = (subgroup === SBR_SUBGROUPS_PER_ROW - 1)
-            ? rowDataCount
-            : Math.min(rowDataCount, (subgroup + 1) * blocksPerSubgroup);
+        const { start, end } = getSbrSubgroupRange(rowDataCount, subgroup);
 
         if (start >= rowDataCount || end <= start) continue;
 
@@ -1322,13 +1349,9 @@ export function analyzeStereoRowSbrCues(
     rowDataCount: number
 ): [number, number] {
     const cues: number[] = [];
-    const blocksPerSubgroup = Math.max(1, Math.floor(rowDataCount / SBR_SUBGROUPS_PER_ROW));
 
     for (let subgroup = 0; subgroup < SBR_SUBGROUPS_PER_ROW; subgroup++) {
-        const start = subgroup * blocksPerSubgroup;
-        const end = (subgroup === SBR_SUBGROUPS_PER_ROW - 1)
-            ? rowDataCount
-            : Math.min(rowDataCount, (subgroup + 1) * blocksPerSubgroup);
+        const { start, end } = getSbrSubgroupRange(rowDataCount, subgroup);
 
         if (start >= rowDataCount || end <= start) {
             cues.push(0);

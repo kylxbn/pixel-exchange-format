@@ -46,10 +46,13 @@ A dedicated UI is used when decoding audio mode, binary mode containing audio, a
 
 This repo contains various software needed to use the codec:
 
-- The actual codec itself in `codec/`
-- A Web UI in order to encode / decode files in `app/`
-- A CLI to encode / decode files in the ternimal in `cli/`
+- The actual codec itself in `codec/` (format spec: `codec/SPECIFICATION.md`)
+- A Web UI (SvelteKit, also packaged with Tauri) to encode / decode files in `app/`
+- A CLI to encode / decode files in the terminal in `cli/`
 - A custom JPEG decoder used by the Web UI and CLI in `jpeg-decoder/`
+- The JPEG-resilience benchmark (GstPEAQ ODG round trips) in `scripts/`, with results and notes under `doc/`
+
+Each package is built with pnpm; `codec` must be built first since `cli`, `app` and `jpeg-decoder` consume it via `file:` dependencies (reinstall after rebuilding it). See `.github/workflows/ci.yml` for the exact order.
 
 ## License
 
