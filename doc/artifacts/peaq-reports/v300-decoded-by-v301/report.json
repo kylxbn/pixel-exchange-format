@@ -1,11 +1,13 @@
 {
   "meta": {
-    "generated_at": "2026-10-03T18:17:23+09:00",
+    "generated_at": "2026-10-03T23:37:10+09:00",
     "mode": "advanced",
     "input_dir": "/mnt/dev/personal/projects/active/codec-bench-framework/input",
-    "report_dir": "/mnt/dev/personal/projects/active/pixel-exchange-format/doc/artifacts/peaq-reports/20261003-180014",
+    "report_dir": "/tmp/claude-1000/-mnt-dev-personal-projects-active-pixel-exchange-format/11a3a825-64b0-4937-87bb-09edc8385197/scratchpad/reports/20261003-233500",
+    "cli_entry": "/tmp/claude-1000/-mnt-dev-personal-projects-active-pixel-exchange-format/11a3a825-64b0-4937-87bb-09edc8385197/scratchpad/v300/cli/dist/index.cjs",
     "decode_cli_entry": "/mnt/dev/personal/projects/active/pixel-exchange-format/cli/dist/index.cjs",
     "keep_work": false,
+    "jobs": 24,
     "transport_recipe": "magick <png> ppm:- | cjpeg -quality 92 -sample 2x2,1x1,1x1 -dct int -optimize > <jpg>"
   },
   "summary": {
@@ -13,17 +15,17 @@
     "success_count": 36,
     "failure_count": 0,
     "avg_odg": -1.473888888888889,
-    "median_odg": -1.2825,
-    "min_odg": -3.248,
+    "median_odg": -1.282,
+    "min_odg": -3.249,
     "max_odg": -0.234,
-    "avg_di": 0.42972222222222217,
-    "avg_effective_bitrate_kbps": 204.9255626830998,
-    "avg_pcm_snr_db": 18.823289083903575,
+    "avg_di": 0.4298611111111111,
+    "avg_effective_bitrate_kbps": 204.92494692032932,
+    "avg_pcm_snr_db": 18.82323184865789,
     "total_duration_seconds": 8788.722653061224,
     "total_source_bytes": 1550340374,
-    "total_encoded_bytes": 230660129,
-    "encoded_to_source_ratio": 0.14878031487039117,
-    "overall_effective_bitrate_kbps": 209.96009372957798
+    "total_encoded_bytes": 230658936,
+    "encoded_to_source_ratio": 0.1487795453619529,
+    "overall_effective_bitrate_kbps": 209.9590077924769
   },
   "files": [
     {
@@ -42,10 +44,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 45736303,
+      "png_total_bytes": 46447639,
       "transport_count": 4,
-      "transport_total_bytes": 9795945,
-      "effective_bitrate_kbps": 229.36846829268293,
+      "transport_total_bytes": 9796069,
+      "effective_bitrate_kbps": 229.37137170731708,
       "decoded_size_bytes": 60270044,
       "decoded_wav": {
         "channels": 2,
@@ -58,14 +60,14 @@
       },
       "peaq": {
         "odg": -0.951,
-        "di": 0.95
+        "di": 0.951
       },
       "pcm_stats": {
         "sample_count": 30135000,
-        "rmse_pcm16": 646.0641364635225,
-        "mae_pcm16": 448.7146843869255,
-        "max_abs_error_pcm16": 14239,
-        "snr_db_pcm16": 19.115230914265425
+        "rmse_pcm16": 646.1708716701971,
+        "mae_pcm16": 448.7641692052431,
+        "max_abs_error_pcm16": 13969,
+        "snr_db_pcm16": 19.113796051068025
       }
     },
     {
@@ -84,10 +86,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 31854939,
+      "png_total_bytes": 32479015,
       "transport_count": 4,
-      "transport_total_bytes": 6211475,
-      "effective_bitrate_kbps": 203.89167749435822,
+      "transport_total_bytes": 6211355,
+      "effective_bitrate_kbps": 203.88773849415304,
       "decoded_size_bytes": 42991664,
       "decoded_wav": {
         "channels": 2,
@@ -99,15 +101,15 @@
         "compression_type": "NONE"
       },
       "peaq": {
-        "odg": -1.613,
-        "di": 0.256
+        "odg": -1.614,
+        "di": 0.255
       },
       "pcm_stats": {
         "sample_count": 21495810,
-        "rmse_pcm16": 873.7622584681774,
-        "mae_pcm16": 571.6052747954136,
-        "max_abs_error_pcm16": 13969,
-        "snr_db_pcm16": 20.49831981454901
+        "rmse_pcm16": 873.7596689581958,
+        "mae_pcm16": 571.5814956030966,
+        "max_abs_error_pcm16": 14271,
+        "snr_db_pcm16": 20.498345556369543
       }
     },
     {
@@ -126,10 +128,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 38328248,
+      "png_total_bytes": 38960187,
       "transport_count": 4,
-      "transport_total_bytes": 8174693,
-      "effective_bitrate_kbps": 227.53830951939133,
+      "transport_total_bytes": 8174528,
+      "effective_bitrate_kbps": 227.53371683058077,
       "decoded_size_bytes": 50699756,
       "decoded_wav": {
         "channels": 2,
@@ -142,14 +144,14 @@
       },
       "peaq": {
         "odg": -0.522,
-        "di": 1.539
+        "di": 1.538
       },
       "pcm_stats": {
         "sample_count": 25349856,
-        "rmse_pcm16": 1415.0315403036152,
-        "mae_pcm16": 1084.1204465224575,
-        "max_abs_error_pcm16": 28185,
-        "snr_db_pcm16": 19.09757972068848
+        "rmse_pcm16": 1415.0685049128206,
+        "mae_pcm16": 1084.1586834260518,
+        "max_abs_error_pcm16": 28370,
+        "snr_db_pcm16": 19.097352823751294
       }
     },
     {
@@ -168,10 +170,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 6,
-      "png_total_bytes": 53174725,
+      "png_total_bytes": 54285742,
       "transport_count": 6,
-      "transport_total_bytes": 10426438,
-      "effective_bitrate_kbps": 204.52016477049827,
+      "transport_total_bytes": 10426193,
+      "effective_bitrate_kbps": 204.51535896429974,
       "decoded_size_bytes": 71943020,
       "decoded_wav": {
         "channels": 2,
@@ -188,10 +190,10 @@
       },
       "pcm_stats": {
         "sample_count": 35971488,
-        "rmse_pcm16": 668.6734498582442,
-        "mae_pcm16": 467.54865222700823,
-        "max_abs_error_pcm16": 13162,
-        "snr_db_pcm16": 17.455732021401364
+        "rmse_pcm16": 668.6772059421423,
+        "mae_pcm16": 467.5609446292575,
+        "max_abs_error_pcm16": 12962,
+        "snr_db_pcm16": 17.455683231011097
       }
     },
     {
@@ -210,10 +212,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 39586376,
+      "png_total_bytes": 40398907,
       "transport_count": 4,
-      "transport_total_bytes": 7742546,
-      "effective_bitrate_kbps": 204.38768093624884,
+      "transport_total_bytes": 7742294,
+      "effective_bitrate_kbps": 204.3810286418232,
       "decoded_size_bytes": 53458652,
       "decoded_wav": {
         "channels": 2,
@@ -225,15 +227,15 @@
         "compression_type": "NONE"
       },
       "peaq": {
-        "odg": -0.464,
-        "di": 1.637
+        "odg": -0.463,
+        "di": 1.639
       },
       "pcm_stats": {
         "sample_count": 26729304,
-        "rmse_pcm16": 1051.960292242136,
-        "mae_pcm16": 739.1823255854324,
-        "max_abs_error_pcm16": 14473,
-        "snr_db_pcm16": 19.084375641698244
+        "rmse_pcm16": 1051.965821383473,
+        "mae_pcm16": 739.1905390428423,
+        "max_abs_error_pcm16": 14540,
+        "snr_db_pcm16": 19.084329988468188
       }
     },
     {
@@ -252,10 +254,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 32467361,
+      "png_total_bytes": 33072999,
       "transport_count": 4,
-      "transport_total_bytes": 6410291,
-      "effective_bitrate_kbps": 208.28412217047546,
+      "transport_total_bytes": 6410209,
+      "effective_bitrate_kbps": 208.28145781436152,
       "decoded_size_bytes": 43432076,
       "decoded_wav": {
         "channels": 2,
@@ -267,15 +269,15 @@
         "compression_type": "NONE"
       },
       "peaq": {
-        "odg": -1.341,
-        "di": 0.525
+        "odg": -1.343,
+        "di": 0.523
       },
       "pcm_stats": {
         "sample_count": 21716016,
-        "rmse_pcm16": 834.6148348757849,
-        "mae_pcm16": 594.9594940434746,
-        "max_abs_error_pcm16": 23033,
-        "snr_db_pcm16": 23.889565429135242
+        "rmse_pcm16": 834.6028563772965,
+        "mae_pcm16": 594.9582919813653,
+        "max_abs_error_pcm16": 23025,
+        "snr_db_pcm16": 23.889690091025
       }
     },
     {
@@ -294,10 +296,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 43060489,
+      "png_total_bytes": 43813120,
       "transport_count": 4,
-      "transport_total_bytes": 8616087,
-      "effective_bitrate_kbps": 212.29731177159667,
+      "transport_total_bytes": 8616133,
+      "effective_bitrate_kbps": 212.2984451951962,
       "decoded_size_bytes": 57273600,
       "decoded_wav": {
         "channels": 2,
@@ -314,10 +316,10 @@
       },
       "pcm_stats": {
         "sample_count": 28636778,
-        "rmse_pcm16": 257.2049048572781,
-        "mae_pcm16": 169.55328490516635,
-        "max_abs_error_pcm16": 4530,
-        "snr_db_pcm16": 18.842601445979646
+        "rmse_pcm16": 257.21102217236876,
+        "mae_pcm16": 169.55294464342322,
+        "max_abs_error_pcm16": 4590,
+        "snr_db_pcm16": 18.84239486480294
       }
     },
     {
@@ -336,10 +338,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 30221972,
+      "png_total_bytes": 30827474,
       "transport_count": 4,
-      "transport_total_bytes": 5987308,
-      "effective_bitrate_kbps": 206.38772836952774,
+      "transport_total_bytes": 5987284,
+      "effective_bitrate_kbps": 206.386901068597,
       "decoded_size_bytes": 40938956,
       "decoded_wav": {
         "channels": 2,
@@ -351,15 +353,15 @@
         "compression_type": "NONE"
       },
       "peaq": {
-        "odg": -1.243,
-        "di": 0.626
+        "odg": -1.245,
+        "di": 0.625
       },
       "pcm_stats": {
         "sample_count": 20469456,
-        "rmse_pcm16": 946.693406584382,
-        "mae_pcm16": 652.2385376045168,
-        "max_abs_error_pcm16": 25755,
-        "snr_db_pcm16": 16.59141171070855
+        "rmse_pcm16": 945.3010282547654,
+        "mae_pcm16": 651.8304257328577,
+        "max_abs_error_pcm16": 20174,
+        "snr_db_pcm16": 16.604196152846583
       }
     },
     {
@@ -378,10 +380,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 6,
-      "png_total_bytes": 58740303,
+      "png_total_bytes": 59663662,
       "transport_count": 6,
-      "transport_total_bytes": 12635866,
-      "effective_bitrate_kbps": 230.20342503188195,
+      "transport_total_bytes": 12635792,
+      "effective_bitrate_kbps": 230.2020768810348,
       "decoded_size_bytes": 77460812,
       "decoded_wav": {
         "channels": 2,
@@ -398,10 +400,10 @@
       },
       "pcm_stats": {
         "sample_count": 38730384,
-        "rmse_pcm16": 1215.904222096658,
-        "mae_pcm16": 938.3211815818815,
-        "max_abs_error_pcm16": 20120,
-        "snr_db_pcm16": 17.427585009054688
+        "rmse_pcm16": 1215.9924164441707,
+        "mae_pcm16": 938.3810587057438,
+        "max_abs_error_pcm16": 20072,
+        "snr_db_pcm16": 17.42695500993598
       }
     },
     {
@@ -420,10 +422,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 2,
-      "png_total_bytes": 2449964,
+      "png_total_bytes": 2505080,
       "transport_count": 2,
-      "transport_total_bytes": 411185,
-      "effective_bitrate_kbps": 143.02086956521737,
+      "transport_total_bytes": 411223,
+      "effective_bitrate_kbps": 143.03408695652172,
       "decoded_size_bytes": 4057244,
       "decoded_wav": {
         "channels": 2,
@@ -435,15 +437,15 @@
         "compression_type": "NONE"
       },
       "peaq": {
-        "odg": -2.584,
-        "di": -0.698
+        "odg": -2.583,
+        "di": -0.697
       },
       "pcm_stats": {
         "sample_count": 2028600,
-        "rmse_pcm16": 277.3916716843999,
-        "mae_pcm16": 144.03414867396233,
-        "max_abs_error_pcm16": 5012,
-        "snr_db_pcm16": 17.914976249326905
+        "rmse_pcm16": 277.3961816539202,
+        "mae_pcm16": 144.0351976732722,
+        "max_abs_error_pcm16": 5209,
+        "snr_db_pcm16": 17.914835031031338
       }
     },
     {
@@ -462,10 +464,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 2,
-      "png_total_bytes": 2308358,
+      "png_total_bytes": 2364739,
       "transport_count": 2,
-      "transport_total_bytes": 394144,
-      "effective_bitrate_kbps": 143.3250909090909,
+      "transport_total_bytes": 394102,
+      "effective_bitrate_kbps": 143.30981818181817,
       "decoded_size_bytes": 3880844,
       "decoded_wav": {
         "channels": 2,
@@ -478,14 +480,14 @@
       },
       "peaq": {
         "odg": -1.661,
-        "di": 0.209
+        "di": 0.21
       },
       "pcm_stats": {
         "sample_count": 1940400,
-        "rmse_pcm16": 297.96439989782823,
-        "mae_pcm16": 166.84853432282003,
-        "max_abs_error_pcm16": 4243,
-        "snr_db_pcm16": 18.535680045470507
+        "rmse_pcm16": 297.96637544130743,
+        "mae_pcm16": 166.84547619047618,
+        "max_abs_error_pcm16": 4237,
+        "snr_db_pcm16": 18.535622457061432
       }
     },
     {
@@ -504,10 +506,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 2,
-      "png_total_bytes": 2178026,
+      "png_total_bytes": 2226641,
       "transport_count": 2,
-      "transport_total_bytes": 414982,
-      "effective_bitrate_kbps": 158.08838095238096,
+      "transport_total_bytes": 415064,
+      "effective_bitrate_kbps": 158.11961904761904,
       "decoded_size_bytes": 3704444,
       "decoded_wav": {
         "channels": 2,
@@ -519,15 +521,15 @@
         "compression_type": "NONE"
       },
       "peaq": {
-        "odg": -1.603,
-        "di": 0.265
+        "odg": -1.6,
+        "di": 0.268
       },
       "pcm_stats": {
         "sample_count": 1852200,
-        "rmse_pcm16": 249.6538265821137,
-        "mae_pcm16": 132.26149659863947,
-        "max_abs_error_pcm16": 3176,
-        "snr_db_pcm16": 17.656400506780688
+        "rmse_pcm16": 249.7121599359748,
+        "mae_pcm16": 132.28785606306013,
+        "max_abs_error_pcm16": 3128,
+        "snr_db_pcm16": 17.6543712252924
       }
     },
     {
@@ -546,10 +548,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 6,
-      "png_total_bytes": 50916915,
+      "png_total_bytes": 51952802,
       "transport_count": 6,
-      "transport_total_bytes": 9941297,
-      "effective_bitrate_kbps": 203.21701736814495,
+      "transport_total_bytes": 9941469,
+      "effective_bitrate_kbps": 203.2205333406571,
       "decoded_size_bytes": 69035396,
       "decoded_wav": {
         "channels": 2,
@@ -561,15 +563,15 @@
         "compression_type": "NONE"
       },
       "peaq": {
-        "odg": -2.385,
-        "di": -0.49
+        "odg": -2.382,
+        "di": -0.488
       },
       "pcm_stats": {
         "sample_count": 34517676,
-        "rmse_pcm16": 516.6547943200214,
-        "mae_pcm16": 329.2261276802065,
-        "max_abs_error_pcm16": 17540,
-        "snr_db_pcm16": 17.7961764771566
+        "rmse_pcm16": 516.9514265852416,
+        "mae_pcm16": 329.3261240414911,
+        "max_abs_error_pcm16": 17530,
+        "snr_db_pcm16": 17.791190990155037
       }
     },
     {
@@ -588,10 +590,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 35908253,
+      "png_total_bytes": 36667651,
       "transport_count": 4,
-      "transport_total_bytes": 7044562,
-      "effective_bitrate_kbps": 204.43229819795468,
+      "transport_total_bytes": 7044434,
+      "effective_bitrate_kbps": 204.42858365414497,
       "decoded_size_bytes": 48628788,
       "decoded_wav": {
         "channels": 2,
@@ -608,10 +610,10 @@
       },
       "pcm_stats": {
         "sample_count": 24314372,
-        "rmse_pcm16": 870.944050210842,
-        "mae_pcm16": 605.8075097312816,
-        "max_abs_error_pcm16": 10681,
-        "snr_db_pcm16": 16.599696457658094
+        "rmse_pcm16": 871.0925921847582,
+        "mae_pcm16": 605.8403061777618,
+        "max_abs_error_pcm16": 10802,
+        "snr_db_pcm16": 16.598215180899864
       }
     },
     {
@@ -630,10 +632,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 6,
-      "png_total_bytes": 58588497,
+      "png_total_bytes": 59193501,
       "transport_count": 6,
-      "transport_total_bytes": 8473222,
-      "effective_bitrate_kbps": 155.2393416592873,
+      "transport_total_bytes": 8473734,
+      "effective_bitrate_kbps": 155.2487220983847,
       "decoded_size_bytes": 77025692,
       "decoded_wav": {
         "channels": 2,
@@ -645,15 +647,15 @@
         "compression_type": "NONE"
       },
       "peaq": {
-        "odg": -3.248,
+        "odg": -3.249,
         "di": -1.556
       },
       "pcm_stats": {
         "sample_count": 38512824,
-        "rmse_pcm16": 30.538341781648537,
-        "mae_pcm16": 18.453547291156838,
-        "max_abs_error_pcm16": 972,
-        "snr_db_pcm16": 26.763979082977308
+        "rmse_pcm16": 30.538386424678695,
+        "mae_pcm16": 18.45349346493002,
+        "max_abs_error_pcm16": 971,
+        "snr_db_pcm16": 26.763966385360902
       }
     },
     {
@@ -672,10 +674,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 30291958,
+      "png_total_bytes": 30865444,
       "transport_count": 4,
-      "transport_total_bytes": 6058348,
-      "effective_bitrate_kbps": 209.2934592353754,
+      "transport_total_bytes": 6058346,
+      "effective_bitrate_kbps": 209.29339014279134,
       "decoded_size_bytes": 40849580,
       "decoded_wav": {
         "channels": 2,
@@ -687,15 +689,15 @@
         "compression_type": "NONE"
       },
       "peaq": {
-        "odg": -1.148,
-        "di": 0.728
+        "odg": -1.149,
+        "di": 0.727
       },
       "pcm_stats": {
         "sample_count": 20424768,
-        "rmse_pcm16": 1044.8493206360563,
-        "mae_pcm16": 740.9987383455225,
-        "max_abs_error_pcm16": 27709,
-        "snr_db_pcm16": 18.84603625803788
+        "rmse_pcm16": 1044.8656525571362,
+        "mae_pcm16": 741.0119960236512,
+        "max_abs_error_pcm16": 27835,
+        "snr_db_pcm16": 18.84590049094438
       }
     },
     {
@@ -714,10 +716,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 32472260,
+      "png_total_bytes": 32932210,
       "transport_count": 4,
-      "transport_total_bytes": 6946767,
-      "effective_bitrate_kbps": 230.0612629106875,
+      "transport_total_bytes": 6946912,
+      "effective_bitrate_kbps": 230.06606498381333,
       "decoded_size_bytes": 42611640,
       "decoded_wav": {
         "channels": 2,
@@ -730,14 +732,14 @@
       },
       "peaq": {
         "odg": -1.279,
-        "di": 0.589
+        "di": 0.588
       },
       "pcm_stats": {
         "sample_count": 21305798,
-        "rmse_pcm16": 956.4304743383467,
-        "mae_pcm16": 668.3223737500938,
-        "max_abs_error_pcm16": 27592,
-        "snr_db_pcm16": 16.95554402075589
+        "rmse_pcm16": 956.4392138014182,
+        "mae_pcm16": 668.3212816530036,
+        "max_abs_error_pcm16": 27562,
+        "snr_db_pcm16": 16.955464653078934
       }
     },
     {
@@ -756,10 +758,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 33003285,
+      "png_total_bytes": 33623776,
       "transport_count": 4,
-      "transport_total_bytes": 6875535,
-      "effective_bitrate_kbps": 219.51370191028573,
+      "transport_total_bytes": 6875363,
+      "effective_bitrate_kbps": 219.50821050391104,
       "decoded_size_bytes": 44201180,
       "decoded_wav": {
         "channels": 2,
@@ -771,15 +773,15 @@
         "compression_type": "NONE"
       },
       "peaq": {
-        "odg": -0.933,
-        "di": 0.972
+        "odg": -0.932,
+        "di": 0.973
       },
       "pcm_stats": {
         "sample_count": 22100568,
-        "rmse_pcm16": 881.2449662721933,
-        "mae_pcm16": 649.6543326850242,
-        "max_abs_error_pcm16": 10106,
-        "snr_db_pcm16": 17.958795416730634
+        "rmse_pcm16": 881.1992088421237,
+        "mae_pcm16": 649.6529320875374,
+        "max_abs_error_pcm16": 10089,
+        "snr_db_pcm16": 17.95924643128577
       }
     },
     {
@@ -798,10 +800,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 28953463,
+      "png_total_bytes": 29320354,
       "transport_count": 4,
-      "transport_total_bytes": 4901796,
-      "effective_bitrate_kbps": 183.50768078866912,
+      "transport_total_bytes": 4901654,
+      "effective_bitrate_kbps": 183.5023647594684,
       "decoded_size_bytes": 37695548,
       "decoded_wav": {
         "channels": 2,
@@ -813,15 +815,15 @@
         "compression_type": "NONE"
       },
       "peaq": {
-        "odg": -3.152,
-        "di": -1.404
+        "odg": -3.151,
+        "di": -1.403
       },
       "pcm_stats": {
         "sample_count": 18847752,
-        "rmse_pcm16": 63.775937090171404,
-        "mae_pcm16": 33.141107968738126,
-        "max_abs_error_pcm16": 1426,
-        "snr_db_pcm16": 20.807377955603272
+        "rmse_pcm16": 63.782177473942625,
+        "mae_pcm16": 33.143233898663354,
+        "max_abs_error_pcm16": 1419,
+        "snr_db_pcm16": 20.80652809536561
       }
     },
     {
@@ -840,10 +842,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 26286324,
+      "png_total_bytes": 26709972,
       "transport_count": 4,
-      "transport_total_bytes": 4938732,
-      "effective_bitrate_kbps": 200.2459251250169,
+      "transport_total_bytes": 4938363,
+      "effective_bitrate_kbps": 200.23096364373563,
       "decoded_size_bytes": 34804940,
       "decoded_wav": {
         "channels": 2,
@@ -855,15 +857,15 @@
         "compression_type": "NONE"
       },
       "peaq": {
-        "odg": -1.613,
+        "odg": -1.612,
         "di": 0.256
       },
       "pcm_stats": {
         "sample_count": 17402448,
-        "rmse_pcm16": 166.0610815444672,
-        "mae_pcm16": 97.73668836706192,
-        "max_abs_error_pcm16": 4085,
-        "snr_db_pcm16": 19.883164193686454
+        "rmse_pcm16": 166.0655123216716,
+        "mae_pcm16": 97.73863958679836,
+        "max_abs_error_pcm16": 4073,
+        "snr_db_pcm16": 19.882932443248393
       }
     },
     {
@@ -882,10 +884,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 44440734,
+      "png_total_bytes": 45041193,
       "transport_count": 4,
-      "transport_total_bytes": 8598025,
-      "effective_bitrate_kbps": 208.83175973158353,
+      "transport_total_bytes": 8598430,
+      "effective_bitrate_kbps": 208.8415965095286,
       "decoded_size_bytes": 58101996,
       "decoded_wav": {
         "channels": 2,
@@ -902,10 +904,10 @@
       },
       "pcm_stats": {
         "sample_count": 29050976,
-        "rmse_pcm16": 372.89703322000383,
-        "mae_pcm16": 275.5067774659275,
-        "max_abs_error_pcm16": 8093,
-        "snr_db_pcm16": 22.770414894273948
+        "rmse_pcm16": 372.895525764295,
+        "mae_pcm16": 275.5003888337521,
+        "max_abs_error_pcm16": 8052,
+        "snr_db_pcm16": 22.77045000750688
       }
     },
     {
@@ -924,10 +926,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 34422672,
+      "png_total_bytes": 35082936,
       "transport_count": 4,
-      "transport_total_bytes": 6470154,
-      "effective_bitrate_kbps": 196.18456003061712,
+      "transport_total_bytes": 6470330,
+      "effective_bitrate_kbps": 196.18989660878287,
       "decoded_size_bytes": 46541328,
       "decoded_wav": {
         "channels": 2,
@@ -944,10 +946,10 @@
       },
       "pcm_stats": {
         "sample_count": 23270642,
-        "rmse_pcm16": 1098.3434452131262,
-        "mae_pcm16": 744.140675878216,
+        "rmse_pcm16": 1098.4426747030436,
+        "mae_pcm16": 744.1719168297979,
         "max_abs_error_pcm16": 16582,
-        "snr_db_pcm16": 18.98538300836173
+        "snr_db_pcm16": 18.98459831986517
       }
     },
     {
@@ -966,10 +968,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 39661558,
+      "png_total_bytes": 40262200,
       "transport_count": 4,
-      "transport_total_bytes": 8227609,
-      "effective_bitrate_kbps": 221.23175584834632,
+      "transport_total_bytes": 8227478,
+      "effective_bitrate_kbps": 221.22823339607424,
       "decoded_size_bytes": 52482572,
       "decoded_wav": {
         "channels": 2,
@@ -981,15 +983,15 @@
         "compression_type": "NONE"
       },
       "peaq": {
-        "odg": -1.286,
-        "di": 0.581
+        "odg": -1.285,
+        "di": 0.583
       },
       "pcm_stats": {
         "sample_count": 26241264,
-        "rmse_pcm16": 1281.8338185436635,
-        "mae_pcm16": 842.889266119193,
-        "max_abs_error_pcm16": 23858,
-        "snr_db_pcm16": 16.08348526787683
+        "rmse_pcm16": 1281.4862986415674,
+        "mae_pcm16": 842.542457482231,
+        "max_abs_error_pcm16": 22608,
+        "snr_db_pcm16": 16.08584043180263
       }
     },
     {
@@ -1008,10 +1010,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 2,
-      "png_total_bytes": 17886133,
+      "png_total_bytes": 18331387,
       "transport_count": 2,
-      "transport_total_bytes": 3550754,
-      "effective_bitrate_kbps": 198.5140141632501,
+      "transport_total_bytes": 3550596,
+      "effective_bitrate_kbps": 198.50518076779724,
       "decoded_size_bytes": 25241708,
       "decoded_wav": {
         "channels": 2,
@@ -1023,15 +1025,15 @@
         "compression_type": "NONE"
       },
       "peaq": {
-        "odg": -2.083,
-        "di": -0.194
+        "odg": -2.085,
+        "di": -0.195
       },
       "pcm_stats": {
         "sample_count": 12620832,
-        "rmse_pcm16": 393.7970574121614,
-        "mae_pcm16": 272.1931668213316,
-        "max_abs_error_pcm16": 5455,
-        "snr_db_pcm16": 17.564730585491805
+        "rmse_pcm16": 393.7805511134252,
+        "mae_pcm16": 272.19248683446546,
+        "max_abs_error_pcm16": 5732,
+        "snr_db_pcm16": 17.565094668694844
       }
     },
     {
@@ -1050,10 +1052,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 2,
-      "png_total_bytes": 21178607,
+      "png_total_bytes": 21607723,
       "transport_count": 2,
-      "transport_total_bytes": 4114423,
-      "effective_bitrate_kbps": 198.20584504215174,
+      "transport_total_bytes": 4114413,
+      "effective_bitrate_kbps": 198.20536330790847,
       "decoded_size_bytes": 29294204,
       "decoded_wav": {
         "channels": 2,
@@ -1065,15 +1067,15 @@
         "compression_type": "NONE"
       },
       "peaq": {
-        "odg": -2.27,
+        "odg": -2.271,
         "di": -0.376
       },
       "pcm_stats": {
         "sample_count": 14647080,
-        "rmse_pcm16": 462.0753973841998,
-        "mae_pcm16": 285.1982053760886,
-        "max_abs_error_pcm16": 9651,
-        "snr_db_pcm16": 16.241160577830907
+        "rmse_pcm16": 462.07034640326543,
+        "mae_pcm16": 285.2136528919075,
+        "max_abs_error_pcm16": 9219,
+        "snr_db_pcm16": 16.241255524462986
       }
     },
     {
@@ -1092,10 +1094,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 2,
-      "png_total_bytes": 20529052,
+      "png_total_bytes": 20853016,
       "transport_count": 2,
-      "transport_total_bytes": 4399040,
-      "effective_bitrate_kbps": 224.78487480838018,
+      "transport_total_bytes": 4399042,
+      "effective_bitrate_kbps": 224.78497700562085,
       "decoded_size_bytes": 27617228,
       "decoded_wav": {
         "channels": 2,
@@ -1107,15 +1109,15 @@
         "compression_type": "NONE"
       },
       "peaq": {
-        "odg": -1.171,
-        "di": 0.703
+        "odg": -1.17,
+        "di": 0.704
       },
       "pcm_stats": {
         "sample_count": 13808592,
-        "rmse_pcm16": 807.943533291594,
-        "mae_pcm16": 594.1838051265473,
-        "max_abs_error_pcm16": 7391,
-        "snr_db_pcm16": 18.586803298019348
+        "rmse_pcm16": 807.9419614857278,
+        "mae_pcm16": 594.188987334842,
+        "max_abs_error_pcm16": 7457,
+        "snr_db_pcm16": 18.58682019591506
       }
     },
     {
@@ -1134,10 +1136,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 26429310,
+      "png_total_bytes": 26972503,
       "transport_count": 4,
-      "transport_total_bytes": 5188457,
-      "effective_bitrate_kbps": 205.6463337296869,
+      "transport_total_bytes": 5188246,
+      "effective_bitrate_kbps": 205.6379706698375,
       "decoded_size_bytes": 35604620,
       "decoded_wav": {
         "channels": 2,
@@ -1150,14 +1152,14 @@
       },
       "peaq": {
         "odg": -1.201,
-        "di": 0.671
+        "di": 0.67
       },
       "pcm_stats": {
         "sample_count": 17802288,
-        "rmse_pcm16": 870.7902404753606,
-        "mae_pcm16": 627.3695014932912,
-        "max_abs_error_pcm16": 21305,
-        "snr_db_pcm16": 19.70313107668655
+        "rmse_pcm16": 870.7708711999154,
+        "mae_pcm16": 627.3235674538014,
+        "max_abs_error_pcm16": 21336,
+        "snr_db_pcm16": 19.70332428195252
       }
     },
     {
@@ -1176,10 +1178,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 36045897,
+      "png_total_bytes": 36645868,
       "transport_count": 4,
-      "transport_total_bytes": 7784833,
-      "effective_bitrate_kbps": 230.42854194155927,
+      "transport_total_bytes": 7784954,
+      "effective_bitrate_kbps": 230.4321235024707,
       "decoded_size_bytes": 47676240,
       "decoded_wav": {
         "channels": 2,
@@ -1196,10 +1198,10 @@
       },
       "pcm_stats": {
         "sample_count": 23838098,
-        "rmse_pcm16": 1293.7851416822205,
-        "mae_pcm16": 972.0368423688836,
-        "max_abs_error_pcm16": 32001,
-        "snr_db_pcm16": 19.842663230931592
+        "rmse_pcm16": 1293.88054203841,
+        "mae_pcm16": 972.1016306754003,
+        "max_abs_error_pcm16": 31855,
+        "snr_db_pcm16": 19.842022779600587
       }
     },
     {
@@ -1218,10 +1220,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 34209110,
+      "png_total_bytes": 34619601,
       "transport_count": 4,
-      "transport_total_bytes": 6705131,
-      "effective_bitrate_kbps": 214.50699013596375,
+      "transport_total_bytes": 6705055,
+      "effective_bitrate_kbps": 214.5045587843242,
       "decoded_size_bytes": 44111804,
       "decoded_wav": {
         "channels": 2,
@@ -1238,10 +1240,10 @@
       },
       "pcm_stats": {
         "sample_count": 22055880,
-        "rmse_pcm16": 243.39092158856002,
-        "mae_pcm16": 138.25716058484178,
-        "max_abs_error_pcm16": 12450,
-        "snr_db_pcm16": 19.973833432693276
+        "rmse_pcm16": 243.390915848555,
+        "mae_pcm16": 138.25802751919215,
+        "max_abs_error_pcm16": 12433,
+        "snr_db_pcm16": 19.973833637536785
       }
     },
     {
@@ -1260,10 +1262,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 2,
-      "png_total_bytes": 9493283,
+      "png_total_bytes": 9689448,
       "transport_count": 2,
-      "transport_total_bytes": 1619334,
-      "effective_bitrate_kbps": 175.25668330165445,
+      "transport_total_bytes": 1619394,
+      "effective_bitrate_kbps": 175.2631769595398,
       "decoded_size_bytes": 13039228,
       "decoded_wav": {
         "channels": 2,
@@ -1275,15 +1277,15 @@
         "compression_type": "NONE"
       },
       "peaq": {
-        "odg": -2.911,
-        "di": -1.074
+        "odg": -2.909,
+        "di": -1.072
       },
       "pcm_stats": {
         "sample_count": 6519592,
-        "rmse_pcm16": 736.48037339674,
-        "mae_pcm16": 530.647789309515,
-        "max_abs_error_pcm16": 10719,
-        "snr_db_pcm16": 20.558289954306378
+        "rmse_pcm16": 736.4516401533639,
+        "mae_pcm16": 530.6221419990699,
+        "max_abs_error_pcm16": 10583,
+        "snr_db_pcm16": 20.558628834551556
       }
     },
     {
@@ -1302,10 +1304,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 2,
-      "png_total_bytes": 23404152,
+      "png_total_bytes": 23788297,
       "transport_count": 2,
-      "transport_total_bytes": 4965110,
-      "effective_bitrate_kbps": 226.94187552372972,
+      "transport_total_bytes": 4965148,
+      "effective_bitrate_kbps": 226.9436124019197,
       "decoded_size_bytes": 30874748,
       "decoded_wav": {
         "channels": 2,
@@ -1317,15 +1319,15 @@
         "compression_type": "NONE"
       },
       "peaq": {
-        "odg": -0.683,
-        "di": 1.295
+        "odg": -0.684,
+        "di": 1.294
       },
       "pcm_stats": {
         "sample_count": 15437352,
-        "rmse_pcm16": 1727.1656695928118,
-        "mae_pcm16": 1293.4846211966924,
-        "max_abs_error_pcm16": 18855,
-        "snr_db_pcm16": 16.513165533652355
+        "rmse_pcm16": 1728.2970469893287,
+        "mae_pcm16": 1294.2682358347467,
+        "max_abs_error_pcm16": 17467,
+        "snr_db_pcm16": 16.507477716788266
       }
     },
     {
@@ -1344,10 +1346,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 33403506,
+      "png_total_bytes": 34039315,
       "transport_count": 4,
-      "transport_total_bytes": 6743852,
-      "effective_bitrate_kbps": 207.50313846153847,
+      "transport_total_bytes": 6743684,
+      "effective_bitrate_kbps": 207.49796923076923,
       "decoded_size_bytes": 45864044,
       "decoded_wav": {
         "channels": 2,
@@ -1360,14 +1362,14 @@
       },
       "peaq": {
         "odg": -0.234,
-        "di": 2.11
+        "di": 2.111
       },
       "pcm_stats": {
         "sample_count": 22932000,
-        "rmse_pcm16": 1572.2972802707618,
-        "mae_pcm16": 1111.757261730333,
-        "max_abs_error_pcm16": 26114,
-        "snr_db_pcm16": 16.538422880075277
+        "rmse_pcm16": 1572.103851311217,
+        "mae_pcm16": 1111.6286763910693,
+        "max_abs_error_pcm16": 26093,
+        "snr_db_pcm16": 16.53949151128817
       }
     },
     {
@@ -1386,10 +1388,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 34647889,
+      "png_total_bytes": 35282477,
       "transport_count": 4,
-      "transport_total_bytes": 7161048,
-      "effective_bitrate_kbps": 216.18258113207546,
+      "transport_total_bytes": 7161027,
+      "effective_bitrate_kbps": 216.1819471698113,
       "decoded_size_bytes": 46746044,
       "decoded_wav": {
         "channels": 2,
@@ -1401,15 +1403,15 @@
         "compression_type": "NONE"
       },
       "peaq": {
-        "odg": -1.17,
-        "di": 0.704
+        "odg": -1.171,
+        "di": 0.703
       },
       "pcm_stats": {
         "sample_count": 23373000,
-        "rmse_pcm16": 682.4008737883358,
-        "mae_pcm16": 499.24536503658067,
-        "max_abs_error_pcm16": 8357,
-        "snr_db_pcm16": 19.007495193645752
+        "rmse_pcm16": 682.4250372012248,
+        "mae_pcm16": 499.2740000427844,
+        "max_abs_error_pcm16": 8411,
+        "snr_db_pcm16": 19.00718763685633
       }
     },
     {
@@ -1428,10 +1430,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 34068109,
+      "png_total_bytes": 34667424,
       "transport_count": 4,
-      "transport_total_bytes": 7015735,
-      "effective_bitrate_kbps": 214.22091603053434,
+      "transport_total_bytes": 7015334,
+      "effective_bitrate_kbps": 214.2086717557252,
       "decoded_size_bytes": 46216844,
       "decoded_wav": {
         "channels": 2,
@@ -1443,15 +1445,15 @@
         "compression_type": "NONE"
       },
       "peaq": {
-        "odg": -1.505,
-        "di": 0.361
+        "odg": -1.507,
+        "di": 0.359
       },
       "pcm_stats": {
         "sample_count": 23108400,
-        "rmse_pcm16": 1052.3479441832637,
-        "mae_pcm16": 725.7608187066176,
-        "max_abs_error_pcm16": 14295,
-        "snr_db_pcm16": 17.217539578553883
+        "rmse_pcm16": 1052.3236599602096,
+        "mae_pcm16": 725.7377639732738,
+        "max_abs_error_pcm16": 16502,
+        "snr_db_pcm16": 17.21774001845243
       }
     },
     {
@@ -1470,10 +1472,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 34580553,
+      "png_total_bytes": 35080883,
       "transport_count": 4,
-      "transport_total_bytes": 7437650,
-      "effective_bitrate_kbps": 228.8802725486505,
+      "transport_total_bytes": 7437380,
+      "effective_bitrate_kbps": 228.87196378531962,
       "decoded_size_bytes": 45858132,
       "decoded_wav": {
         "channels": 2,
@@ -1485,15 +1487,15 @@
         "compression_type": "NONE"
       },
       "peaq": {
-        "odg": -1.239,
+        "odg": -1.24,
         "di": 0.63
       },
       "pcm_stats": {
         "sample_count": 22929044,
-        "rmse_pcm16": 797.5505069368031,
-        "mae_pcm16": 565.7665249802826,
-        "max_abs_error_pcm16": 10481,
-        "snr_db_pcm16": 18.79247758581342
+        "rmse_pcm16": 797.5585592696415,
+        "mae_pcm16": 565.7484748600945,
+        "max_abs_error_pcm16": 10739,
+        "snr_db_pcm16": 18.792389890650945
       }
     },
     {
@@ -1512,10 +1514,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 38134333,
+      "png_total_bytes": 38703966,
       "transport_count": 4,
-      "transport_total_bytes": 8277755,
-      "effective_bitrate_kbps": 233.1761971830986,
+      "transport_total_bytes": 8277904,
+      "effective_bitrate_kbps": 233.18039436619716,
       "decoded_size_bytes": 50097644,
       "decoded_wav": {
         "channels": 2,
@@ -1532,10 +1534,10 @@
       },
       "pcm_stats": {
         "sample_count": 25048800,
-        "rmse_pcm16": 1214.5994326202692,
-        "mae_pcm16": 934.4526570933538,
-        "max_abs_error_pcm16": 20991,
-        "snr_db_pcm16": 17.539182550650725
+        "rmse_pcm16": 1214.6006363137835,
+        "mae_pcm16": 934.4563222988726,
+        "max_abs_error_pcm16": 21015,
+        "snr_db_pcm16": 17.53917394275617
       }
     }
   ]

@@ -1,29 +1,29 @@
 {
   "meta": {
-    "generated_at": "2026-05-21T15:49:42+08:00",
+    "generated_at": "2026-10-03T23:16:54+09:00",
     "mode": "advanced",
     "input_dir": "/mnt/dev/personal/projects/active/codec-bench-framework/input",
-    "report_dir": "/tmp/pxf-pre-61e86ba/doc/artifacts/peaq-reports/20260521-153719",
-    "cli_entry": "/tmp/pxf-pre-61e86ba/cli/dist/index.cjs",
+    "report_dir": "/mnt/dev/personal/projects/active/pixel-exchange-format/doc/artifacts/peaq-reports/20261003-231444",
     "keep_work": false,
+    "jobs": 24,
     "transport_recipe": "magick <png> ppm:- | cjpeg -quality 92 -sample 2x2,1x1,1x1 -dct int -optimize > <jpg>"
   },
   "summary": {
-    "file_count": 25,
-    "success_count": 25,
+    "file_count": 36,
+    "success_count": 36,
     "failure_count": 0,
-    "avg_odg": -1.4011600000000002,
-    "median_odg": -1.248,
-    "min_odg": -3.144,
-    "max_odg": -0.463,
-    "avg_di": 0.49815999999999994,
-    "avg_effective_bitrate_kbps": 212.3824757983878,
-    "avg_pcm_snr_db": 18.352509038804122,
-    "total_duration_seconds": 6414.401473922902,
-    "total_source_bytes": 1131507154,
-    "total_encoded_bytes": 171021029,
-    "encoded_to_source_ratio": 0.15114445224267667,
-    "overall_effective_bitrate_kbps": 213.29632040684527
+    "avg_odg": -1.4734444444444443,
+    "median_odg": -1.282,
+    "min_odg": -3.249,
+    "max_odg": -0.234,
+    "avg_di": 0.43036111111111114,
+    "avg_effective_bitrate_kbps": 204.92500850752742,
+    "avg_pcm_snr_db": 18.824474418321405,
+    "total_duration_seconds": 8788.722653061224,
+    "total_source_bytes": 1550340374,
+    "total_encoded_bytes": 230658949,
+    "encoded_to_source_ratio": 0.14877955374720828,
+    "overall_effective_bitrate_kbps": 209.95901962582337
   },
   "files": [
     {
@@ -42,10 +42,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 45736323,
+      "png_total_bytes": 45736321,
       "transport_count": 4,
-      "transport_total_bytes": 9795926,
-      "effective_bitrate_kbps": 229.36802341463414,
+      "transport_total_bytes": 9795629,
+      "effective_bitrate_kbps": 229.36106926829265,
       "decoded_size_bytes": 60270044,
       "decoded_wav": {
         "channels": 2,
@@ -62,10 +62,10 @@
       },
       "pcm_stats": {
         "sample_count": 30135000,
-        "rmse_pcm16": 646.0096059609032,
-        "mae_pcm16": 448.650543454455,
-        "max_abs_error_pcm16": 14129,
-        "snr_db_pcm16": 19.115964070450538
+        "rmse_pcm16": 645.999815881962,
+        "mae_pcm16": 448.6455175045628,
+        "max_abs_error_pcm16": 14118,
+        "snr_db_pcm16": 19.11609570346156
       }
     },
     {
@@ -84,10 +84,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 31854889,
+      "png_total_bytes": 31854916,
       "transport_count": 4,
-      "transport_total_bytes": 6211366,
-      "effective_bitrate_kbps": 203.88809956917183,
+      "transport_total_bytes": 6211505,
+      "effective_bitrate_kbps": 203.8926622444095,
       "decoded_size_bytes": 42991664,
       "decoded_wav": {
         "channels": 2,
@@ -99,15 +99,15 @@
         "compression_type": "NONE"
       },
       "peaq": {
-        "odg": -1.612,
-        "di": 0.257
+        "odg": -1.613,
+        "di": 0.256
       },
       "pcm_stats": {
         "sample_count": 21495810,
-        "rmse_pcm16": 873.6196669404915,
-        "mae_pcm16": 571.4912285231401,
-        "max_abs_error_pcm16": 14196,
-        "snr_db_pcm16": 20.499737403065343
+        "rmse_pcm16": 873.749869813229,
+        "mae_pcm16": 571.5083118058822,
+        "max_abs_error_pcm16": 14025,
+        "snr_db_pcm16": 20.498442968474993
       }
     },
     {
@@ -126,10 +126,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 38328293,
+      "png_total_bytes": 38328330,
       "transport_count": 4,
-      "transport_total_bytes": 8174589,
-      "effective_bitrate_kbps": 227.5354147337168,
+      "transport_total_bytes": 8174696,
+      "effective_bitrate_kbps": 227.53839302282427,
       "decoded_size_bytes": 50699756,
       "decoded_wav": {
         "channels": 2,
@@ -146,10 +146,52 @@
       },
       "pcm_stats": {
         "sample_count": 25349856,
-        "rmse_pcm16": 1414.9504748950596,
-        "mae_pcm16": 1084.0669111493178,
-        "max_abs_error_pcm16": 28427,
-        "snr_db_pcm16": 19.098077338827807
+        "rmse_pcm16": 1414.9765524134564,
+        "mae_pcm16": 1084.0892405069283,
+        "max_abs_error_pcm16": 28139,
+        "snr_db_pcm16": 19.097917259472652
+      }
+    },
+    {
+      "name": "Casiopea - Swear.wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/Casiopea - Swear.wav",
+      "source_size_bytes": 71943154,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 17985744,
+        "duration_seconds": 407.84,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 6,
+      "png_total_bytes": 53174678,
+      "transport_count": 6,
+      "transport_total_bytes": 10426300,
+      "effective_bitrate_kbps": 204.5174578265987,
+      "decoded_size_bytes": 71943020,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 17985744,
+        "duration_seconds": 407.84,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -1.111,
+        "di": 0.768
+      },
+      "pcm_stats": {
+        "sample_count": 35971488,
+        "rmse_pcm16": 668.6080278204034,
+        "mae_pcm16": 467.49210196698004,
+        "max_abs_error_pcm16": 13072,
+        "snr_db_pcm16": 17.45658187778616
       }
     },
     {
@@ -168,10 +210,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 39586316,
+      "png_total_bytes": 39586345,
       "transport_count": 4,
-      "transport_total_bytes": 7742629,
-      "effective_bitrate_kbps": 204.3898719697303,
+      "transport_total_bytes": 7742264,
+      "effective_bitrate_kbps": 204.38023670201065,
       "decoded_size_bytes": 53458652,
       "decoded_wav": {
         "channels": 2,
@@ -184,14 +226,14 @@
       },
       "peaq": {
         "odg": -0.463,
-        "di": 1.638
+        "di": 1.639
       },
       "pcm_stats": {
         "sample_count": 26729304,
-        "rmse_pcm16": 1051.8582144795507,
-        "mae_pcm16": 739.0964939453717,
-        "max_abs_error_pcm16": 14839,
-        "snr_db_pcm16": 19.085218524464203
+        "rmse_pcm16": 1051.7833737473793,
+        "mae_pcm16": 739.0721491663232,
+        "max_abs_error_pcm16": 14659,
+        "snr_db_pcm16": 19.085836555923542
       }
     },
     {
@@ -210,10 +252,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 32467336,
+      "png_total_bytes": 32467388,
       "transport_count": 4,
-      "transport_total_bytes": 6410218,
-      "effective_bitrate_kbps": 208.2817502436911,
+      "transport_total_bytes": 6410253,
+      "effective_bitrate_kbps": 208.28288746886167,
       "decoded_size_bytes": 43432076,
       "decoded_wav": {
         "channels": 2,
@@ -230,10 +272,52 @@
       },
       "pcm_stats": {
         "sample_count": 21716016,
-        "rmse_pcm16": 834.5198725588725,
-        "mae_pcm16": 594.8586123716248,
-        "max_abs_error_pcm16": 23031,
-        "snr_db_pcm16": 23.890553764230894
+        "rmse_pcm16": 834.4916991296087,
+        "mae_pcm16": 594.8509733553337,
+        "max_abs_error_pcm16": 23080,
+        "snr_db_pcm16": 23.890847005214347
+      }
+    },
+    {
+      "name": "Dave Brubeck - Take Five.wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/Dave Brubeck - Take Five.wav",
+      "source_size_bytes": 57273948,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 14318389,
+        "duration_seconds": 324.68002267573695,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 4,
+      "png_total_bytes": 43060477,
+      "transport_count": 4,
+      "transport_total_bytes": 8615690,
+      "effective_bitrate_kbps": 212.28752983313976,
+      "decoded_size_bytes": 57273600,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 14318389,
+        "duration_seconds": 324.68002267573695,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -2.024,
+        "di": -0.137
+      },
+      "pcm_stats": {
+        "sample_count": 28636778,
+        "rmse_pcm16": 257.11656939783927,
+        "mae_pcm16": 169.4690313973171,
+        "max_abs_error_pcm16": 4541,
+        "snr_db_pcm16": 18.845585074304594
       }
     },
     {
@@ -252,10 +336,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 30222011,
+      "png_total_bytes": 30221996,
       "transport_count": 4,
-      "transport_total_bytes": 5987367,
-      "effective_bitrate_kbps": 206.3897621509824,
+      "transport_total_bytes": 5987157,
+      "effective_bitrate_kbps": 206.38252326783868,
       "decoded_size_bytes": 40938956,
       "decoded_wav": {
         "channels": 2,
@@ -268,14 +352,14 @@
       },
       "peaq": {
         "odg": -1.248,
-        "di": 0.621
+        "di": 0.622
       },
       "pcm_stats": {
         "sample_count": 20469456,
-        "rmse_pcm16": 945.7289375209252,
-        "mae_pcm16": 652.0556291285905,
-        "max_abs_error_pcm16": 22743,
-        "snr_db_pcm16": 16.600265202209446
+        "rmse_pcm16": 946.7872097867555,
+        "mae_pcm16": 652.2118077783797,
+        "max_abs_error_pcm16": 22132,
+        "snr_db_pcm16": 16.59055111117863
       }
     },
     {
@@ -294,10 +378,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 6,
-      "png_total_bytes": 58740352,
+      "png_total_bytes": 58740267,
       "transport_count": 6,
-      "transport_total_bytes": 12635856,
-      "effective_bitrate_kbps": 230.20324284933506,
+      "transport_total_bytes": 12635782,
+      "effective_bitrate_kbps": 230.20189469848788,
       "decoded_size_bytes": 77460812,
       "decoded_wav": {
         "channels": 2,
@@ -309,15 +393,141 @@
         "compression_type": "NONE"
       },
       "peaq": {
-        "odg": -0.71,
-        "di": 1.257
+        "odg": -0.711,
+        "di": 1.256
       },
       "pcm_stats": {
         "sample_count": 38730384,
-        "rmse_pcm16": 1215.9253832164748,
-        "mae_pcm16": 938.3081683620798,
-        "max_abs_error_pcm16": 20136,
-        "snr_db_pcm16": 17.427433844556194
+        "rmse_pcm16": 1215.7187923893862,
+        "mae_pcm16": 938.1731719985012,
+        "max_abs_error_pcm16": 20066,
+        "snr_db_pcm16": 17.428909739053136
+      }
+    },
+    {
+      "name": "EBU SQAM - Speech, Female English (Track 49).wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/EBU SQAM - Speech, Female English (Track 49).wav",
+      "source_size_bytes": 4057496,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 1014300,
+        "duration_seconds": 23.0,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 2,
+      "png_total_bytes": 2449961,
+      "transport_count": 2,
+      "transport_total_bytes": 411211,
+      "effective_bitrate_kbps": 143.02991304347827,
+      "decoded_size_bytes": 4057244,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 1014300,
+        "duration_seconds": 23.0,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -2.583,
+        "di": -0.697
+      },
+      "pcm_stats": {
+        "sample_count": 2028600,
+        "rmse_pcm16": 277.3569266761053,
+        "mae_pcm16": 144.0305782312925,
+        "max_abs_error_pcm16": 4870,
+        "snr_db_pcm16": 17.916064278422635
+      }
+    },
+    {
+      "name": "EBU SQAM - Speech, Male English (Track 50).wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/EBU SQAM - Speech, Male English (Track 50).wav",
+      "source_size_bytes": 3881094,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 970200,
+        "duration_seconds": 22.0,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 2,
+      "png_total_bytes": 2308360,
+      "transport_count": 2,
+      "transport_total_bytes": 394148,
+      "effective_bitrate_kbps": 143.32654545454545,
+      "decoded_size_bytes": 3880844,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 970200,
+        "duration_seconds": 22.0,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -1.658,
+        "di": 0.212
+      },
+      "pcm_stats": {
+        "sample_count": 1940400,
+        "rmse_pcm16": 297.8710400538846,
+        "mae_pcm16": 166.8448185941043,
+        "max_abs_error_pcm16": 4261,
+        "snr_db_pcm16": 18.538401982614168
+      }
+    },
+    {
+      "name": "EBU SQAM - Speech, Male German (Track 54).wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/EBU SQAM - Speech, Male German (Track 54).wav",
+      "source_size_bytes": 3704692,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 926100,
+        "duration_seconds": 21.0,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 2,
+      "png_total_bytes": 2178017,
+      "transport_count": 2,
+      "transport_total_bytes": 415010,
+      "effective_bitrate_kbps": 158.09904761904764,
+      "decoded_size_bytes": 3704444,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 926100,
+        "duration_seconds": 21.0,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -1.6,
+        "di": 0.268
+      },
+      "pcm_stats": {
+        "sample_count": 1852200,
+        "rmse_pcm16": 249.55988851565124,
+        "mae_pcm16": 132.23484828852176,
+        "max_abs_error_pcm16": 3159,
+        "snr_db_pcm16": 17.659669390078804
       }
     },
     {
@@ -336,10 +546,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 6,
-      "png_total_bytes": 50916939,
+      "png_total_bytes": 50916972,
       "transport_count": 6,
-      "transport_total_bytes": 9941420,
-      "effective_bitrate_kbps": 203.21953169732515,
+      "transport_total_bytes": 9941408,
+      "effective_bitrate_kbps": 203.21928639691734,
       "decoded_size_bytes": 69035396,
       "decoded_wav": {
         "channels": 2,
@@ -351,15 +561,15 @@
         "compression_type": "NONE"
       },
       "peaq": {
-        "odg": -2.384,
-        "di": -0.489
+        "odg": -2.382,
+        "di": -0.487
       },
       "pcm_stats": {
         "sample_count": 34517676,
-        "rmse_pcm16": 516.7626649879107,
-        "mae_pcm16": 329.22420060956597,
-        "max_abs_error_pcm16": 17428,
-        "snr_db_pcm16": 17.79436316790498
+        "rmse_pcm16": 516.7072618348514,
+        "mae_pcm16": 329.18257283601594,
+        "max_abs_error_pcm16": 17536,
+        "snr_db_pcm16": 17.795294449330875
       }
     },
     {
@@ -378,10 +588,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 35908364,
+      "png_total_bytes": 35908344,
       "transport_count": 4,
-      "transport_total_bytes": 7044339,
-      "effective_bitrate_kbps": 204.42582676616118,
+      "transport_total_bytes": 7044415,
+      "effective_bitrate_kbps": 204.4280322765482,
       "decoded_size_bytes": 48628788,
       "decoded_wav": {
         "channels": 2,
@@ -393,57 +603,57 @@
         "compression_type": "NONE"
       },
       "peaq": {
-        "odg": -2.258,
-        "di": -0.364
+        "odg": -2.259,
+        "di": -0.365
       },
       "pcm_stats": {
         "sample_count": 24314372,
-        "rmse_pcm16": 870.8923944873304,
-        "mae_pcm16": 605.703644905984,
+        "rmse_pcm16": 870.8104906766941,
+        "mae_pcm16": 605.6823804456064,
         "max_abs_error_pcm16": 10858,
-        "snr_db_pcm16": 16.600211633368296
+        "snr_db_pcm16": 16.60102854360793
       }
     },
     {
-      "name": "Fearofdark - Surfing on a Sine Wave.wav",
-      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/Fearofdark - Surfing on a Sine Wave.wav",
-      "source_size_bytes": 53459994,
+      "name": "Ludwig van Beethoven - Moonlight Sonata I. Adagio sostenuto.wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/Ludwig van Beethoven - Moonlight Sonata I. Adagio sostenuto.wav",
+      "source_size_bytes": 77025992,
       "source_wav": {
         "channels": 2,
         "sample_width_bytes": 2,
         "bits_per_sample": 16,
         "sample_rate_hz": 44100,
-        "frame_count": 13364938,
-        "duration_seconds": 303.0598185941043,
+        "frame_count": 19256412,
+        "duration_seconds": 436.6533333333333,
         "compression_type": "NONE"
       },
       "status": "ok",
       "notes": [],
-      "png_count": 4,
-      "png_total_bytes": 39267782,
-      "transport_count": 4,
-      "transport_total_bytes": 7864302,
-      "effective_bitrate_kbps": 207.59735253541768,
-      "decoded_size_bytes": 53459796,
+      "png_count": 6,
+      "png_total_bytes": 58588428,
+      "transport_count": 6,
+      "transport_total_bytes": 8473321,
+      "effective_bitrate_kbps": 155.2411554551284,
+      "decoded_size_bytes": 77025692,
       "decoded_wav": {
         "channels": 2,
         "sample_width_bytes": 2,
         "bits_per_sample": 16,
         "sample_rate_hz": 44100,
-        "frame_count": 13364938,
-        "duration_seconds": 303.0598185941043,
+        "frame_count": 19256412,
+        "duration_seconds": 436.6533333333333,
         "compression_type": "NONE"
       },
       "peaq": {
-        "odg": -2.034,
-        "di": -0.147
+        "odg": -3.249,
+        "di": -1.557
       },
       "pcm_stats": {
-        "sample_count": 26729876,
-        "rmse_pcm16": 892.0359724955645,
-        "mae_pcm16": 648.9538470735891,
-        "max_abs_error_pcm16": 11923,
-        "snr_db_pcm16": 17.006953429505003
+        "sample_count": 38512824,
+        "rmse_pcm16": 30.557181274786664,
+        "mae_pcm16": 18.550838546661755,
+        "max_abs_error_pcm16": 972,
+        "snr_db_pcm16": 26.758622298871533
       }
     },
     {
@@ -462,10 +672,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 30291967,
+      "png_total_bytes": 30291985,
       "transport_count": 4,
-      "transport_total_bytes": 6058207,
-      "effective_bitrate_kbps": 209.28858820819897,
+      "transport_total_bytes": 6058110,
+      "effective_bitrate_kbps": 209.28523721787198,
       "decoded_size_bytes": 40849580,
       "decoded_wav": {
         "channels": 2,
@@ -478,14 +688,14 @@
       },
       "peaq": {
         "odg": -1.149,
-        "di": 0.727
+        "di": 0.726
       },
       "pcm_stats": {
         "sample_count": 20424768,
-        "rmse_pcm16": 1044.7720472601304,
-        "mae_pcm16": 740.927777539505,
-        "max_abs_error_pcm16": 28013,
-        "snr_db_pcm16": 18.846678659600073
+        "rmse_pcm16": 1044.7648441681822,
+        "mae_pcm16": 740.9364861818749,
+        "max_abs_error_pcm16": 27509,
+        "snr_db_pcm16": 18.846738543933267
       }
     },
     {
@@ -504,10 +714,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 32472198,
+      "png_total_bytes": 32472232,
       "transport_count": 4,
-      "transport_total_bytes": 6946754,
-      "effective_bitrate_kbps": 230.06083237999346,
+      "transport_total_bytes": 6946953,
+      "effective_bitrate_kbps": 230.06742281138685,
       "decoded_size_bytes": 42611640,
       "decoded_wav": {
         "channels": 2,
@@ -519,15 +729,15 @@
         "compression_type": "NONE"
       },
       "peaq": {
-        "odg": -1.279,
-        "di": 0.589
+        "odg": -1.278,
+        "di": 0.59
       },
       "pcm_stats": {
         "sample_count": 21305798,
-        "rmse_pcm16": 956.3766433708914,
-        "mae_pcm16": 668.2766738424912,
-        "max_abs_error_pcm16": 27628,
-        "snr_db_pcm16": 16.95603290417568
+        "rmse_pcm16": 956.4570596197171,
+        "mae_pcm16": 668.2660959706836,
+        "max_abs_error_pcm16": 27626,
+        "snr_db_pcm16": 16.955302588036094
       }
     },
     {
@@ -546,10 +756,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 33003237,
+      "png_total_bytes": 33003304,
       "transport_count": 4,
-      "transport_total_bytes": 6875612,
-      "effective_bitrate_kbps": 219.51616027244185,
+      "transport_total_bytes": 6875284,
+      "effective_bitrate_kbps": 219.5056882881924,
       "decoded_size_bytes": 44201180,
       "decoded_wav": {
         "channels": 2,
@@ -566,10 +776,10 @@
       },
       "pcm_stats": {
         "sample_count": 22100568,
-        "rmse_pcm16": 881.03051364559,
-        "mae_pcm16": 649.4986493559803,
-        "max_abs_error_pcm16": 10349,
-        "snr_db_pcm16": 17.960909401607225
+        "rmse_pcm16": 880.8098692074163,
+        "mae_pcm16": 649.3681129824356,
+        "max_abs_error_pcm16": 10289,
+        "snr_db_pcm16": 17.963084959924423
       }
     },
     {
@@ -588,10 +798,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 28953439,
+      "png_total_bytes": 28953463,
       "transport_count": 4,
-      "transport_total_bytes": 4901821,
-      "effective_bitrate_kbps": 183.50861670930306,
+      "transport_total_bytes": 4901693,
+      "effective_bitrate_kbps": 183.50382479565732,
       "decoded_size_bytes": 37695548,
       "decoded_wav": {
         "channels": 2,
@@ -603,15 +813,15 @@
         "compression_type": "NONE"
       },
       "peaq": {
-        "odg": -3.144,
-        "di": -1.393
+        "odg": -3.146,
+        "di": -1.395
       },
       "pcm_stats": {
         "sample_count": 18847752,
-        "rmse_pcm16": 63.71882728816818,
-        "mae_pcm16": 33.11758314731645,
-        "max_abs_error_pcm16": 1420,
-        "snr_db_pcm16": 20.81515944330667
+        "rmse_pcm16": 63.712752100701245,
+        "mae_pcm16": 33.118281373821134,
+        "max_abs_error_pcm16": 1425,
+        "snr_db_pcm16": 20.815987627468893
       }
     },
     {
@@ -630,10 +840,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 26286419,
+      "png_total_bytes": 26286387,
       "transport_count": 4,
-      "transport_total_bytes": 4938399,
-      "effective_bitrate_kbps": 200.23242330044602,
+      "transport_total_bytes": 4938684,
+      "effective_bitrate_kbps": 200.24397891606972,
       "decoded_size_bytes": 34804940,
       "decoded_wav": {
         "channels": 2,
@@ -646,14 +856,56 @@
       },
       "peaq": {
         "odg": -1.612,
-        "di": 0.256
+        "di": 0.257
       },
       "pcm_stats": {
         "sample_count": 17402448,
-        "rmse_pcm16": 165.98598088381794,
-        "mae_pcm16": 97.66055350373695,
-        "max_abs_error_pcm16": 4089,
-        "snr_db_pcm16": 19.887093251552518
+        "rmse_pcm16": 165.98265400889827,
+        "mae_pcm16": 97.66028176035923,
+        "max_abs_error_pcm16": 4106,
+        "snr_db_pcm16": 19.887267345520176
+      }
+    },
+    {
+      "name": "PrismCorp Virtual Enterprises - Seasons.wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/PrismCorp Virtual Enterprises - Seasons.wav",
+      "source_size_bytes": 58102130,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 14525488,
+        "duration_seconds": 329.3761451247166,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 4,
+      "png_total_bytes": 44440703,
+      "transport_count": 4,
+      "transport_total_bytes": 8598368,
+      "effective_bitrate_kbps": 208.8400906324111,
+      "decoded_size_bytes": 58101996,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 14525488,
+        "duration_seconds": 329.3761451247166,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -1.631,
+        "di": 0.238
+      },
+      "pcm_stats": {
+        "sample_count": 29050976,
+        "rmse_pcm16": 372.7921609564165,
+        "mae_pcm16": 275.413764928242,
+        "max_abs_error_pcm16": 8129,
+        "snr_db_pcm16": 22.772858027205825
       }
     },
     {
@@ -672,10 +924,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 34422647,
+      "png_total_bytes": 34422649,
       "transport_count": 4,
-      "transport_total_bytes": 6470109,
-      "effective_bitrate_kbps": 196.18319556460884,
+      "transport_total_bytes": 6470205,
+      "effective_bitrate_kbps": 196.18610642542652,
       "decoded_size_bytes": 46541328,
       "decoded_wav": {
         "channels": 2,
@@ -687,15 +939,15 @@
         "compression_type": "NONE"
       },
       "peaq": {
-        "odg": -1.048,
-        "di": 0.839
+        "odg": -1.049,
+        "di": 0.837
       },
       "pcm_stats": {
         "sample_count": 23270642,
-        "rmse_pcm16": 1098.1639843980781,
-        "mae_pcm16": 744.0498833680653,
+        "rmse_pcm16": 1098.2534784531151,
+        "mae_pcm16": 744.0807422502568,
         "max_abs_error_pcm16": 16582,
-        "snr_db_pcm16": 18.98680233143464
+        "snr_db_pcm16": 18.986094510176713
       }
     },
     {
@@ -714,10 +966,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 39661490,
+      "png_total_bytes": 39661452,
       "transport_count": 4,
-      "transport_total_bytes": 8227640,
-      "effective_bitrate_kbps": 221.23258940575425,
+      "transport_total_bytes": 8227620,
+      "effective_bitrate_kbps": 221.2320516267814,
       "decoded_size_bytes": 52482572,
       "decoded_wav": {
         "channels": 2,
@@ -729,15 +981,15 @@
         "compression_type": "NONE"
       },
       "peaq": {
-        "odg": -1.285,
-        "di": 0.583
+        "odg": -1.286,
+        "di": 0.581
       },
       "pcm_stats": {
         "sample_count": 26241264,
-        "rmse_pcm16": 1283.2869376386732,
-        "mae_pcm16": 843.2842776552227,
-        "max_abs_error_pcm16": 22633,
-        "snr_db_pcm16": 16.073644301590978
+        "rmse_pcm16": 1281.8594674129045,
+        "mae_pcm16": 842.7963603811157,
+        "max_abs_error_pcm16": 22566,
+        "snr_db_pcm16": 16.083311469202243
       }
     },
     {
@@ -756,10 +1008,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 2,
-      "png_total_bytes": 17886164,
+      "png_total_bytes": 17886115,
       "transport_count": 2,
-      "transport_total_bytes": 3550718,
-      "effective_bitrate_kbps": 198.5120014908684,
+      "transport_total_bytes": 3550466,
+      "effective_bitrate_kbps": 198.49791278419679,
       "decoded_size_bytes": 25241708,
       "decoded_wav": {
         "channels": 2,
@@ -771,15 +1023,15 @@
         "compression_type": "NONE"
       },
       "peaq": {
-        "odg": -2.083,
-        "di": -0.194
+        "odg": -2.081,
+        "di": -0.192
       },
       "pcm_stats": {
         "sample_count": 12620832,
-        "rmse_pcm16": 393.69719178025605,
-        "mae_pcm16": 272.1070845408607,
-        "max_abs_error_pcm16": 5688,
-        "snr_db_pcm16": 17.566933577736904
+        "rmse_pcm16": 393.70578154330735,
+        "mae_pcm16": 272.1176846344203,
+        "max_abs_error_pcm16": 5647,
+        "snr_db_pcm16": 17.56674406934943
       }
     },
     {
@@ -798,10 +1050,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 2,
-      "png_total_bytes": 21178558,
+      "png_total_bytes": 21178609,
       "transport_count": 2,
-      "transport_total_bytes": 4114309,
-      "effective_bitrate_kbps": 198.2003532717784,
+      "transport_total_bytes": 4114410,
+      "effective_bitrate_kbps": 198.2052187876355,
       "decoded_size_bytes": 29294204,
       "decoded_wav": {
         "channels": 2,
@@ -813,15 +1065,15 @@
         "compression_type": "NONE"
       },
       "peaq": {
-        "odg": -2.271,
+        "odg": -2.27,
         "di": -0.376
       },
       "pcm_stats": {
         "sample_count": 14647080,
-        "rmse_pcm16": 461.85678908937234,
-        "mae_pcm16": 285.10606332456706,
-        "max_abs_error_pcm16": 10152,
-        "snr_db_pcm16": 16.24527085255901
+        "rmse_pcm16": 461.8367458298483,
+        "mae_pcm16": 285.06685250575543,
+        "max_abs_error_pcm16": 9323,
+        "snr_db_pcm16": 16.245647803427797
       }
     },
     {
@@ -840,10 +1092,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 2,
-      "png_total_bytes": 20529039,
+      "png_total_bytes": 20528983,
       "transport_count": 2,
-      "transport_total_bytes": 4399145,
-      "effective_bitrate_kbps": 224.7902401635156,
+      "transport_total_bytes": 4398898,
+      "effective_bitrate_kbps": 224.77761880429227,
       "decoded_size_bytes": 27617228,
       "decoded_wav": {
         "channels": 2,
@@ -855,15 +1107,183 @@
         "compression_type": "NONE"
       },
       "peaq": {
-        "odg": -1.17,
-        "di": 0.704
+        "odg": -1.172,
+        "di": 0.702
       },
       "pcm_stats": {
         "sample_count": 13808592,
-        "rmse_pcm16": 807.859980731844,
-        "mae_pcm16": 594.1440062824653,
-        "max_abs_error_pcm16": 7705,
-        "snr_db_pcm16": 18.587701585846197
+        "rmse_pcm16": 807.8246645013513,
+        "mae_pcm16": 594.1371801701433,
+        "max_abs_error_pcm16": 7433,
+        "snr_db_pcm16": 18.58808130460065
+      }
+    },
+    {
+      "name": "Vengaboys - Boom, Boom, Boom, Boom!!.wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/Vengaboys - Boom, Boom, Boom, Boom!!.wav",
+      "source_size_bytes": 35604766,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 8901144,
+        "duration_seconds": 201.84,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 4,
+      "png_total_bytes": 26429358,
+      "transport_count": 4,
+      "transport_total_bytes": 5188325,
+      "effective_bitrate_kbps": 205.64110186286166,
+      "decoded_size_bytes": 35604620,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 8901144,
+        "duration_seconds": 201.84,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -1.2,
+        "di": 0.672
+      },
+      "pcm_stats": {
+        "sample_count": 17802288,
+        "rmse_pcm16": 870.8406689066018,
+        "mae_pcm16": 627.3233259118153,
+        "max_abs_error_pcm16": 20997,
+        "snr_db_pcm16": 19.702628081722295
+      }
+    },
+    {
+      "name": "Whitechapel - Diabolic Slumber.wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/Whitechapel - Diabolic Slumber.wav",
+      "source_size_bytes": 47676500,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 11919049,
+        "duration_seconds": 270.27321995464854,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 4,
+      "png_total_bytes": 36045900,
+      "transport_count": 4,
+      "transport_total_bytes": 7784716,
+      "effective_bitrate_kbps": 230.42507877935563,
+      "decoded_size_bytes": 47676240,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 11919049,
+        "duration_seconds": 270.27321995464854,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -0.793,
+        "di": 1.146
+      },
+      "pcm_stats": {
+        "sample_count": 23838098,
+        "rmse_pcm16": 1293.8487035013927,
+        "mae_pcm16": 972.042772456091,
+        "max_abs_error_pcm16": 31980,
+        "snr_db_pcm16": 19.84223651604095
+      }
+    },
+    {
+      "name": "Wolfgang Amadeus Mozart - Requiem - Lacrimosa.wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/Wolfgang Amadeus Mozart - Requiem - Lacrimosa.wav",
+      "source_size_bytes": 44112088,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 11027940,
+        "duration_seconds": 250.06666666666666,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 4,
+      "png_total_bytes": 34209115,
+      "transport_count": 4,
+      "transport_total_bytes": 6705277,
+      "effective_bitrate_kbps": 214.51166089042923,
+      "decoded_size_bytes": 44111804,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 11027940,
+        "duration_seconds": 250.06666666666666,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -1.422,
+        "di": 0.443
+      },
+      "pcm_stats": {
+        "sample_count": 22055880,
+        "rmse_pcm16": 243.313645591193,
+        "mae_pcm16": 138.1785920579909,
+        "max_abs_error_pcm16": 12451,
+        "snr_db_pcm16": 19.976591618400597
+      }
+    },
+    {
+      "name": "Zachz Winner - doodle.wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/Zachz Winner - doodle.wav",
+      "source_size_bytes": 13039376,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 3259796,
+        "duration_seconds": 73.91827664399094,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 2,
+      "png_total_bytes": 9493285,
+      "transport_count": 2,
+      "transport_total_bytes": 1619361,
+      "effective_bitrate_kbps": 175.25960544770282,
+      "decoded_size_bytes": 13039228,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 3259796,
+        "duration_seconds": 73.91827664399094,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -2.909,
+        "di": -1.072
+      },
+      "pcm_stats": {
+        "sample_count": 6519592,
+        "rmse_pcm16": 736.3611015585471,
+        "mae_pcm16": 530.5497661510107,
+        "max_abs_error_pcm16": 10745,
+        "snr_db_pcm16": 20.559696734388766
       }
     },
     {
@@ -882,10 +1302,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 2,
-      "png_total_bytes": 23404174,
+      "png_total_bytes": 23404203,
       "transport_count": 2,
-      "transport_total_bytes": 4965084,
-      "effective_bitrate_kbps": 226.94068713338922,
+      "transport_total_bytes": 4965446,
+      "effective_bitrate_kbps": 226.9572331835149,
       "decoded_size_bytes": 30874748,
       "decoded_wav": {
         "channels": 2,
@@ -898,14 +1318,56 @@
       },
       "peaq": {
         "odg": -0.683,
-        "di": 1.295
+        "di": 1.296
       },
       "pcm_stats": {
         "sample_count": 15437352,
-        "rmse_pcm16": 1727.3296124334224,
-        "mae_pcm16": 1293.6108055319332,
-        "max_abs_error_pcm16": 18425,
-        "snr_db_pcm16": 16.512341106750416
+        "rmse_pcm16": 1727.8859953308538,
+        "mae_pcm16": 1293.8123399660772,
+        "max_abs_error_pcm16": 19040,
+        "snr_db_pcm16": 16.509543781758882
+      }
+    },
+    {
+      "name": "ギガれをる feat. 初音ミク - ヒビカセ.wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/ギガれをる feat. 初音ミク - ヒビカセ.wav",
+      "source_size_bytes": 45864240,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 11466000,
+        "duration_seconds": 260.0,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 4,
+      "png_total_bytes": 33403515,
+      "transport_count": 4,
+      "transport_total_bytes": 6743903,
+      "effective_bitrate_kbps": 207.50470769230768,
+      "decoded_size_bytes": 45864044,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 11466000,
+        "duration_seconds": 260.0,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -0.234,
+        "di": 2.111
+      },
+      "pcm_stats": {
+        "sample_count": 22932000,
+        "rmse_pcm16": 1571.3715132228285,
+        "mae_pcm16": 1111.2263117913833,
+        "max_abs_error_pcm16": 25971,
+        "snr_db_pcm16": 16.543538629328506
       }
     },
     {
@@ -924,10 +1386,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 34647934,
+      "png_total_bytes": 34647920,
       "transport_count": 4,
-      "transport_total_bytes": 7161157,
-      "effective_bitrate_kbps": 216.1858716981132,
+      "transport_total_bytes": 7161165,
+      "effective_bitrate_kbps": 216.18611320754718,
       "decoded_size_bytes": 46746044,
       "decoded_wav": {
         "channels": 2,
@@ -944,10 +1406,10 @@
       },
       "pcm_stats": {
         "sample_count": 23373000,
-        "rmse_pcm16": 682.3067272471528,
-        "mae_pcm16": 499.17576939203354,
-        "max_abs_error_pcm16": 8414,
-        "snr_db_pcm16": 19.00869361368415
+        "rmse_pcm16": 682.290052353999,
+        "mae_pcm16": 499.1637913404355,
+        "max_abs_error_pcm16": 8409,
+        "snr_db_pcm16": 19.008905890722808
       }
     },
     {
@@ -966,10 +1428,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 34068097,
+      "png_total_bytes": 34068084,
       "transport_count": 4,
-      "transport_total_bytes": 7015631,
-      "effective_bitrate_kbps": 214.21774045801527,
+      "transport_total_bytes": 7015623,
+      "effective_bitrate_kbps": 214.2174961832061,
       "decoded_size_bytes": 46216844,
       "decoded_wav": {
         "channels": 2,
@@ -981,57 +1443,15 @@
         "compression_type": "NONE"
       },
       "peaq": {
-        "odg": -1.505,
-        "di": 0.361
+        "odg": -1.508,
+        "di": 0.358
       },
       "pcm_stats": {
         "sample_count": 23108400,
-        "rmse_pcm16": 1052.3829372834798,
-        "mae_pcm16": 725.7987429246508,
-        "max_abs_error_pcm16": 13389,
-        "snr_db_pcm16": 17.217250756634396
-      }
-    },
-    {
-      "name": "日向めぐみ (グミ) - Catch You Catch Me.wav",
-      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/日向めぐみ (グミ) - Catch You Catch Me.wav",
-      "source_size_bytes": 40090068,
-      "source_wav": {
-        "channels": 2,
-        "sample_width_bytes": 2,
-        "bits_per_sample": 16,
-        "sample_rate_hz": 44100,
-        "frame_count": 10022460,
-        "duration_seconds": 227.26666666666668,
-        "compression_type": "NONE"
-      },
-      "status": "ok",
-      "notes": [],
-      "png_count": 4,
-      "png_total_bytes": 29573995,
-      "transport_count": 4,
-      "transport_total_bytes": 6150822,
-      "effective_bitrate_kbps": 216.51470812555002,
-      "decoded_size_bytes": 40089884,
-      "decoded_wav": {
-        "channels": 2,
-        "sample_width_bytes": 2,
-        "bits_per_sample": 16,
-        "sample_rate_hz": 44100,
-        "frame_count": 10022460,
-        "duration_seconds": 227.26666666666668,
-        "compression_type": "NONE"
-      },
-      "peaq": {
-        "odg": -0.936,
-        "di": 0.968
-      },
-      "pcm_stats": {
-        "sample_count": 20044920,
-        "rmse_pcm16": 1100.053492416911,
-        "mae_pcm16": 802.9296396293923,
-        "max_abs_error_pcm16": 26534,
-        "snr_db_pcm16": 18.235064866129306
+        "rmse_pcm16": 1052.9374760723633,
+        "mae_pcm16": 725.9242855844628,
+        "max_abs_error_pcm16": 13179,
+        "snr_db_pcm16": 17.21267505138677
       }
     },
     {
@@ -1050,10 +1470,10 @@
       "status": "ok",
       "notes": [],
       "png_count": 4,
-      "png_total_bytes": 34580594,
+      "png_total_bytes": 34580544,
       "transport_count": 4,
-      "transport_total_bytes": 7437609,
-      "effective_bitrate_kbps": 228.87901084755214,
+      "transport_total_bytes": 7437676,
+      "effective_bitrate_kbps": 228.8810726517861,
       "decoded_size_bytes": 45858132,
       "decoded_wav": {
         "channels": 2,
@@ -1070,10 +1490,52 @@
       },
       "pcm_stats": {
         "sample_count": 22929044,
-        "rmse_pcm16": 797.3766755598676,
-        "mae_pcm16": 565.6354544916918,
-        "max_abs_error_pcm16": 11947,
-        "snr_db_pcm16": 18.794370938912223
+        "rmse_pcm16": 797.3786440806788,
+        "mae_pcm16": 565.6578076696089,
+        "max_abs_error_pcm16": 11501,
+        "snr_db_pcm16": 18.794349495679764
+      }
+    },
+    {
+      "name": "黄桜白鶴 - モノクロドロシー.wav",
+      "source_path": "/mnt/dev/personal/projects/active/codec-bench-framework/input/黄桜白鶴 - モノクロドロシー.wav",
+      "source_size_bytes": 50097806,
+      "source_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 12524400,
+        "duration_seconds": 284.0,
+        "compression_type": "NONE"
+      },
+      "status": "ok",
+      "notes": [],
+      "png_count": 4,
+      "png_total_bytes": 38134343,
+      "transport_count": 4,
+      "transport_total_bytes": 8277977,
+      "effective_bitrate_kbps": 233.18245070422535,
+      "decoded_size_bytes": 50097644,
+      "decoded_wav": {
+        "channels": 2,
+        "sample_width_bytes": 2,
+        "bits_per_sample": 16,
+        "sample_rate_hz": 44100,
+        "frame_count": 12524400,
+        "duration_seconds": 284.0,
+        "compression_type": "NONE"
+      },
+      "peaq": {
+        "odg": -0.565,
+        "di": 1.471
+      },
+      "pcm_stats": {
+        "sample_count": 25048800,
+        "rmse_pcm16": 1214.4925715105185,
+        "mae_pcm16": 934.3664563172687,
+        "max_abs_error_pcm16": 21004,
+        "snr_db_pcm16": 17.53994677350018
       }
     }
   ]
