@@ -11,6 +11,13 @@ import {
     SUBGROUP_A_SIZE,
     SUBGROUP_X_SIZE,
 } from '../constants';
+import {
+    audioBlockToImageBlock,
+    BLOCKS_PER_MCU,
+    chromaGroupIndex,
+    isLumaSubgroupA,
+    MCUS_PER_AUDIO_ROW,
+} from '../audioLayout';
 import { AUDIO_PSYCHOACOUSTICS, getBlockMapForVersion } from '../psychoacoustics';
 import { analyzeRowSBR, createDefaultRowSBR, encodeRowSBR, type RowSBRParams } from '../utils/sbr';
 import {
@@ -29,8 +36,6 @@ import type { SimpleImageData } from './types';
 const BAND_MAP = AUDIO_PSYCHOACOUSTICS.bandMap;
 const BLOCK_MAP_CHROMA_8X8 = AUDIO_PSYCHOACOUSTICS.blockMap.chroma8x8;
 
-// v301: one 8x8 chroma block spans a 2x2 group of luma blocks (16x16 px)
-const SUPERBLOCK_COLS = DATA_BLOCKS_PER_ROW / 2; // 62
 
 export interface EncodeRowBuffers {
     winFrame: Float32Array;
@@ -139,7 +144,7 @@ export function prepareAudioRow(
         const bandMaxB = new Float32Array(4).fill(0);
 
         for (let i = 0; i < rowDataCount; i++) {
-            const isA = i < SUBGROUP_A_SIZE;
+            const isA = isLumaSubgroupA(i, formatVersion);
             const bandMax = isA ? bandMaxA : bandMaxB;
 
             for (let k = 0; k < 64; k++) {
@@ -163,7 +168,7 @@ export function prepareAudioRow(
         }
 
         for (let i = 0; i < rowDataCount; i++) {
-            const isA = i < SUBGROUP_A_SIZE;
+            const isA = isLumaSubgroupA(i, formatVersion);
             const bandFactors = isA ? bandFactorsA : bandFactorsB;
             const rowOffset = i * 96;
 
@@ -228,7 +233,7 @@ export function prepareAudioRow(
 
     if (isV301) {
         // Chroma scales are filled in by prepareRowPairChroma
-        ({ scaleYA, scaleYB } = ScalingUtils.calculateLumaScalingFactors(rowSpatialY, rowDataCount));
+        ({ scaleYA, scaleYB } = ScalingUtils.calculateLumaScalingFactors(rowSpatialY, rowDataCount, formatVersion));
     } else {
         ({ scaleYA, scaleYB, scaleCAX, scaleCAY, scaleCBX, scaleCBY } = ScalingUtils.calculateRowScalingFactors(
             rowSpatialY, rowSpatialCb, rowSpatialCr, rowDataCount
@@ -362,165 +367,80 @@ export function writePreparedAudioRow(
 }
 
 export interface PreparedPairChroma {
-    // Combined 8x8 chroma spatial samples per superblock (SUPERBLOCK_COLS * 64)
+    // Scaled 8x8 chroma spatial samples per MCU of the row pair
+    // (2 * MCUS_PER_AUDIO_ROW * 64, top row's MCUs first)
     superCb: Float32Array;
     superCr: Float32Array;
 }
 
-function chromaGroupIndex(i: number): number {
-    const isA = i < SUBGROUP_A_SIZE;
-    const isX = (i % SUBGROUP_A_SIZE) < SUBGROUP_X_SIZE;
-    return (isA ? 0 : 2) + (isX ? 0 : 1); // 0=AX, 1=AY, 2=BX, 3=BY
-}
-
 /**
- * v301 chroma preparation for a pair of rows. Each 2x2 group of luma blocks
- * shares one 8x8 Cb and one 8x8 Cr coefficient block; importance rank 4k + o
- * of the 8x8 chroma map holds bin k of block ordinal o = rowParity * 2 + colParity.
- * Computes per-(row, quadrant) chroma scales (assigned back onto top/bottom)
- * and returns the combined superblock spatial samples for pixel writing.
+ * v301 chroma preparation for a pair of rows. Each MCU holds four consecutive
+ * audio blocks that share one 8x8 Cb and one 8x8 Cr coefficient block;
+ * importance rank 4k + o of the 8x8 chroma map holds bin k of the MCU's
+ * block o. Chroma scale groups are whole MCUs, so every MCU has one scale.
+ * Computes the max-based chroma scales (assigned onto top/bottom) and returns
+ * the scaled spatial samples for pixel writing.
  */
 export function prepareRowPairChroma(
     top: PreparedAudioRow,
     bottom: PreparedAudioRow,
-    buffers: EncodeRowBuffers
+    buffers: EncodeRowBuffers,
+    formatVersion: number = FORMAT_VERSION
 ): PreparedPairChroma {
     const rows = [top, bottom];
-
-    // Per-block solo spatial contributions (IDCT is linear, so the combined
-    // superblock is the sum of individually scaled solo contributions)
-    const soloCb = rows.map(row => new Float32Array(row.rowDataCount * 64));
-    const soloCr = rows.map(row => new Float32Array(row.rowDataCount * 64));
-    const soloMax = rows.map(row => new Float32Array(row.rowDataCount));
+    const superCb = new Float32Array(2 * MCUS_PER_AUDIO_ROW * 64);
+    const superCr = new Float32Array(2 * MCUS_PER_AUDIO_ROW * 64);
 
     for (let r = 0; r < 2; r++) {
         const row = rows[r];
-        for (let i = 0; i < row.rowDataCount; i++) {
-            const ordinal = r * 2 + (i & 1);
+        const mcuCount = Math.ceil(row.rowDataCount / BLOCKS_PER_MCU);
+        const groupMax = [0, 0, 0, 0];
+
+        for (let m = 0; m < mcuCount; m++) {
             buffers.dctCb.fill(0);
             buffers.dctCr.fill(0);
-            for (let k = 0; k < 16; k++) {
-                const pos = BLOCK_MAP_CHROMA_8X8[4 * k + ordinal];
-                buffers.dctCb[pos] = row.rowChromaCb[i * 16 + k];
-                buffers.dctCr[pos] = row.rowChromaCr[i * 16 + k];
+            for (let o = 0; o < BLOCKS_PER_MCU; o++) {
+                const i = m * BLOCKS_PER_MCU + o;
+                if (i >= row.rowDataCount) break;
+                for (let k = 0; k < 16; k++) {
+                    const pos = BLOCK_MAP_CHROMA_8X8[4 * k + o];
+                    buffers.dctCb[pos] = row.rowChromaCb[i * 16 + k];
+                    buffers.dctCr[pos] = row.rowChromaCr[i * 16 + k];
+                }
             }
             idct8x8(buffers.dctCb, buffers.spatialCb, buffers.temp);
             idct8x8(buffers.dctCr, buffers.spatialCr, buffers.temp);
 
-            let m = 0;
-            const off = i * 64;
+            const g = chromaGroupIndex(m * BLOCKS_PER_MCU, formatVersion);
+            const off = (r * MCUS_PER_AUDIO_ROW + m) * 64;
             for (let j = 0; j < 64; j++) {
-                soloCb[r][off + j] = buffers.spatialCb[j];
-                soloCr[r][off + j] = buffers.spatialCr[j];
-                m = Math.max(m, Math.abs(buffers.spatialCb[j]), Math.abs(buffers.spatialCr[j]));
-            }
-            soloMax[r][i] = m;
-        }
-    }
-
-    // Candidate scales per (row, quadrant), same max-based semantics as v300
-    const groupMax = [
-        [0, 0, 0, 0],
-        [0, 0, 0, 0]
-    ];
-    for (let r = 0; r < 2; r++) {
-        for (let i = 0; i < rows[r].rowDataCount; i++) {
-            const g = chromaGroupIndex(i);
-            groupMax[r][g] = Math.max(groupMax[r][g], soloMax[r][i]);
-        }
-    }
-    const silent = groupMax.map(maxes => maxes.map(m => m <= SILENCE_THRESHOLD));
-    const scales = groupMax.map(maxes => maxes.map(m => m > SILENCE_THRESHOLD ? Math.min(65504, 1.0 / m) : 65504));
-
-    const superCb = new Float32Array(SUPERBLOCK_COLS * 64);
-    const superCr = new Float32Array(SUPERBLOCK_COLS * 64);
-
-    const computeCombined = () => {
-        superCb.fill(0);
-        superCr.fill(0);
-        for (let r = 0; r < 2; r++) {
-            const row = rows[r];
-            for (let i = 0; i < row.rowDataCount; i++) {
-                const s = scales[r][chromaGroupIndex(i)];
-                const src = i * 64;
-                const dst = (i >> 1) * 64;
-                for (let j = 0; j < 64; j++) {
-                    superCb[dst + j] += s * soloCb[r][src + j];
-                    superCr[dst + j] += s * soloCr[r][src + j];
-                }
+                superCb[off + j] = buffers.spatialCb[j];
+                superCr[off + j] = buffers.spatialCr[j];
+                groupMax[g] = Math.max(groupMax[g], Math.abs(buffers.spatialCb[j]), Math.abs(buffers.spatialCr[j]));
             }
         }
-    };
 
-    // Up to 4 different scales mix inside one superblock, so the max-based
-    // candidates cannot guarantee |spatial| <= 1 by themselves. Shrink the
-    // participating (row, quadrant) groups until nothing clips.
-    const EPS = 1e-6;
-    for (let iter = 0; ; iter++) {
-        computeCombined();
-
-        const shrink = [
-            [1, 1, 1, 1],
-            [1, 1, 1, 1]
-        ];
-        let worst = 1;
-        for (let c = 0; c < SUPERBLOCK_COLS; c++) {
-            let m = 0;
-            const off = c * 64;
+        const scales = groupMax.map(m => m > SILENCE_THRESHOLD ? Math.min(65504, 1.0 / m) : 65504);
+        for (let m = 0; m < mcuCount; m++) {
+            const s = scales[chromaGroupIndex(m * BLOCKS_PER_MCU, formatVersion)];
+            const off = (r * MCUS_PER_AUDIO_ROW + m) * 64;
             for (let j = 0; j < 64; j++) {
-                m = Math.max(m, Math.abs(superCb[off + j]), Math.abs(superCr[off + j]));
+                superCb[off + j] *= s;
+                superCr[off + j] *= s;
             }
-            if (m > 1 + EPS) {
-                worst = Math.max(worst, m);
-                for (let r = 0; r < 2; r++) {
-                    for (let i = c * 2; i <= c * 2 + 1; i++) {
-                        if (i < rows[r].rowDataCount) {
-                            const g = chromaGroupIndex(i);
-                            shrink[r][g] = Math.max(shrink[r][g], m);
-                        }
-                    }
-                }
-            }
-        }
-        if (worst <= 1 + EPS) break;
-
-        if (iter >= 8) {
-            // Uniform fallback: shrinking every contributing group by the
-            // worst overshoot scales all superblocks linearly, so this is an
-            // exact fix in one step.
-            for (let r = 0; r < 2; r++) {
-                for (let g = 0; g < 4; g++) {
-                    if (!silent[r][g]) scales[r][g] /= worst;
-                }
-            }
-            computeCombined();
-            break;
         }
 
-        for (let r = 0; r < 2; r++) {
-            for (let g = 0; g < 4; g++) {
-                if (!silent[r][g]) scales[r][g] /= shrink[r][g];
-            }
-        }
+        [row.scaleCAX, row.scaleCAY, row.scaleCBX, row.scaleCBY] = scales;
     }
-
-    top.scaleCAX = scales[0][0];
-    top.scaleCAY = scales[0][1];
-    top.scaleCBX = scales[0][2];
-    top.scaleCBY = scales[0][3];
-    bottom.scaleCAX = scales[1][0];
-    bottom.scaleCAY = scales[1][1];
-    bottom.scaleCBX = scales[1][2];
-    bottom.scaleCBY = scales[1][3];
 
     return { superCb, superCr };
 }
 
 /**
- * Writes a prepared pair of rows using the v301 layout: per-block luma plus
- * shared superblock chroma NN-upsampled to 16x16 px. Chroma pixels cover the
- * full data extent of both rows (missing blocks get silent luma) because the
- * superblock IDCT spreads energy across all four block areas.
+ * Writes a prepared pair of rows using the v301 layout: blocks in MCU order,
+ * per-block luma plus the MCU's shared chroma NN-upsampled to 16x16 px.
+ * The whole data area of the pair is written; blocks past the end of the
+ * audio get silent luma.
  */
 export function writePreparedAudioRowPair(
     topRowIndex: number,
@@ -544,19 +464,20 @@ export function writePreparedAudioRowPair(
 
         for (let i = 0; i < DATA_BLOCKS_PER_ROW; i++) {
             const hasData = i < row.rowDataCount;
-            const scaleY = i < SUBGROUP_A_SIZE ? row.scaleYA : row.scaleYB;
+            const scaleY = isLumaSubgroupA(i, formatVersion) ? row.scaleYA : row.scaleYB;
 
-            const imgBlockIdx = firstAudioBlockIndex + rowIndex * BLOCKS_PER_ROW + i;
+            const imgBlockIdx = audioBlockToImageBlock(rowIndex, i, formatVersion);
             const bx = (imgBlockIdx % BLOCKS_PER_ROW) * 8;
             const by = Math.floor(imgBlockIdx / BLOCKS_PER_ROW) * 8;
 
-            const superOff = (i >> 1) * 64;
+            const ordinal = i % BLOCKS_PER_MCU;
+            const superOff = (r * MCUS_PER_AUDIO_ROW + Math.floor(i / BLOCKS_PER_MCU)) * 64;
             const spatialOffsetY = i * 64;
 
             for (let y = 0; y < 8; y++) {
-                const cy = (r * 8 + y) >> 1;
+                const cy = ((ordinal >> 1) * 8 + y) >> 1;
                 for (let x = 0; x < 8; x++) {
-                    const cx = ((i & 1) * 8 + x) >> 1;
+                    const cx = ((ordinal & 1) * 8 + x) >> 1;
                     const cIdx = cy * 8 + cx;
 
                     const [rr, gg, bb] = encodePointToRGB([

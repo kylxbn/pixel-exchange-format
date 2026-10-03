@@ -1,0 +1,83 @@
+// SPDX-License-Identifier: BSD-3-Clause
+// Copyright (c) 2026 Kyle Alexander Buan
+
+import {
+    BLOCKS_PER_ROW,
+    DATA_BLOCKS_PER_ROW,
+    SUBGROUP_A_SIZE,
+    SUBGROUP_X_SIZE,
+} from './constants';
+
+// An audio row is DATA_BLOCKS_PER_ROW consecutive audio blocks described by
+// one row metadata record. v300 stores a row as one raster line of blocks.
+// v301 stores it in JPEG 4:2:0 MCU order: rows come in pairs, the pair's data
+// area is 62 MCUs (2x2 blocks each), the first row of the pair owns the left
+// 31 MCUs and the second row the right 31. Inside an MCU blocks go top-left,
+// top-right, bottom-left, bottom-right.
+
+export const FIRST_AUDIO_BLOCK_ROW = 2;
+export const BLOCKS_PER_MCU = 4;
+export const MCUS_PER_AUDIO_ROW = DATA_BLOCKS_PER_ROW / BLOCKS_PER_MCU; // 31
+
+// v301 scale groups are whole MCUs: luma A/B = 16/15 MCUs, chroma
+// AX/AY/BX/BY = 8/8/8/7 MCUs
+const V301_SUBGROUP_A_SIZE = 16 * BLOCKS_PER_MCU; // 64
+const V301_CHROMA_GROUP_SIZE = 8 * BLOCKS_PER_MCU; // 32
+
+function usesMcuOrder(formatVersion: number): boolean {
+    return formatVersion >= 301;
+}
+
+/** Absolute image block index of an audio block. */
+export function audioBlockToImageBlock(rowInAudioArea: number, colInAudioArea: number, formatVersion: number): number {
+    if (!usesMcuOrder(formatVersion)) {
+        return (FIRST_AUDIO_BLOCK_ROW + rowInAudioArea) * BLOCKS_PER_ROW + colInAudioArea;
+    }
+    const mcu = (rowInAudioArea & 1) * MCUS_PER_AUDIO_ROW + Math.floor(colInAudioArea / BLOCKS_PER_MCU);
+    const ordinal = colInAudioArea % BLOCKS_PER_MCU;
+    const imageRow = FIRST_AUDIO_BLOCK_ROW + (rowInAudioArea & ~1) + (ordinal >> 1);
+    return imageRow * BLOCKS_PER_ROW + mcu * 2 + (ordinal & 1);
+}
+
+/** Inverse of audioBlockToImageBlock; null outside the audio data area. */
+export function imageBlockToAudioBlock(
+    imageRow: number,
+    imageCol: number,
+    formatVersion: number
+): { rowInAudioArea: number; colInAudioArea: number } | null {
+    if (imageRow < FIRST_AUDIO_BLOCK_ROW || imageCol < 0 || imageCol >= DATA_BLOCKS_PER_ROW) {
+        return null;
+    }
+    const row = imageRow - FIRST_AUDIO_BLOCK_ROW;
+    if (!usesMcuOrder(formatVersion)) {
+        return { rowInAudioArea: row, colInAudioArea: imageCol };
+    }
+    const mcu = imageCol >> 1;
+    const ordinal = (row & 1) * 2 + (imageCol & 1);
+    const half = mcu >= MCUS_PER_AUDIO_ROW ? 1 : 0;
+    return {
+        rowInAudioArea: (row & ~1) + half,
+        colInAudioArea: (mcu - half * MCUS_PER_AUDIO_ROW) * BLOCKS_PER_MCU + ordinal
+    };
+}
+
+/** Image block rows that hold the blocks of an audio row. */
+export function audioRowImageSpan(rowInAudioArea: number, formatVersion: number): { firstRow: number; rowCount: number } {
+    return usesMcuOrder(formatVersion)
+        ? { firstRow: FIRST_AUDIO_BLOCK_ROW + (rowInAudioArea & ~1), rowCount: 2 }
+        : { firstRow: FIRST_AUDIO_BLOCK_ROW + rowInAudioArea, rowCount: 1 };
+}
+
+export function isLumaSubgroupA(colInAudioArea: number, formatVersion: number): boolean {
+    return colInAudioArea < (usesMcuOrder(formatVersion) ? V301_SUBGROUP_A_SIZE : SUBGROUP_A_SIZE);
+}
+
+/** Chroma scale group of a block: 0=AX, 1=AY, 2=BX, 3=BY. */
+export function chromaGroupIndex(colInAudioArea: number, formatVersion: number): number {
+    if (usesMcuOrder(formatVersion)) {
+        return Math.min(3, Math.floor(colInAudioArea / V301_CHROMA_GROUP_SIZE));
+    }
+    const isA = colInAudioArea < SUBGROUP_A_SIZE;
+    const isX = (colInAudioArea % SUBGROUP_A_SIZE) < SUBGROUP_X_SIZE;
+    return (isA ? 0 : 2) + (isX ? 0 : 1);
+}

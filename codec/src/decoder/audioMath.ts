@@ -81,9 +81,9 @@ export function decodeBlockToCoefficients(
     buffers.spatialCr.fill(0);
 
     if (isV301) {
-        // Chroma lives in a shared 8x8 block spanning the 2x2 luma group
+        // Chroma lives in a shared 8x8 block spanning the MCU's 2x2 luma group
         // (16x16 px, NN-upsampled). The data area is 16px-aligned, so the
-        // superblock origin is the block position rounded down to 16.
+        // MCU origin is the block position rounded down to 16.
         const sbx = bx & ~15;
         const sby = by & ~15;
         const obx = bx - sbx;
@@ -146,8 +146,7 @@ export function decodeBlockToCoefficients(
         buffers.spatialY[k] = Math.max(-1e9, Math.min(1e9, buffers.spatialY[k]));
     }
     if (!isV301) {
-        // v301 unscales chroma per-coefficient after the DCT, because
-        // neighboring blocks in the shared superblock have their own scales
+        // v301 unscales chroma per-coefficient after the DCT
         for (let k = 0; k < 16; k++) {
             buffers.spatialCb[k] /= maxC;
             buffers.spatialCr[k] /= maxC;

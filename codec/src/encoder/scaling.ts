@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Kyle Alexander Buan
 
-import { SILENCE_THRESHOLD, SUBGROUP_A_SIZE, SUBGROUP_X_SIZE } from '../constants';
+import { FORMAT_VERSION, SILENCE_THRESHOLD, SUBGROUP_A_SIZE, SUBGROUP_X_SIZE } from '../constants';
+import { isLumaSubgroupA } from '../audioLayout';
 
 export class ScalingUtils {
     /**
@@ -10,14 +11,15 @@ export class ScalingUtils {
      */
     public static calculateLumaScalingFactors(
         rowSpatialY: Float32Array,
-        rowDataCount: number
+        rowDataCount: number,
+        formatVersion: number = FORMAT_VERSION
     ): { scaleYA: number; scaleYB: number } {
         let maxLumaA = 0;
         let maxLumaB = 0;
 
         for (let i = 0; i < rowDataCount; i++) {
             const spatialOffsetY = i * 64;
-            const isA = i < SUBGROUP_A_SIZE;
+            const isA = isLumaSubgroupA(i, formatVersion);
 
             for (let j = 0; j < 64; j++) {
                 const val = Math.abs(rowSpatialY[spatialOffsetY + j]);

@@ -17,6 +17,7 @@ import {
     FORMAT_VERSION,
 } from '../constants';
 import { rowMetaLdpc } from '../constants';
+import { audioBlockToImageBlock, chromaGroupIndex, isLumaSubgroupA } from '../audioLayout';
 import { decodeRGBToPoint } from '../utils/obb';
 import { PxfDecoder } from '.';
 import { decodeBlock, decodeStereoBlocks } from './audioMath';
@@ -383,6 +384,17 @@ export class StreamingAudioDecoder {
         return data;
     }
 
+    /** Picks the scales and band factors that apply to a block of a row. */
+    private static selectBlockScales(meta: AudioRowMetadata, colInAudioArea: number, formatVersion: number) {
+        const isSubgroupA = isLumaSubgroupA(colInAudioArea, formatVersion);
+        const chromaScales = [meta.scaleCAX, meta.scaleCAY, meta.scaleCBX, meta.scaleCBY];
+        return {
+            scaleY: isSubgroupA ? meta.scaleYA : meta.scaleYB,
+            scaleC: chromaScales[chromaGroupIndex(colInAudioArea, formatVersion)],
+            bandFactors: isSubgroupA ? meta.bandFactorsA : meta.bandFactorsB
+        };
+    }
+
     private getWhiteningProfile(sampleRate: number): MdctWhiteningProfile {
         let profile = this.whiteningProfileBySampleRate.get(sampleRate);
         if (!profile) {
@@ -414,15 +426,10 @@ export class StreamingAudioDecoder {
         const metaBlockAbsIdx = (absRow * BLOCKS_PER_ROW) + DATA_BLOCKS_PER_ROW;
 
         // Fetch Metadata (Cached)
-        const { scaleYA, scaleYB, scaleCAX, scaleCAY, scaleCBX, scaleCBY, bandFactorsA, bandFactorsB, sbrData } = this.getCachedRowMetadata(src, metaBlockAbsIdx);
-
-        const isSubgroupA = colInAudioArea < SUBGROUP_A_SIZE;
-        const isSubgroupX = (colInAudioArea % SUBGROUP_A_SIZE) < SUBGROUP_X_SIZE;
-        const lumaScale = isSubgroupA ? scaleYA : scaleYB;
-        const chromaScale = isSubgroupA
-            ? (isSubgroupX ? scaleCAX : scaleCAY)
-            : (isSubgroupX ? scaleCBX : scaleCBY);
-        const bandFactors = isSubgroupA ? bandFactorsA : bandFactorsB;
+        const meta = this.getCachedRowMetadata(src, metaBlockAbsIdx);
+        const { scaleY: lumaScale, scaleC: chromaScale, bandFactors } =
+            StreamingAudioDecoder.selectBlockScales(meta, colInAudioArea, src.visualizationMetadata.version);
+        const sbrData = meta.sbrData;
 
         const displayLuma = (lumaScale > SILENCE_THRESHOLD) ? 1.0 / lumaScale : 0;
         const displayChroma = (chromaScale > SILENCE_THRESHOLD) ? 1.0 / chromaScale : 0;
@@ -584,24 +591,17 @@ export class StreamingAudioDecoder {
         const colInAudioArea = imgBlockIdxBase % DATA_BLOCKS_PER_ROW;
         const absRow = 2 + rowInAudioArea;
         const metaBlockAbsIdx = (absRow * BLOCKS_PER_ROW) + DATA_BLOCKS_PER_ROW;
-        const imgBlockAbsIdx = (absRow * BLOCKS_PER_ROW) + colInAudioArea;
+        const formatVersion = midSrc.visualizationMetadata.version;
+        const imgBlockAbsIdx = audioBlockToImageBlock(rowInAudioArea, colInAudioArea, formatVersion);
         const rowDataCount = StreamingAudioDecoder.rowDataCountAt(blocksInThisSource, rowInAudioArea);
 
         const midMeta = this.getCachedRowMetadata(midSrc, metaBlockAbsIdx);
         const sideMeta = this.getCachedRowMetadata(sideSrc, metaBlockAbsIdx);
 
-        const isSubgroupA = colInAudioArea < SUBGROUP_A_SIZE;
-        const isSubgroupX = (colInAudioArea % SUBGROUP_A_SIZE) < SUBGROUP_X_SIZE;
-        const midScaleY = isSubgroupA ? midMeta.scaleYA : midMeta.scaleYB;
-        const midScaleC = isSubgroupA
-            ? (isSubgroupX ? midMeta.scaleCAX : midMeta.scaleCAY)
-            : (isSubgroupX ? midMeta.scaleCBX : midMeta.scaleCBY);
-        const sideScaleY = isSubgroupA ? sideMeta.scaleYA : sideMeta.scaleYB;
-        const sideScaleC = isSubgroupA
-            ? (isSubgroupX ? sideMeta.scaleCAX : sideMeta.scaleCAY)
-            : (isSubgroupX ? sideMeta.scaleCBX : sideMeta.scaleCBY);
-        const midBandFactors = isSubgroupA ? midMeta.bandFactorsA : midMeta.bandFactorsB;
-        const sideBandFactors = isSubgroupA ? sideMeta.bandFactorsA : sideMeta.bandFactorsB;
+        const { scaleY: midScaleY, scaleC: midScaleC, bandFactors: midBandFactors } =
+            StreamingAudioDecoder.selectBlockScales(midMeta, colInAudioArea, formatVersion);
+        const { scaleY: sideScaleY, scaleC: sideScaleC, bandFactors: sideBandFactors } =
+            StreamingAudioDecoder.selectBlockScales(sideMeta, colInAudioArea, formatVersion);
         const whiteningProfile = this.getWhiteningProfile(midSrc.sampleRate);
         const midSeeds = this.getSbrSeeds(midSrc, localAudioBlockIdx);
         const sideSeeds = this.getSbrSeeds(sideSrc, localAudioBlockIdx);
@@ -637,7 +637,7 @@ export class StreamingAudioDecoder {
             midSeeds.sharedSeed,
             midSeeds.channelSeed,
             sideSeeds.channelSeed,
-            midSrc.visualizationMetadata.version,
+            formatVersion,
             rowDataCount
         );
     }
@@ -666,18 +666,13 @@ export class StreamingAudioDecoder {
         const absRow = 2 + rowInAudioArea;
 
         const metaBlockAbsIdx = (absRow * BLOCKS_PER_ROW) + DATA_BLOCKS_PER_ROW;
-        const imgBlockAbsIdx = (absRow * BLOCKS_PER_ROW) + colInAudioArea;
+        const formatVersion = src.visualizationMetadata.version;
+        const imgBlockAbsIdx = audioBlockToImageBlock(rowInAudioArea, colInAudioArea, formatVersion);
         const rowDataCount = StreamingAudioDecoder.rowDataCountAt(blocksInThisSource, rowInAudioArea);
 
-        const { scaleYA, scaleYB, scaleCAX, scaleCAY, scaleCBX, scaleCBY, bandFactorsA, bandFactorsB, sbrData } = this.getCachedRowMetadata(src, metaBlockAbsIdx);
-
-        const isSubgroupA = colInAudioArea < SUBGROUP_A_SIZE;
-        const isSubgroupX = (colInAudioArea % SUBGROUP_A_SIZE) < SUBGROUP_X_SIZE;
-        const scaleY = isSubgroupA ? scaleYA : scaleYB;
-        const scaleC = isSubgroupA
-            ? (isSubgroupX ? scaleCAX : scaleCAY)
-            : (isSubgroupX ? scaleCBX : scaleCBY);
-        const bandFactors = isSubgroupA ? bandFactorsA : bandFactorsB;
+        const meta = this.getCachedRowMetadata(src, metaBlockAbsIdx);
+        const { scaleY, scaleC, bandFactors } = StreamingAudioDecoder.selectBlockScales(meta, colInAudioArea, formatVersion);
+        const sbrData = meta.sbrData;
         const whiteningProfile = this.getWhiteningProfile(src.sampleRate);
         const { channelSeed } = this.getSbrSeeds(src, localAudioBlockIdx);
 
@@ -687,7 +682,7 @@ export class StreamingAudioDecoder {
             this.buffers, sbrData, colInAudioArea,
             undefined, // debugCapture
             channelSeed,
-            src.visualizationMetadata.version,
+            formatVersion,
             rowDataCount
         );
     }

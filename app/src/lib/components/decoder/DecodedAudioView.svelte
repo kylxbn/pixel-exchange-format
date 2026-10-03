@@ -23,6 +23,9 @@ Copyright (c) 2026 Kyle Alexander Buan
 		PATCH_MODE_NAMES,
 		PROCESSING_MODE_NAMES,
 		TRANSIENT_SHAPE_NAMES,
+		audioBlockToImageBlock as audioBlockToImageBlockIndex,
+		imageBlockToAudioBlock as imageBlockToAudioPosition,
+		audioRowImageSpan,
 		decodeRowSBR,
 		getSbrSubgroupIndexForBlock,
 		getSbrSubgroupRange,
@@ -184,27 +187,36 @@ Copyright (c) 2026 Kyle Alexander Buan
 	function audioBlockToImageBlock(
 		audioBlockIndex: number,
 		metadata: VisualizationMetadata
-	): { row: number; col: number } {
-		const { firstAudioBlockIndex, blocksPerRow } = metadata;
-		const rowIndex = Math.floor(audioBlockIndex / DATA_BLOCKS_PER_ROW);
-		const colIndexInData = audioBlockIndex % DATA_BLOCKS_PER_ROW;
-		const absoluteImageBlockIndex = firstAudioBlockIndex + rowIndex * blocksPerRow + colIndexInData;
+	): { row: number; col: number; bandRow: number; bandRows: number } {
+		const { blocksPerRow } = metadata;
+		const absoluteImageBlockIndex = audioBlockToImageBlockIndex(
+			Math.floor(audioBlockIndex / DATA_BLOCKS_PER_ROW),
+			audioBlockIndex % DATA_BLOCKS_PER_ROW,
+			metadata.version
+		);
+		// v301 stores a row's blocks in MCU order across two image rows
+		const band = audioRowImageSpan(
+			Math.floor(audioBlockIndex / DATA_BLOCKS_PER_ROW),
+			metadata.version
+		);
 
 		return {
 			row: Math.floor(absoluteImageBlockIndex / blocksPerRow),
-			col: absoluteImageBlockIndex % blocksPerRow
+			col: absoluteImageBlockIndex % blocksPerRow,
+			bandRow: band.firstRow,
+			bandRows: band.rowCount
 		};
 	}
 
 	// Helper: Convert image block to audio block index
-	function imageBlockToAudioBlock(imageRow: number, imageCol: number): number | null {
-		// Validate click is in audio area
-		if (imageRow < 2 || imageCol < 0 || imageCol >= DATA_BLOCKS_PER_ROW) {
-			return null;
-		}
-
-		const rowInAudioArea = imageRow - 2;
-		return rowInAudioArea * DATA_BLOCKS_PER_ROW + imageCol;
+	function imageBlockToAudioBlock(
+		imageRow: number,
+		imageCol: number,
+		metadata: VisualizationMetadata
+	): number | null {
+		const position = imageBlockToAudioPosition(imageRow, imageCol, metadata.version);
+		if (!position) return null;
+		return position.rowInAudioArea * DATA_BLOCKS_PER_ROW + position.colInAudioArea;
 	}
 
 	// Helper: Convert audio block index to time
@@ -218,14 +230,15 @@ Copyright (c) 2026 Kyle Alexander Buan
 		return viewportWidth / IMAGE_WIDTH;
 	}
 
-	// Helper: Calculate vertical translation for centering current row
+	// Helper: Calculate vertical translation for centering the current band of block rows
 	function calculateVerticalTranslation(
-		currentRow: number,
+		bandRow: number,
+		bandRows: number,
 		viewportHeight: number,
 		scale: number
 	): number {
-		const rowY = currentRow * BLOCK_SIZE;
-		const rowHeight = BLOCK_SIZE;
+		const rowY = bandRow * BLOCK_SIZE;
+		const rowHeight = bandRows * BLOCK_SIZE;
 		const viewCenterY_unscaled = viewportHeight / 2 / scale;
 		return viewCenterY_unscaled - (rowY + rowHeight / 2);
 	}
@@ -251,14 +264,23 @@ Copyright (c) 2026 Kyle Alexander Buan
 			const localBlockIndex = sourceInfo.localBlockIndex;
 
 			// Calculate position within the current source image
-			const { row, col } = audioBlockToImageBlock(localBlockIndex, visualizationMetadata);
+			const { row, col, bandRow, bandRows } = audioBlockToImageBlock(
+				localBlockIndex,
+				visualizationMetadata
+			);
 
 			const viewportWidth = container.clientWidth;
 			const viewportHeight = container.clientHeight;
 
 			if (viewportWidth > 0 && viewportHeight > 0) {
 				const scale = calculateScale(viewportWidth);
-				const translateY_unscaled = calculateVerticalTranslation(row, viewportHeight, scale);
+				const translateY_unscaled = calculateVerticalTranslation(
+					bandRow,
+					bandRows,
+					viewportHeight,
+					scale
+				);
+				const bandTopPx = (bandRows * BLOCK_SIZE * scale) / 2;
 
 				img.style.transform = `scale(${scale}) translate(0px, ${translateY_unscaled}px)`;
 				img.style.transformOrigin = '0 0';
@@ -266,17 +288,15 @@ Copyright (c) 2026 Kyle Alexander Buan
 				// Update highlights when scale changes
 				if (Math.abs(scale - prevScale) > 0.001) {
 					const sizePx = `${BLOCK_SIZE * scale}px`;
-					const topPx = `calc(50% - ${(BLOCK_SIZE * scale) / 2}px)`;
 
 					if (rowHighlight) {
-						rowHighlight.style.height = sizePx;
-						rowHighlight.style.top = topPx;
+						rowHighlight.style.height = `${bandRows * BLOCK_SIZE * scale}px`;
+						rowHighlight.style.top = `calc(50% - ${bandTopPx}px)`;
 					}
 
 					if (blockHighlight) {
 						blockHighlight.style.width = sizePx;
 						blockHighlight.style.height = sizePx;
-						blockHighlight.style.top = topPx;
 					}
 					prevScale = scale;
 				}
@@ -285,6 +305,7 @@ Copyright (c) 2026 Kyle Alexander Buan
 				if (blockHighlight) {
 					const blockX = col * BLOCK_SIZE;
 					blockHighlight.style.left = `${blockX * scale}px`;
+					blockHighlight.style.top = `calc(50% - ${bandTopPx - (row - bandRow) * BLOCK_SIZE * scale}px)`;
 				}
 			}
 
@@ -422,7 +443,8 @@ Copyright (c) 2026 Kyle Alexander Buan
 
 		// Calculate vertical translation and reverse it
 		const translateY_unscaled = calculateVerticalTranslation(
-			currentBlock.row,
+			currentBlock.bandRow,
+			currentBlock.bandRows,
 			container.clientHeight,
 			scale
 		);
@@ -433,7 +455,11 @@ Copyright (c) 2026 Kyle Alexander Buan
 		const clickedCol = Math.floor(clickX_unscaled / BLOCK_SIZE);
 
 		// Convert image block to local audio block index within current source (validates bounds)
-		const clickedLocalBlockIndex = imageBlockToAudioBlock(clickedRow, clickedCol);
+		const clickedLocalBlockIndex = imageBlockToAudioBlock(
+			clickedRow,
+			clickedCol,
+			visualizationMetadata
+		);
 		if (clickedLocalBlockIndex === null) return; // Outside audio area
 
 		const globalBlockIndex = sourceInfo.firstGlobalBlock + clickedLocalBlockIndex;

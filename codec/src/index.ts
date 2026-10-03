@@ -20,6 +20,7 @@ export {
     BLOCK_SIZE, IMAGE_WIDTH, BLOCKS_PER_ROW, DATA_BLOCKS_PER_ROW,
     MAX_STRING_DATA_BYTES, MAX_METADATA_KEY_BYTES, MAX_METADATA_VALUE_BYTES,
 } from './constants';
+export { audioBlockToImageBlock, imageBlockToAudioBlock, audioRowImageSpan } from './audioLayout';
 export { ChunkingUtils } from './encoder/chunking';
 export {
     decodeRowSBR, getSbrSubgroupIndexForBlock, getSbrSubgroupRange,

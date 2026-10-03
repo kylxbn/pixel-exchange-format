@@ -48,7 +48,7 @@ Row metadata:
 - `ROW_META_SBR_BYTES = 8`
 - `ROW_META_AUDIO_BYTES = 20`
 
-Subgroup constants:
+Subgroup constants (v300; v301 uses MCU-aligned groups, see Row Scaling Strategy):
 - `SUBGROUP_A_SIZE = 62` (A/B split per row)
 - `SUBGROUP_X_SIZE = 31` (X/Y split inside each half)
 
@@ -832,6 +832,21 @@ Each payload row has:
 - 124 data blocks (one audio block per data block)
 - 4 metadata blocks (row metadata, 32 bytes after LDPC)
 
+An audio row is 124 consecutive audio blocks described by one row metadata record. Audio row `R` always has its metadata in image block row `2 + R`.
+
+### Block Order (v301+)
+
+Audio blocks are stored in JPEG 4:2:0 MCU order. Image rows are used in pairs; the data area of a pair is 62 MCUs of 2x2 blocks (16x16 px). The first audio row of a pair fills the left 31 MCUs and the second fills the right 31, so time runs left to right across the pair. Inside an MCU the four blocks are consecutive in time: top-left, top-right, bottom-left, bottom-right.
+
+For audio row `R` and block `i` (`0..123`):
+- `mcu = (R & 1) * 31 + floor(i / 4)`, `ordinal = i % 4`
+- image block row `= 2 + (R & ~1) + (ordinal >> 1)`
+- image block column `= 2 * mcu + (ordinal & 1)`
+
+Each MCU therefore holds four consecutive audio blocks and one shared 8x8 Cb and Cr block, exactly as a 4:2:0 JPEG encoder scans it.
+
+v300 stores audio row `R` as raster image block row `2 + R`, block `i` at column `i`.
+
 ## Block Pipeline
 
 For each audio block (`hop = 128`, `window = 256`):
@@ -848,12 +863,12 @@ Per row, the encoder then:
 4. Applies subgroup band factors to bins `0..63`.
 5. Maps coefficients to:
 - 8x8 luma DCT coefficients (`bins 0..63`), one block per audio block
-- 8x8 chroma DCT coefficients (`bins 64..95`, interleaved Cb/Cr), one block shared by a 2x2 group of audio blocks (v301+; v300 used per-block 4x4 chroma)
+- 8x8 chroma DCT coefficients (`bins 64..95`, interleaved Cb/Cr), one block shared by the four audio blocks of an MCU (v301+; v300 used per-block 4x4 chroma)
 6. Runs IDCT to spatial domain.
-7. Computes row scaling factors to avoid clipping (chroma scales are resolved per row pair).
+7. Computes row scaling factors to avoid clipping (see Row Scaling Strategy).
 8. Writes pixels via OBB mapping (point space -> YCbCr -> RGB).
 
-Because chroma superblocks span two data rows, v301 images always contain an even number of data rows (the last row may be padded with silent luma).
+Because MCUs span two image rows, v301 images always contain an even number of data rows (unused blocks are written as silence).
 
 ## Row Metadata Encoding
 
@@ -1076,13 +1091,21 @@ Validation errors throw before any encoding work begins.
 
 ## Row Scaling Strategy
 
-`ScalingUtils.calculateRowScalingFactors(...)` computes per-row gains that keep encoded spatial values inside safe range before OBB mapping.
+`ScalingUtils` computes per-row gains that keep encoded spatial values inside safe range before OBB mapping.
 
 ## Subgroup Layout
 
-Each audio data row is split as:
+Each audio row (124 consecutive audio blocks) is split into luma subgroups A/B, and each of those into chroma groups X/Y.
+
+v301 groups are whole MCUs (4 blocks each, 31 MCUs per row), so no chroma block ever mixes two scales:
+- A = blocks `0..63` (16 MCUs), B = blocks `64..123` (15 MCUs)
+- AX = `0..31`, AY = `32..63`, BX = `64..95`, BY = `96..123` (8/8/8/7 MCUs)
+
+v300 groups:
 - A/B halves by block index (`SUBGROUP_A_SIZE = 62`)
 - X/Y split inside each half (`SUBGROUP_X_SIZE = 31`)
+
+Band factors use the same A/B split as the luma scales.
 
 This yields six scale factors:
 - `scaleYA`, `scaleYB` (luma)
@@ -1092,7 +1115,8 @@ This yields six scale factors:
 
 For each subgroup, encoder scans absolute maxima:
 - Luma: max over 64 spatial Y samples per block
-- Chroma: max over 16 spatial Cb and 16 spatial Cr samples per block
+- Chroma (v301): max over the 64 spatial Cb and 64 spatial Cr samples of each MCU's shared chroma block
+- Chroma (v300): max over 16 spatial Cb and 16 spatial Cr samples per block
 
 Scale is then:
 - `min(65504, 1 / maxAbs)` when signal is above `SILENCE_THRESHOLD`
@@ -1423,7 +1447,7 @@ This makes runtime version reporting deterministic for debugging and compatibili
 
 ## Audio Row Math (Encoder)
 
-`processRowPair(...)` is the core audio DSP pipeline used by `AudioEncoder`. Since v301 the encoder works on pairs of data rows, because one 8x8 chroma block spans a 2x2 group of luma blocks (a 16x16 px superblock at 4:2:0).
+`processRowPair(...)` is the core audio DSP pipeline used by `AudioEncoder`. Since v301 the encoder works on pairs of data rows, because one 8x8 chroma block spans a 2x2 group of luma blocks (a 16x16 px JPEG 4:2:0 MCU) and audio blocks are stored in MCU order (see Audio Mode Format).
 
 ## Responsibilities
 
@@ -1436,19 +1460,19 @@ This makes runtime version reporting deterministic for debugging and compatibili
 6. Computes subgroup luma scaling factors via `ScalingUtils`
 7. Keeps the 16 Cb and 16 Cr coefficients (bins `64..95`) for the pair step
 
-`prepareRowPairChroma(top, bottom)` then, per superblock column:
-1. Places each block's 16 chroma coefficients into the shared 8x8 chroma plane at importance rank `4k + ordinal`, where `ordinal = rowParity * 2 + colParity` (so the four blocks of a superblock interleave by importance)
-2. Runs IDCT per block (the IDCT is linear, so the superblock is the sum of scaled per-block contributions)
-3. Derives per-(row, quadrant) chroma scales (`scaleCAX/CAY/CBX/CBY` for top and bottom) and shrinks them until no superblock sample exceeds `|1|`
+`prepareRowPairChroma(top, bottom)` then, per row and per MCU (four consecutive audio blocks):
+1. Places each block's 16 chroma coefficients into the MCU's 8x8 chroma plane at importance rank `4k + ordinal`, where `ordinal` is the block's position in the MCU (so the four blocks interleave by importance)
+2. Runs one IDCT per MCU and plane
+3. Derives the row's chroma scales (`scaleCAX/CAY/CBX/CBY`) from the absolute maximum of each chroma group. Groups are whole MCUs, so every MCU has exactly one scale
 
-`writePreparedAudioRowPair(...)` scales luma per block, NN-upsamples the shared chroma to 16x16 px, writes RGB pixels through OBB mapping, and emits row metadata through the injected callback (`writeRowMetadata`).
+`writePreparedAudioRowPair(...)` places blocks in MCU order, scales luma per block, NN-upsamples the MCU's chroma to 16x16 px, writes RGB pixels through OBB mapping, and emits row metadata through the injected callback (`writeRowMetadata`).
 
 `writePreparedAudioRow(...)` is the legacy v300 writer (per-block 4x4 chroma); it is kept for decoder compatibility tests only.
 
 ## Storage Mapping
 
 - Luma: bins `0..63` -> `8x8` coefficients (selected by `AUDIO_PSYCHOACOUSTICS.blockMap.luma8x8`)
-- Chroma (v301+): bins `64..95` interleaved Cb/Cr -> 16 ranks each of the shared superblock `8x8` chroma plane (selected by `AUDIO_PSYCHOACOUSTICS.blockMap.chroma8x8`)
+- Chroma (v301+): bins `64..95` interleaved Cb/Cr -> 16 ranks each of the MCU's shared `8x8` chroma plane (selected by `AUDIO_PSYCHOACOUSTICS.blockMap.chroma8x8`)
 - Chroma (v300): bins `64..95` interleaved Cb/Cr -> per-block `4x4` coefficients (selected by `AUDIO_PSYCHOACOUSTICS.blockMap.chroma4x4`)
 
 Band factors are computed over bins `0..63` and quantization is mirrored in analysis by `logDecode(logEncode(...))`.
@@ -1463,10 +1487,10 @@ Band factors are computed over bins `0..63` and quantization is mirrored in anal
 
 Given one 8x8 image block plus row metadata, it:
 1. Reads RGB pixels and converts to point-space Y/Cb/Cr via inverse OBB
-2. Averages chroma 2x2 (4:2:0 style). For v301+ the whole 16x16 px superblock containing the block is read, producing one 8x8 chroma plane shared by four luma blocks; for v300 the block's own 8x8 px produce a 4x4 plane
+2. Averages chroma 2x2 (4:2:0 style). For v301+ the whole 16x16 px MCU containing the block is read, producing one 8x8 chroma plane shared by four luma blocks; for v300 the block's own 8x8 px produce a 4x4 plane
 3. Reverses luma row scaling (divide by `maxY`)
 4. Runs forward DCT (`8x8` luma; `8x8` chroma for v301+, `4x4` for v300)
-5. Rebuilds flattened coefficient vector (bins `0..95`). For v301+ this block's chroma bins sit at importance rank `4k + ordinal` of the shared plane, and are unscaled per coefficient by this block's own `maxC` (neighbouring blocks in the superblock may have different scales)
+5. Rebuilds flattened coefficient vector (bins `0..95`). For v301+ this block's chroma bins sit at importance rank `4k + ordinal` of the shared plane, where `ordinal` is the block's position inside the MCU, and are unscaled by the MCU's chroma scale `maxC`
 6. Reverses subgroup band scaling (divide by band factors)
 7. Reverses static MDCT whitening
 8. Reconstructs bins `96..127` with SBR (or zero-fills if no SBR bytes). SBR subgroup selection uses the row's actual data block count, matching the encoder's analysis partition (see SBR)

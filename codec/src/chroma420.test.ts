@@ -25,9 +25,14 @@ import {
     IMAGE_WIDTH,
     MDCT_HOP_SIZE,
     MDCT_WINDOW_SIZE,
-    SUBGROUP_A_SIZE,
-    SUBGROUP_X_SIZE,
 } from './constants';
+import {
+    audioBlockToImageBlock,
+    chromaGroupIndex,
+    imageBlockToAudioBlock,
+    isLumaSubgroupA,
+} from './audioLayout';
+import { decodeRGBToPoint } from './utils/obb';
 
 const FIRST_AUDIO_BLOCK_INDEX = 2 * BLOCKS_PER_ROW;
 
@@ -73,12 +78,8 @@ function makeNoiseAudio(totalAudioBlocks: number, seed: number): Float32Array {
     return paddedAudio;
 }
 
-function chromaScaleFor(row: PreparedAudioRow, col: number): number {
-    const isA = col < SUBGROUP_A_SIZE;
-    const isX = (col % SUBGROUP_A_SIZE) < SUBGROUP_X_SIZE;
-    return isA
-        ? (isX ? row.scaleCAX : row.scaleCAY)
-        : (isX ? row.scaleCBX : row.scaleCBY);
+function chromaScaleFor(row: PreparedAudioRow, col: number, formatVersion: number): number {
+    return [row.scaleCAX, row.scaleCAY, row.scaleCBX, row.scaleCBY][chromaGroupIndex(col, formatVersion)];
 }
 
 function relativeRmse(orig: number[], dec: number[]): number {
@@ -133,13 +134,13 @@ describe('4:2:0 chroma (v301 superblocks)', () => {
             const decChroma: number[] = [];
 
             for (let i = 0; i < row.rowDataCount; i++) {
-                const blockIndex = FIRST_AUDIO_BLOCK_INDEX + r * BLOCKS_PER_ROW + i;
-                const scaleY = i < SUBGROUP_A_SIZE ? row.scaleYA : row.scaleYB;
-                const bandFactors = i < SUBGROUP_A_SIZE ? row.bandFactorsA : row.bandFactorsB;
+                const blockIndex = audioBlockToImageBlock(r, i, 301);
+                const scaleY = isLumaSubgroupA(i, 301) ? row.scaleYA : row.scaleYB;
+                const bandFactors = isLumaSubgroupA(i, 301) ? row.bandFactorsA : row.bandFactorsB;
 
                 decodeBlockToCoefficients(
                     imageData.data, IMAGE_WIDTH, blockIndex,
-                    scaleY, chromaScaleFor(row, i),
+                    scaleY, chromaScaleFor(row, i, 301),
                     whiteningProfile, bandFactors, coeffBuffer, decodeBuffers,
                     undefined, 301
                 );
@@ -158,6 +159,113 @@ describe('4:2:0 chroma (v301 superblocks)', () => {
             expect(relativeRmse(origLuma, decLuma)).toBeLessThan(0.05);
             expect(relativeRmse(origChroma, decChroma)).toBeLessThan(0.05);
         }
+    });
+
+    it('stores audio blocks in JPEG 4:2:0 MCU order', () => {
+        // First row of a pair: left 31 MCUs, blocks TL, TR, BL, BR per MCU
+        expect(audioBlockToImageBlock(0, 0, 301)).toBe(2 * BLOCKS_PER_ROW);
+        expect(audioBlockToImageBlock(0, 1, 301)).toBe(2 * BLOCKS_PER_ROW + 1);
+        expect(audioBlockToImageBlock(0, 2, 301)).toBe(3 * BLOCKS_PER_ROW);
+        expect(audioBlockToImageBlock(0, 3, 301)).toBe(3 * BLOCKS_PER_ROW + 1);
+        expect(audioBlockToImageBlock(0, 4, 301)).toBe(2 * BLOCKS_PER_ROW + 2);
+        expect(audioBlockToImageBlock(0, 123, 301)).toBe(3 * BLOCKS_PER_ROW + 61);
+        // Second row of the pair: right 31 MCUs
+        expect(audioBlockToImageBlock(1, 0, 301)).toBe(2 * BLOCKS_PER_ROW + 62);
+        expect(audioBlockToImageBlock(1, 123, 301)).toBe(3 * BLOCKS_PER_ROW + 123);
+        expect(audioBlockToImageBlock(2, 0, 301)).toBe(4 * BLOCKS_PER_ROW);
+        // v300 stays raster
+        expect(audioBlockToImageBlock(1, 5, 300)).toBe(3 * BLOCKS_PER_ROW + 5);
+
+        for (const version of [300, 301]) {
+            const seen = new Set<number>();
+            for (let row = 0; row < 4; row++) {
+                for (let col = 0; col < DATA_BLOCKS_PER_ROW; col++) {
+                    const blockIndex = audioBlockToImageBlock(row, col, version);
+                    seen.add(blockIndex);
+                    expect(imageBlockToAudioBlock(
+                        Math.floor(blockIndex / BLOCKS_PER_ROW), blockIndex % BLOCKS_PER_ROW, version
+                    )).toEqual({ rowInAudioArea: row, colInAudioArea: col });
+                }
+            }
+            expect(seen.size).toBe(4 * DATA_BLOCKS_PER_ROW);
+        }
+        expect(imageBlockToAudioBlock(1, 0, 301)).toBeNull();
+        expect(imageBlockToAudioBlock(2, DATA_BLOCKS_PER_ROW, 301)).toBeNull();
+    });
+
+    it('keeps every MCU inside one luma and one chroma scale group', () => {
+        for (let col = 0; col < DATA_BLOCKS_PER_ROW; col++) {
+            const mcuStart = col - (col % 4);
+            expect(isLumaSubgroupA(col, 301)).toBe(isLumaSubgroupA(mcuStart, 301));
+            expect(chromaGroupIndex(col, 301)).toBe(chromaGroupIndex(mcuStart, 301));
+            // Chroma groups nest inside the luma subgroups
+            expect(chromaGroupIndex(col, 301) < 2).toBe(isLumaSubgroupA(col, 301));
+        }
+        expect(isLumaSubgroupA(63, 301)).toBe(true);
+        expect(isLumaSubgroupA(64, 301)).toBe(false);
+        expect([31, 32, 63, 64, 95, 96, 123].map(col => chromaGroupIndex(col, 301)))
+            .toEqual([0, 1, 1, 2, 2, 3, 3]);
+    });
+
+    it('uses the full chroma range of each scale group without clipping', () => {
+        // Loud first half, quiet second half: groups must be scaled independently
+        const totalAudioBlocks = 2 * DATA_BLOCKS_PER_ROW;
+        const paddedAudio = makeNoiseAudio(totalAudioBlocks, 4242);
+        for (let i = DATA_BLOCKS_PER_ROW * MDCT_HOP_SIZE; i < paddedAudio.length; i++) paddedAudio[i] *= 0.01;
+        const mdctWindow = getSineWindow(MDCT_WINDOW_SIZE);
+        const whiteningProfile = getMdctWhiteningProfile(44100);
+        const buffers = makeEncodeBuffers();
+
+        const rows = [0, 1].map(r => prepareAudioRow(
+            DATA_BLOCKS_PER_ROW, r * DATA_BLOCKS_PER_ROW, totalAudioBlocks, paddedAudio,
+            MDCT_HOP_SIZE, MDCT_WINDOW_SIZE, mdctWindow, whiteningProfile, buffers
+        ));
+        const { superCb, superCr } = prepareRowPairChroma(rows[0], rows[1], buffers);
+
+        for (let r = 0; r < 2; r++) {
+            const groupMax = [0, 0, 0, 0];
+            for (let m = 0; m < DATA_BLOCKS_PER_ROW / 4; m++) {
+                const off = (r * (DATA_BLOCKS_PER_ROW / 4) + m) * 64;
+                const g = chromaGroupIndex(m * 4, 301);
+                for (let j = 0; j < 64; j++) {
+                    groupMax[g] = Math.max(groupMax[g], Math.abs(superCb[off + j]), Math.abs(superCr[off + j]));
+                }
+            }
+            for (const max of groupMax) expect(max).toBeCloseTo(1, 5);
+        }
+        expect(rows[1].scaleCAX).toBeGreaterThan(rows[0].scaleCAX * 10);
+    });
+
+    it('writes chroma that is constant over each 2x2 pixel group', () => {
+        const totalAudioBlocks = 2 * DATA_BLOCKS_PER_ROW;
+        const paddedAudio = makeNoiseAudio(totalAudioBlocks, 777);
+        const mdctWindow = getSineWindow(MDCT_WINDOW_SIZE);
+        const whiteningProfile = getMdctWhiteningProfile(44100);
+        const buffers = makeEncodeBuffers();
+        const rows = [0, 1].map(r => prepareAudioRow(
+            DATA_BLOCKS_PER_ROW, r * DATA_BLOCKS_PER_ROW, totalAudioBlocks, paddedAudio,
+            MDCT_HOP_SIZE, MDCT_WINDOW_SIZE, mdctWindow, whiteningProfile, buffers
+        ));
+        const pairChroma = prepareRowPairChroma(rows[0], rows[1], buffers);
+        const imageData = makeImage(2);
+        writePreparedAudioRowPair(0, FIRST_AUDIO_BLOCK_INDEX, rows[0], rows[1], pairChroma, imageData, noopMetadataWriter);
+
+        // RGB rounding moves a decoded chroma sample slightly; NN upsampling
+        // keeps the four pixels of a chroma sample within that tolerance.
+        let worst = 0;
+        for (let y = 16; y < 32; y += 2) {
+            for (let x = 0; x < DATA_BLOCKS_PER_ROW * 8; x += 2) {
+                const samples = [[0, 0], [1, 0], [0, 1], [1, 1]].map(([dx, dy]) => {
+                    const off = ((y + dy) * IMAGE_WIDTH + (x + dx)) * 4;
+                    return decodeRGBToPoint(imageData.data[off], imageData.data[off + 1], imageData.data[off + 2]);
+                });
+                for (const c of [1, 2]) {
+                    const values = samples.map(p => p[c]);
+                    worst = Math.max(worst, Math.max(...values) - Math.min(...values));
+                }
+            }
+        }
+        expect(worst).toBeLessThan(0.05);
     });
 
     it('still round-trips the legacy v300 per-block layout at the math layer', () => {
@@ -184,12 +292,12 @@ describe('4:2:0 chroma (v301 superblocks)', () => {
 
         for (let i = 0; i < row.rowDataCount; i++) {
             const blockIndex = FIRST_AUDIO_BLOCK_INDEX + i;
-            const scaleY = i < SUBGROUP_A_SIZE ? row.scaleYA : row.scaleYB;
-            const bandFactors = i < SUBGROUP_A_SIZE ? row.bandFactorsA : row.bandFactorsB;
+            const scaleY = isLumaSubgroupA(i, 300) ? row.scaleYA : row.scaleYB;
+            const bandFactors = isLumaSubgroupA(i, 300) ? row.bandFactorsA : row.bandFactorsB;
 
             decodeBlockToCoefficients(
                 imageData.data, IMAGE_WIDTH, blockIndex,
-                scaleY, chromaScaleFor(row, i),
+                scaleY, chromaScaleFor(row, i, 300),
                 whiteningProfile, bandFactors, coeffBuffer, decodeBuffers,
                 undefined, 300
             );

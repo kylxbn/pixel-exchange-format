@@ -43,7 +43,7 @@ Row metadata:
 - `ROW_META_SBR_BYTES = 8`
 - `ROW_META_AUDIO_BYTES = 20`
 
-Subgroup constants:
+Subgroup constants (v300; v301 uses MCU-aligned groups, see Row Scaling Strategy):
 - `SUBGROUP_A_SIZE = 62` (A/B split per row)
 - `SUBGROUP_X_SIZE = 31` (X/Y split inside each half)
 

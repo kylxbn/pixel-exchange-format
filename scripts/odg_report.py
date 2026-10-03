@@ -4,10 +4,12 @@
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import datetime as dt
 import html
 import json
 import math
+import os
 import shutil
 import statistics
 import subprocess
@@ -59,6 +61,12 @@ def parse_args() -> argparse.Namespace:
         choices=("advanced", "basic"),
         default="advanced",
         help="PEAQ mode. Use advanced for high-quality scoring.",
+    )
+    parser.add_argument(
+        "--jobs",
+        type=int,
+        default=os.cpu_count() or 1,
+        help="Number of files to round-trip in parallel.",
     )
     parser.add_argument(
         "--keep-work",
@@ -614,15 +622,25 @@ def main() -> int:
     else:
         work_root = Path(tempfile.mkdtemp(prefix="pxf-peaq-"))
 
-    rows: list[dict[str, Any]] = []
+    jobs = max(1, min(args.jobs, len(inputs)))
+    rows_by_index: dict[int, dict[str, Any]] = {}
     try:
-        for index, source_path in enumerate(inputs, start=1):
-            print(f"[{index}/{len(inputs)}] {source_path.name}", flush=True)
-            rows.append(process_file(source_path, repo_root, cli_entry, decode_cli_entry, args, work_root, index))
+        with concurrent.futures.ProcessPoolExecutor(max_workers=jobs) as executor:
+            futures = {
+                executor.submit(
+                    process_file, source_path, repo_root, cli_entry, decode_cli_entry, args, work_root, index
+                ): index
+                for index, source_path in enumerate(inputs, start=1)
+            }
+            for done, future in enumerate(concurrent.futures.as_completed(futures), start=1):
+                row = future.result()
+                rows_by_index[futures[future]] = row
+                print(f"[{done}/{len(inputs)}] {row['name']} ({row['status']})", flush=True)
     finally:
         if not args.keep_work:
             shutil.rmtree(work_root, ignore_errors=True)
 
+    rows = [rows_by_index[index] for index in sorted(rows_by_index)]
     summary = build_summary(rows)
     meta = {
         "generated_at": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
@@ -632,6 +650,7 @@ def main() -> int:
         "cli_entry": str(cli_entry),
         "decode_cli_entry": str(decode_cli_entry),
         "keep_work": args.keep_work,
+        "jobs": jobs,
         "transport_recipe": FACEBOOK_JPEG_RECIPE,
     }
     payload = {"meta": meta, "summary": summary, "files": rows}

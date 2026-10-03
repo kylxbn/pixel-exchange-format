@@ -56,7 +56,8 @@ export const ROW_META_AUDIO_BYTES = 20;
 export const ROW_META_SBR_BYTES = 8;
 export const ROW_META_PAYLOAD_BYTES = ROW_META_SBR_BYTES + ROW_META_AUDIO_BYTES; // 28
 
-// // A row is split into two subgroups for adaptive quantization
+// // A row is split into two subgroups for adaptive quantization.
+// // These are the v300 sizes; v301 groups are MCU-aligned (see audioLayout.ts).
 export const SUBGROUP_A_SIZE = 62;
 export const SUBGROUP_X_SIZE = 31;
 

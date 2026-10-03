@@ -29,6 +29,21 @@ Each payload row has:
 - 124 data blocks (one audio block per data block)
 - 4 metadata blocks (row metadata, 32 bytes after LDPC)
 
+An audio row is 124 consecutive audio blocks described by one row metadata record. Audio row `R` always has its metadata in image block row `2 + R`.
+
+### Block Order (v301+)
+
+Audio blocks are stored in JPEG 4:2:0 MCU order. Image rows are used in pairs; the data area of a pair is 62 MCUs of 2x2 blocks (16x16 px). The first audio row of a pair fills the left 31 MCUs and the second fills the right 31, so time runs left to right across the pair. Inside an MCU the four blocks are consecutive in time: top-left, top-right, bottom-left, bottom-right.
+
+For audio row `R` and block `i` (`0..123`):
+- `mcu = (R & 1) * 31 + floor(i / 4)`, `ordinal = i % 4`
+- image block row `= 2 + (R & ~1) + (ordinal >> 1)`
+- image block column `= 2 * mcu + (ordinal & 1)`
+
+Each MCU therefore holds four consecutive audio blocks and one shared 8x8 Cb and Cr block, exactly as a 4:2:0 JPEG encoder scans it.
+
+v300 stores audio row `R` as raster image block row `2 + R`, block `i` at column `i`.
+
 ## Block Pipeline
 
 For each audio block (`hop = 128`, `window = 256`):
@@ -45,12 +60,12 @@ Per row, the encoder then:
 4. Applies subgroup band factors to bins `0..63`.
 5. Maps coefficients to:
    - 8x8 luma DCT coefficients (`bins 0..63`), one block per audio block
-   - 8x8 chroma DCT coefficients (`bins 64..95`, interleaved Cb/Cr), one block shared by a 2x2 group of audio blocks (v301+; v300 used per-block 4x4 chroma)
+   - 8x8 chroma DCT coefficients (`bins 64..95`, interleaved Cb/Cr), one block shared by the four audio blocks of an MCU (v301+; v300 used per-block 4x4 chroma)
 6. Runs IDCT to spatial domain.
-7. Computes row scaling factors to avoid clipping (chroma scales are resolved per row pair).
+7. Computes row scaling factors to avoid clipping (see Row Scaling Strategy).
 8. Writes pixels via OBB mapping (point space -> YCbCr -> RGB).
 
-Because chroma superblocks span two data rows, v301 images always contain an even number of data rows (the last row may be padded with silent luma).
+Because MCUs span two image rows, v301 images always contain an even number of data rows (unused blocks are written as silence).
 
 ## Row Metadata Encoding
 
