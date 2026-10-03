@@ -5,6 +5,8 @@ import { describe, it, expect } from 'vitest';
 import { PxfEncoder } from './encoder';
 import { PxfDecoder } from './decoder';
 import { createRNG } from './utils/rng';
+import { ChunkingUtils } from './encoder/chunking';
+import { MDCT_HOP_SIZE } from './constants';
 
 describe('Integration Pipeline', () => {
     describe('Audio Pipeline', () => {
@@ -200,4 +202,54 @@ describe('Integration Pipeline', () => {
         // Should have reasonable quality
         expect(rmse).toBeLessThan(0.08);
     }, 60000);
+
+    describe('TDAC across image boundaries', () => {
+        const sampleRate = 44100;
+        const maxHeight = 256;
+        const samplesPerImage = ChunkingUtils.calculateMaxSamplesPerImage(maxHeight);
+        const length = samplesPerImage * 2 + 5000;
+
+        const hopRmse = (original: Float32Array, decoded: Float32Array, start: number) => {
+            let errorSum = 0;
+            for (let i = start; i < start + MDCT_HOP_SIZE; i++) {
+                const diff = original[i] - decoded[i];
+                errorSum += diff * diff;
+            }
+            return Math.sqrt(errorSum / MDCT_HOP_SIZE);
+        };
+
+        const runBoundaryTest = async (channels: Float32Array[]) => {
+            const encodedResults = await PxfEncoder.encode(
+                { audio: { channels, sampleRate } },
+                { 'fn': 'tdac_test.wav' },
+                { maxHeight }
+            );
+            expect(encodedResults.length).toBe(3 * channels.length);
+
+            const decodedResult = await PxfDecoder.decode(encodedResults.map(img => PxfDecoder.load(img)));
+            if (decodedResult.type !== 'audio') {
+                throw new Error("Decoder returned unexpected binary result for audio source");
+            }
+
+            for (let c = 0; c < channels.length; c++) {
+                const interior = hopRmse(channels[c], decodedResult.channels[c], Math.floor(samplesPerImage / 2));
+                for (const boundary of [samplesPerImage, samplesPerImage * 2]) {
+                    // The first hop of an image must reconstruct as well as any other hop
+                    expect(hopRmse(channels[c], decodedResult.channels[c], boundary)).toBeLessThan(Math.max(0.01, interior * 3));
+                    expect(hopRmse(channels[c], decodedResult.channels[c], boundary - MDCT_HOP_SIZE)).toBeLessThan(Math.max(0.01, interior * 3));
+                }
+            }
+        };
+
+        const tone = (frequency: number) => {
+            const data = new Float32Array(length);
+            for (let i = 0; i < length; i++) {
+                data[i] = Math.sin(2 * Math.PI * frequency * i / sampleRate) * 0.5;
+            }
+            return data;
+        };
+
+        it('Mono', () => runBoundaryTest([tone(1000)]), 60000);
+        it('Stereo', () => runBoundaryTest([tone(1000), tone(1500)]), 60000);
+    });
 });

@@ -1,12 +1,15 @@
 # PXF v300 -> v301: audio quality through the Facebook JPEG channel
 
-Companion to the v301 entry in [CHANGELOG.md](../../CHANGELOG.md). All numbers come from the three benchmark reports under `doc/artifacts/peaq-reports/` and from the codec sources at the commits named below; nothing here was re-measured.
+Companion to the v301 entry in [CHANGELOG.md](../../CHANGELOG.md). All numbers come from the six benchmark reports under `doc/artifacts/peaq-reports/` and from the codec sources at the commits named below. Sections 3 to 5 use the May and July reports as recorded; section 5b is a fresh run of both ends on the full 36-track corpus.
 
 | Report | Codec state | Tracks | Generated |
 | --- | --- | ---: | --- |
 | `v300/report.json` | `a374eff` (last commit before `61e86ba`) | 25 | 2026-05-21 |
 | `v301/report.json` | `65763e1` (v301: mapping order, stereo-cue SBR, silence fix) | 25 | 2026-05-21 |
 | `20260702-214454/report.json` | `412b0f5` (v301 + 4:2:0 chroma superblocks) | 36 | 2026-07-02 |
+| `v300-full/report.json` | `a374eff` (v300, worktree build) | 36 | 2026-10-03 |
+| `v301-release/report.json` | v301 release (superblocks + cleanup fixes) | 36 | 2026-10-03 |
+| `v300-decoded-by-v301/report.json` | v300 encoder, v301 release decoder | 36 | 2026-10-03 |
 
 ## Headline
 
@@ -32,7 +35,7 @@ Companion to the v301 entry in [CHANGELOG.md](../../CHANGELOG.md). All numbers c
 
 ### Corpus
 
-Full-length commercial recordings, all 44.1 kHz / 16-bit / 2-channel WAV (verified from `source_wav` in every row of all three reports). The 25-track set runs 143 s to 439 s per track, 106.9 min total. The 36-track set is 146.5 min total and is not a superset of the 25: 23 tracks are shared, two were dropped (`Fearofdark - Surfing on a Sine Wave`, `日向めぐみ (グミ) - Catch You Catch Me`) and 13 were added, including three 21-23 s EBU SQAM speech excerpts and a 74 s track, so its summary is not directly comparable to the 25-track summaries. Genre spread covers orchestral, piano, jazz, bossa nova, rock, metal, hip hop, reggaeton, synth pop, chiptune, enka and J-pop.
+Full-length commercial recordings, all 44.1 kHz / 16-bit / 2-channel WAV (verified from `source_wav` in every row of every report). The benchmark corpus is the 36-track set; the 25-track set is the corpus as it stood in May and only survives in the `v300/` and `v301/` reports. The 25-track set runs 143 s to 439 s per track, 106.9 min total. The 36-track set is 146.5 min total and is not a superset of the 25: 23 tracks are shared, two were dropped (`Fearofdark - Surfing on a Sine Wave`, `日向めぐみ (グミ) - Catch You Catch Me`) and 13 were added, including three 21-23 s EBU SQAM speech excerpts and a 74 s track, so its summary is not directly comparable to the 25-track summaries. Section 5b compares v300 and the v301 release on all 36. Genre spread covers orchestral, piano, jazz, bossa nova, rock, metal, hip hop, reggaeton, synth pop, chiptune, enka and J-pop.
 
 ### Metrics
 
@@ -45,8 +48,8 @@ Full-length commercial recordings, all 44.1 kHz / 16-bit / 2-channel WAV (verifi
 
 - One JPEG operating point only (libjpeg Q92, 4:2:0, int DCT). The q92pm8 mapping is explicitly tuned to that point; its behaviour at other qualities or with other encoders (mozjpeg, jpegli, progressive) is unmeasured.
 - The PEAQ advanced model is a model. Differences of a few hundredths of an ODG are not perceptual claims; the +/-0.05 threshold used in the counts below is a working resolution, not a calibrated JND. Paired tests across tracks are the stronger evidence than any single-track delta.
-- The 25-track set is the material the codec has been checked against throughout development (the block-order experiments in [doc/EXPERIMENTS.md](../EXPERIMENTS.md) report ODG on an unspecified set and a much older codec state). Treat it as a development set, not a held-out test set. The q92pm8 mapping itself was derived from JPEG quantization tables with no audio in the loop; the stereo-cue thresholds and the SBR silence threshold are hand-set constants.
-- All three reports predate the decoder-side SBR subgroup-partition fix described in the 2026-10-03 changelog entry (the decoder assumed a fixed 62/62 split on the last, partial row of each image). Only that row per image is affected, but the final v301 release numbers will differ slightly from these.
+- The corpus (25 tracks in May, 36 since June) is the material the codec has been checked against throughout development (the block-order experiments in [doc/EXPERIMENTS.md](../EXPERIMENTS.md) report ODG on an unspecified set and a much older codec state). Treat it as a development set, not a held-out test set. The q92pm8 mapping itself was derived from JPEG quantization tables with no audio in the loop; the stereo-cue thresholds and the SBR silence threshold are hand-set constants.
+- The May and July reports predate the decoder-side SBR subgroup-partition fix described in the 2026-10-03 changelog entry (the decoder assumed a fixed 62/62 split on the last, partial row of each image). Only that row per image is affected; the release verification in section 5b includes the fix and differs from the July run by at most 0.007 ODG per track.
 - Single run per track; the pipeline is deterministic (seeded SBR noise, integer JPEG DCT), so there is no run-to-run variance to report.
 
 ## 2. What changed between the three code states
@@ -384,6 +387,9 @@ python3 scripts/compare_odg_reports.py \
 python3 scripts/compare_odg_reports.py \
     doc/artifacts/peaq-reports/v301/report.json \
     doc/artifacts/peaq-reports/20260702-214454/report.json
+python3 scripts/compare_odg_reports.py \
+    doc/artifacts/peaq-reports/v300-full/report.json \
+    doc/artifacts/peaq-reports/v301-release/report.json
 ```
 
-Requires `node`, GstPEAQ's `peaq`, ImageMagick's `magick` and libjpeg-turbo's `cjpeg` on `PATH`. A full 36-track run takes on the order of two hours.
+Requires `node`, GstPEAQ's `peaq`, ImageMagick's `magick` and libjpeg-turbo's `cjpeg` on `PATH`. A full 36-track run took 17 to 19 minutes for each of the 2026-10-03 reports.

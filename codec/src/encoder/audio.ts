@@ -59,7 +59,7 @@ export class AudioEncoder {
             const chunks = ChunkingUtils.splitAudioForMultiImage(channels, options.maxHeight);
             for (let i = 0; i < chunks.length; i++) {
                 const progressCallback = onProgress ? (p: number) => onProgress((i + p / 100) / chunks.length * 100) : undefined;
-                results.push(await this.encodeChannel(chunks[i][0], sampleRate, metadata, CHANNEL_MODE.MONO, randomBytes, i + 1, chunks.length, channels[0].length, progressCallback));
+                results.push(await this.encodeChannel(chunks[i][0], sampleRate, metadata, CHANNEL_MODE.MONO, randomBytes, i + 1, chunks.length, channels[0].length, this.getLookahead(chunks[i + 1]?.[0]), progressCallback));
             }
         } else {
             const left = channels[0];
@@ -99,6 +99,8 @@ export class AudioEncoder {
                         sideImageIndex,
                         totalImages,
                         channels[0].length,
+                        this.getLookahead(midChunks[chunkIdx + 1]?.[0]),
+                        this.getLookahead(sideChunks[chunkIdx + 1]?.[0]),
                         progressCallback
                     );
                     results.push(...pair);
@@ -107,6 +109,14 @@ export class AudioEncoder {
         }
 
         return results;
+    }
+
+    /**
+     * First hop of the next chunk. The last MDCT block of an image windows
+     * into it, so its aliasing cancels against the next image's first block.
+     */
+    private static getLookahead(nextChunk: Float32Array | undefined): Float32Array | null {
+        return nextChunk ? nextChunk.subarray(0, MDCT_HOP_SIZE) : null;
     }
 
     public static async encodeChannel(
@@ -118,6 +128,7 @@ export class AudioEncoder {
         imageIndex: number,
         totalImages: number,
         totalSamples: number,
+        lookahead: Float32Array | null = null,
         onProgress?: (p: number) => void
     ): Promise<EncodedImageResult> {
         const dims = this.calculateDimensions(channelData.length);
@@ -143,6 +154,7 @@ export class AudioEncoder {
         const paddedLength = (totalAudioBlocks + 1) * hopSize * 2;
         const paddedAudio = new Float32Array(paddedLength);
         paddedAudio.set(channelData);
+        if (lookahead) paddedAudio.set(lookahead, channelData.length);
 
         const totalImageBlocksForAudio = totalAudioBlocks;
         const numImageRows = 2 * Math.ceil(Math.ceil(totalImageBlocksForAudio / DATA_BLOCKS_PER_ROW) / 2);
@@ -202,6 +214,8 @@ export class AudioEncoder {
         sideImageIndex: number,
         totalImages: number,
         totalSamples: number,
+        midLookahead: Float32Array | null = null,
+        sideLookahead: Float32Array | null = null,
         onProgress?: (p: number) => void
     ): Promise<[EncodedImageResult, EncodedImageResult]> {
         const dims = this.calculateDimensions(midData.length);
@@ -230,6 +244,8 @@ export class AudioEncoder {
         const paddedSide = new Float32Array(paddedLength);
         paddedMid.set(midData);
         paddedSide.set(sideData);
+        if (midLookahead) paddedMid.set(midLookahead, midData.length);
+        if (sideLookahead) paddedSide.set(sideLookahead, sideData.length);
 
         const numImageRows = 2 * Math.ceil(Math.ceil(totalAudioBlocks / DATA_BLOCKS_PER_ROW) / 2);
         const firstAudioBlockIndex = 2 * BLOCKS_PER_ROW;

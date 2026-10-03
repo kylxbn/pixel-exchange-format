@@ -869,6 +869,7 @@ This 28-byte payload is LDPC-encoded to 32 bytes, whitened with a row-specific s
 
 - Audio is chunked by max image height (default 4096px).
 - Split points are aligned to MDCT hop boundaries.
+- The last MDCT block of a non-final image windows into the first hop of the next chunk, so TDAC holds across image boundaries.
 - Header fields carry image index and total image count for reassembly.
 
 ---
@@ -1014,6 +1015,8 @@ Audio chunking is hop-aligned:
 3. Slice each channel with the same sample boundaries.
 
 This guarantees chunk boundaries do not break MDCT hop alignment.
+
+The MDCT framing itself runs across chunk boundaries: the last block of a non-final image windows into the first hop of the next chunk, so its aliasing cancels against the next image's first block and the decoder's overlap-add continues seamlessly from one image to the next. Only the last block of the final image is padded with zeros.
 
 ## Binary Chunking
 

@@ -66,4 +66,5 @@ This 28-byte payload is LDPC-encoded to 32 bytes, whitened with a row-specific s
 
 - Audio is chunked by max image height (default 4096px).
 - Split points are aligned to MDCT hop boundaries.
+- The last MDCT block of a non-final image windows into the first hop of the next chunk, so TDAC holds across image boundaries.
 - Header fields carry image index and total image count for reassembly.
