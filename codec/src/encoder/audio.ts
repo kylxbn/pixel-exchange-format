@@ -18,11 +18,15 @@ import {
 } from '../constants';
 import { rowMetaLdpc } from '../constants';
 import { leadInSamples } from '../audioLayout';
+import { AUDIO_PSYCHOACOUSTICS } from '../psychoacoustics';
 import { ChunkingUtils } from './chunking';
 import { HeaderEncoder } from './header';
 import { TextRenderer } from './text';
-import { prepareAudioRow, prepareRowPairChroma, processRowPair, writePreparedAudioRowPair } from './audioMath';
-import type { EncodeRowBuffers } from './audioMath';
+import {
+    analyzeRowPairSbr, prepareAudioRow, prepareRowPairChroma, processRowPair,
+    readBackRowPair, writeRowPairMetadata, writeRowPairPixels,
+} from './audioMath';
+import type { EncodeRowBuffers, PreparedAudioRow } from './audioMath';
 import { analyzeStereoRowSbrCues, applyStereoCuesToRowSBR, lockStereoRowPatchModes } from '../utils/sbr';
 import type { EncodedImageResult, SimpleImageData } from './types';
 
@@ -295,6 +299,11 @@ export class AudioEncoder {
                 whiteningProfile,
                 buffers
             );
+            return { midPrepared, sidePrepared };
+        };
+
+        const applyStereoSbr = (midPrepared: PreparedAudioRow, sidePrepared: PreparedAudioRow) => {
+            const rowDataCount = midPrepared.rowDataCount;
             const stereoCues = analyzeStereoRowSbrCues(midPrepared.rowMDCTCoeffs, sidePrepared.rowMDCTCoeffs, rowDataCount);
             const lockedRows = lockStereoRowPatchModes(
                 midPrepared.sbrParams,
@@ -302,11 +311,12 @@ export class AudioEncoder {
                 stereoCues,
                 midPrepared.rowMDCTCoeffs,
                 sidePrepared.rowMDCTCoeffs,
-                rowDataCount
+                rowDataCount,
+                midPrepared.sbrSourceCoeffs,
+                sidePrepared.sbrSourceCoeffs
             );
             midPrepared.sbrParams = applyStereoCuesToRowSBR(lockedRows.mid, stereoCues);
             sidePrepared.sbrParams = applyStereoCuesToRowSBR(lockedRows.side, stereoCues);
-            return { midPrepared, sidePrepared };
         };
 
         for (let rowIndex = 0; rowIndex < numImageRows; rowIndex += 2) {
@@ -321,24 +331,25 @@ export class AudioEncoder {
             const midPairChroma = prepareRowPairChroma(top.midPrepared, bottom.midPrepared, buffers);
             const sidePairChroma = prepareRowPairChroma(top.sidePrepared, bottom.sidePrepared, buffers);
 
-            writePreparedAudioRowPair(
-                rowIndex,
-                firstAudioBlockIndex,
-                top.midPrepared,
-                bottom.midPrepared,
-                midPairChroma,
-                midImageData,
-                AudioEncoder.encodeRowMetadata
-            );
-            writePreparedAudioRowPair(
-                rowIndex,
-                firstAudioBlockIndex,
-                top.sidePrepared,
-                bottom.sidePrepared,
-                sidePairChroma,
-                sideImageData,
-                AudioEncoder.encodeRowMetadata
-            );
+            const channels = [
+                { top: top.midPrepared, bottom: bottom.midPrepared, chroma: midPairChroma, image: midImageData },
+                { top: top.sidePrepared, bottom: bottom.sidePrepared, chroma: sidePairChroma, image: sideImageData },
+            ];
+            for (const channel of channels) {
+                writeRowPairPixels(rowIndex, channel.top, channel.bottom, channel.chroma, channel.image);
+                readBackRowPair(rowIndex, channel.top, channel.bottom, channel.image, whiteningProfile);
+                analyzeRowPairSbr(channel.top, channel.bottom);
+            }
+            if (AUDIO_PSYCHOACOUSTICS.enableSbr) {
+                applyStereoSbr(top.midPrepared, top.sidePrepared);
+                applyStereoSbr(bottom.midPrepared, bottom.sidePrepared);
+            }
+            for (const channel of channels) {
+                writeRowPairMetadata(
+                    rowIndex, firstAudioBlockIndex, channel.top, channel.bottom, channel.image,
+                    AudioEncoder.encodeRowMetadata
+                );
+            }
         }
 
         if (onProgress) onProgress(100);

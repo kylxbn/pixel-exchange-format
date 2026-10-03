@@ -14,12 +14,14 @@ import {
     getSbrSubgroupRange,
     lockStereoRowPatchModes,
     projectStereoCueToHighFrequencies,
+    readSourceTile,
     encodeSBRWord,
     type SBRParams,
     type SBRParamsTemporal,
 } from './sbr';
 import { selectSbrParamsForBlock } from '../decoder/audioMath';
 import { DATA_BLOCKS_PER_ROW, FORMAT_VERSION } from '../constants';
+import { createRNG } from './rng';
 
 describe('SBR Bitfields', () => {
     it('preserves the legacy v300 normal layout', () => {
@@ -338,5 +340,182 @@ describe('SBR Subgroup Partition', () => {
         expect(getSbrSubgroupRange(full, 1)).toEqual({ start: 62, end: full });
         expect(getSbrSubgroupIndexForBlock(full, 61)).toBe(0);
         expect(getSbrSubgroupIndexForBlock(full, 62)).toBe(1);
+    });
+});
+
+describe('SBR Analysis and Synthesis (v301)', () => {
+    function noiseBlocks(count: number, seed: number, amplitude: (bin: number, block: number) => number): Float32Array[] {
+        const rng = createRNG(seed);
+        const blocks: Float32Array[] = [];
+        for (let b = 0; b < count; b++) {
+            const bins = new Float32Array(128);
+            for (let k = 0; k < 128; k++) {
+                bins[k] = ((rng.nextByte() + rng.nextByte() + rng.nextByte()) / 382.5 - 1) * amplitude(k, b);
+            }
+            blocks.push(bins);
+        }
+        return blocks;
+    }
+
+    function hfEnergy(blocks: Float32Array[], from = SBR_START_BIN, to = SBR_END_BIN): number {
+        let energy = 0;
+        for (const bins of blocks) {
+            for (let k = from; k < to; k++) energy += bins[k] * bins[k];
+        }
+        return energy;
+    }
+
+    function synthesizeRow(target: Float32Array[], source: Float32Array[], count: number): Float32Array[] {
+        const sbrBytes = encodeRowSBR(analyzeRowSBR(target, count, source));
+        return source.map((bins, col) => {
+            const out = new Float32Array(bins);
+            out.fill(0, SBR_START_BIN);
+            const selection = selectSbrParamsForBlock(sbrBytes, col, FORMAT_VERSION, count)!;
+            applySBRSynthesis(out, selection.params, selection.blockIdxInSubgroup, selection.subgroupSize, 1000 + col);
+            return out;
+        });
+    }
+
+    const toDb = (ratio: number) => 10 * Math.log10(ratio);
+
+    it('recreates the target HF energy whatever tile it patches from', () => {
+        // The adjacent tile is much quieter than the lower ones; whichever
+        // tile wins, the gain must be relative to that tile.
+        const count = 62;
+        const blocks = noiseBlocks(count, 11, k => k < 64 ? 1.0 : k < 96 ? 0.02 : 0.2);
+        const out = synthesizeRow(blocks, blocks, count);
+
+        expect(Math.abs(toDb(hfEnergy(out) / hfEnergy(blocks)))).toBeLessThan(1.5);
+    });
+
+    it('fits the gain to the lowband the decoder will see', () => {
+        const count = 62;
+        const clean = noiseBlocks(count, 21, k => k < 96 ? 0.05 : 0.1);
+        // Transport noise makes the decoded source tile louder than the clean one
+        const noise = noiseBlocks(count, 22, () => 0.1);
+        const decoded = clean.map((bins, b) => {
+            const out = new Float32Array(bins);
+            for (let k = 0; k < 96; k++) out[k] += noise[b][k];
+            return out;
+        });
+
+        const openLoop = analyzeRowSBR(clean, count).subgroups[0] as SBRParams;
+        const closedLoop = analyzeRowSBR(clean, count, decoded).subgroups[0] as SBRParams;
+        expect(closedLoop.hfGain).toBeLessThan(openLoop.hfGain - 3);
+
+        const out = synthesizeRow(clean, decoded, count);
+        expect(Math.abs(toDb(hfEnergy(out) / hfEnergy(clean)))).toBeLessThan(1.5);
+    });
+
+    it('whitens and noise-fills a tonal source for a noisy target, and leaves a tonal target alone', () => {
+        const count = 62;
+        const tonalLow = (k: number) => k < 96 ? (k % 8 === 3 ? 1.0 : 0.01) : 0.3;
+        const noisyTarget = analyzeRowSBR(noiseBlocks(count, 31, tonalLow), count).subgroups[0] as SBRParams;
+        expect(noisyTarget.tonality).toBeLessThan(3);
+
+        const tonalBoth = (k: number) => k % 8 === 3 ? 1.0 : 0.01;
+        const tonalTarget = analyzeRowSBR(noiseBlocks(count, 32, tonalBoth), count).subgroups[0] as SBRParams;
+        expect(tonalTarget.tonality).toBe(3);
+        expect(tonalTarget.noiseFloorRatio).toBe(0);
+    });
+
+    it('whitening flattens peaks and keeps each band\'s energy', () => {
+        const bins = new Float32Array(128);
+        for (let k = 0; k < 128; k++) bins[k] = k % 8 === 3 ? 1.0 : 0.05 * (k % 2 === 0 ? 1 : -1);
+
+        const plain = new Float32Array(32);
+        const whitened = new Float32Array(32);
+        readSourceTile(bins, 0, 0, plain);
+        readSourceTile(bins, 0, 3, whitened);
+
+        for (let band = 0; band < 4; band++) {
+            let before = 0;
+            let after = 0;
+            let peakBefore = 0;
+            let peakAfter = 0;
+            for (let i = 0; i < 8; i++) {
+                before += plain[band * 8 + i] ** 2;
+                after += whitened[band * 8 + i] ** 2;
+                peakBefore = Math.max(peakBefore, Math.abs(plain[band * 8 + i]));
+                peakAfter = Math.max(peakAfter, Math.abs(whitened[band * 8 + i]));
+            }
+            expect(after).toBeCloseTo(before, 4);
+            expect(peakAfter).toBeLessThan(peakBefore * 0.8);
+        }
+    });
+
+    it('reads the 2-bit temporal noise field on its own scale', () => {
+        const source = new Float32Array(128);
+        for (let k = 64; k < 96; k++) source[k] = k % 2 === 0 ? 0.5 : -0.5;
+        const params: SBRParamsTemporal = {
+            temporalMode: true,
+            patchMode: 0,
+            procMode: 0,
+            tonality: 3,
+            stereoCue: 0,
+            bandEnvelope: [0, 0, 0, 0],
+            hfGainA: 0,
+            noiseFloorRatioA: 3,
+            transientA: 0,
+            hfGainB: 0,
+            noiseFloorRatioB: 0,
+            transientB: 0
+        };
+        const correlation = (out: Float32Array) => {
+            let dot = 0;
+            for (let j = 8; j < 32; j++) dot += out[96 + j] * source[64 + j];
+            return dot / (24 * 0.25);
+        };
+
+        // First half: all noise. Second half: the source tile as is.
+        const noisy = new Float32Array(source);
+        applySBRSynthesis(noisy, params, 0, 8, 99, 301);
+        expect(Math.abs(correlation(noisy))).toBeLessThan(0.5);
+
+        const tonal = new Float32Array(source);
+        applySBRSynthesis(tonal, params, 7, 8, 99, 301);
+        expect(correlation(tonal)).toBeCloseTo(1, 3);
+
+        // v300 read the same field against 15
+        const legacy = new Float32Array(source);
+        applySBRSynthesis(legacy, params, 0, 8, 99, 300);
+        expect(Math.abs(correlation(legacy))).toBeGreaterThan(0.5);
+    });
+
+    it('transient shapes move energy in time without changing the total', () => {
+        const size = 62;
+        for (const transientShape of [1, 2, 3]) {
+            const params: SBRParams = {
+                temporalMode: false,
+                hfGain: 0,
+                bandEnvelope: [0, 0, 0, 0],
+                noiseFloorRatio: 0,
+                tonality: 3,
+                patchMode: 0,
+                procMode: 0,
+                stereoCue: 0,
+                transientShape
+            };
+            let shaped = 0;
+            let flat = 0;
+            for (let b = 0; b < size; b++) {
+                const bins = new Float32Array(128);
+                for (let k = 56; k < 96; k++) bins[k] = k % 2 === 0 ? 0.5 : -0.5;
+                const reference = new Float32Array(bins);
+                applySBRSynthesis(bins, params, b, size, 5, 301);
+                applySBRSynthesis(reference, { ...params, transientShape: 0 }, b, size, 5, 301);
+                shaped += hfEnergy([bins]);
+                flat += hfEnergy([reference]);
+            }
+            expect(Math.abs(toDb(shaped / flat))).toBeLessThan(0.2);
+        }
+    });
+
+    it('picks an attack shape when the highband rises faster than the source', () => {
+        const count = 62;
+        const blocks = noiseBlocks(count, 41, (k, b) => k < 96 ? 0.3 : 0.3 * (0.5 + 0.5 * (b % 31) / 30));
+        const row = analyzeRowSBR(blocks, count);
+        expect(row.subgroups[0].temporalMode).toBe(false);
+        expect((row.subgroups[0] as SBRParams).transientShape).toBe(1);
     });
 });

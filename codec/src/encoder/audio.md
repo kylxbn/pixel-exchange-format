@@ -44,6 +44,16 @@ Each MCU therefore holds four consecutive audio blocks and one shared 8x8 Cb and
 
 v300 stores audio row `R` as raster image block row `2 + R`, block `i` at column `i`.
 
+## Lead-In Block (v301+)
+
+An MDCT hop is only reconstructed correctly where two windows overlap, and the first hop of a file would have just one. The first image of a v301 file (`imageIndex = 1`, plus the side image `imageIndex = 2` for stereo) therefore stores one extra block ahead of the audio: 128 samples of silence are prepended before MDCT framing, so stored block 0 covers samples `-128..127` and stored block `n + 1` is the block that starts at audio sample `128 * n`.
+
+- The header sample count is the number of real audio samples and does not include the lead-in.
+- Such an image stores `ceil((samples + 128) / 128)` blocks; every other image stores `ceil(samples / 128)`.
+- Decoders overlap-add as usual and drop the first 128 output samples.
+
+v300 files have no lead-in block.
+
 ## Block Pipeline
 
 For each audio block (`hop = 128`, `window = 256`):
@@ -54,16 +64,16 @@ For each audio block (`hop = 128`, `window = 256`):
 
 Per row, the encoder then:
 
-1. Runs SBR analysis and encodes 8 bytes of row SBR metadata.
-2. Applies static MDCT whitening to stored bins `0..95`.
-3. Computes subgroup band factors (4 bands over bins `0..63`).
-4. Applies subgroup band factors to bins `0..63`.
-5. Maps coefficients to:
+1. Applies static MDCT whitening to stored bins `0..95`.
+2. Computes subgroup band factors (4 bands over bins `0..63`).
+3. Applies subgroup band factors to bins `0..63`.
+4. Maps coefficients to:
    - 8x8 luma DCT coefficients (`bins 0..63`), one block per audio block
    - 8x8 chroma DCT coefficients (`bins 64..95`, interleaved Cb/Cr), one block shared by the four audio blocks of an MCU (v301+; v300 used per-block 4x4 chroma)
-6. Runs IDCT to spatial domain.
-7. Computes row scaling factors to avoid clipping (see Row Scaling Strategy).
-8. Writes pixels via OBB mapping (point space -> YCbCr -> RGB).
+5. Runs IDCT to spatial domain.
+6. Computes row scaling factors to avoid clipping (see Row Scaling Strategy).
+7. Writes pixels via OBB mapping (point space -> YCbCr -> RGB).
+8. Reads the written pixels back through a model of the target JPEG transport and runs SBR analysis against that lowband (see SBR, Encoder Analysis), then encodes 8 bytes of row SBR metadata.
 
 Because MCUs span two image rows, v301 images always contain an even number of data rows (unused blocks are written as silence).
 

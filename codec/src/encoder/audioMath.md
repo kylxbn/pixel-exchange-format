@@ -9,19 +9,22 @@ title: Audio Row Math (Encoder)
 
 `prepareAudioRow(...)` runs per row and:
 1. Builds MDCT blocks (128 bins) from windowed audio
-2. Runs row-level SBR analysis
-3. Applies static whitening to stored bins `0..95`
-4. Computes subgroup band maxima and quantized band factors (A/B)
-5. Maps bins `0..63` to the 8x8 luma coefficient plane and runs IDCT
-6. Computes subgroup luma scaling factors via `ScalingUtils`
-7. Keeps the 16 Cb and 16 Cr coefficients (bins `64..95`) for the pair step
+2. Applies static whitening to stored bins `0..95`
+3. Computes subgroup band maxima and quantized band factors (A/B)
+4. Maps bins `0..63` to the 8x8 luma coefficient plane and runs IDCT
+5. Computes subgroup luma scaling factors via `ScalingUtils`
+6. Keeps the 16 Cb and 16 Cr coefficients (bins `64..95`) for the pair step
 
 `prepareRowPairChroma(top, bottom)` then, per row and per MCU (four consecutive audio blocks):
 1. Places each block's 16 chroma coefficients into the MCU's 8x8 chroma plane at importance rank `4k + ordinal`, where `ordinal` is the block's position in the MCU (so the four blocks interleave by importance)
 2. Runs one IDCT per MCU and plane
 3. Derives the row's chroma scales (`scaleCAX/CAY/CBX/CBY`) from the absolute maximum of each chroma group. Groups are whole MCUs, so every MCU has exactly one scale
 
-`writePreparedAudioRowPair(...)` places blocks in MCU order, scales luma per block, NN-upsamples the MCU's chroma to 16x16 px, writes RGB pixels through OBB mapping, and emits row metadata through the injected callback (`writeRowMetadata`).
+`writeRowPairPixels(...)` places blocks in MCU order, scales luma per block, NN-upsamples the MCU's chroma to 16x16 px and writes RGB pixels through OBB mapping.
+
+`readBackRowPair(...)` passes the pair's pixel strip through `simulateJpegChannel` (baseline JPEG, quality 92, 4:2:0, read back without chroma interpolation) and decodes every block with the decoder's own `decodeBlockToCoefficients`, using the scales as the half-float metadata will carry them. `analyzeRowPairSbr(...)` then fits SBR with those blocks as the source and the clean bins `96..127` as the target. With `AUDIO_PSYCHOACOUSTICS.sbrClosedLoop` off, the clean lowband is the source.
+
+`writeRowPairMetadata(...)` emits row metadata through the injected callback (`writeRowMetadata`).
 
 `writePreparedAudioRow(...)` is the legacy v300 writer (per-block 4x4 chroma); it is kept for decoder compatibility tests only.
 

@@ -6,7 +6,7 @@ import {
     prepareAudioRow,
     prepareRowPairChroma,
     writePreparedAudioRow,
-    writePreparedAudioRowPair,
+    writeRowPairPixels,
 } from './encoder/audioMath';
 import type { EncodeRowBuffers, RowMetadataWriter, PreparedAudioRow } from './encoder/audioMath';
 import { decodeBlockToCoefficients } from './decoder/audioMath';
@@ -33,6 +33,7 @@ import {
     isLumaSubgroupA,
 } from './audioLayout';
 import { decodeRGBToPoint } from './utils/obb';
+import { simulateJpegChannel } from './encoder/jpegChannel';
 
 const FIRST_AUDIO_BLOCK_INDEX = 2 * BLOCKS_PER_ROW;
 
@@ -117,10 +118,7 @@ describe('4:2:0 chroma (v301 superblocks)', () => {
         expect(bottom.scaleCAX).toBeGreaterThan(0);
 
         const imageData = makeImage(2);
-        writePreparedAudioRowPair(
-            0, FIRST_AUDIO_BLOCK_INDEX, top, bottom, pairChroma,
-            imageData, noopMetadataWriter
-        );
+        writeRowPairPixels(0, top, bottom, pairChroma, imageData);
 
         const decodeBuffers = makeDecodeBuffers();
         const coeffBuffer = new Float32Array(128);
@@ -248,7 +246,7 @@ describe('4:2:0 chroma (v301 superblocks)', () => {
         ));
         const pairChroma = prepareRowPairChroma(rows[0], rows[1], buffers);
         const imageData = makeImage(2);
-        writePreparedAudioRowPair(0, FIRST_AUDIO_BLOCK_INDEX, rows[0], rows[1], pairChroma, imageData, noopMetadataWriter);
+        writeRowPairPixels(0, rows[0], rows[1], pairChroma, imageData);
 
         // RGB rounding moves a decoded chroma sample slightly; NN upsampling
         // keeps the four pixels of a chroma sample within that tolerance.
@@ -352,6 +350,28 @@ describe('4:2:0 chroma (v301 superblocks)', () => {
             errorSum += diff * diff;
         }
         expect(Math.sqrt(errorSum / len)).toBeLessThan(0.06);
+    });
+});
+
+describe('JPEG transport model', () => {
+    it('leaves flat areas alone and disturbs audio pixels only slightly', async () => {
+        const flat = new Uint8ClampedArray(32 * 16 * 4).fill(128);
+        expect(Array.from(simulateJpegChannel(flat, 32, 16)).filter((_, i) => i % 4 !== 3).every(v => v === 128)).toBe(true);
+
+        const channelData = makeNoiseAudio(DATA_BLOCKS_PER_ROW * 2, 99).subarray(0, DATA_BLOCKS_PER_ROW * 2 * MDCT_HOP_SIZE);
+        const [image] = await PxfEncoder.encode({ audio: { channels: [channelData], sampleRate: 44100 } }, { fn: 'channel' });
+        const out = simulateJpegChannel(image.data, image.width, image.height);
+
+        let errorSum = 0;
+        let count = 0;
+        for (let i = 16 * IMAGE_WIDTH * 4; i < out.length; i++) {
+            if (i % 4 === 3) continue;
+            errorSum += Math.abs(out[i] - image.data[i]);
+            count++;
+        }
+        const meanError = errorSum / count;
+        expect(meanError).toBeGreaterThan(0.5);
+        expect(meanError).toBeLessThan(8);
     });
 });
 

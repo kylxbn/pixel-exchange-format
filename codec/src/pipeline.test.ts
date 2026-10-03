@@ -239,6 +239,15 @@ describe('Integration Pipeline', () => {
                 expect(hopRmse(channels[c], decodedResult.channels[c], 0)).toBeLessThan(Math.max(0.01, interior * 3));
                 expect(decodedResult.channels[c].length).toBe(length);
 
+                // Seeking lands on the same samples as a full decode, at the start and across images
+                for (const position of [0, MDCT_HOP_SIZE * 10, firstBoundary, firstBoundary + samplesPerImage]) {
+                    decodedResult.decoder.seek(position);
+                    const chunk = decodedResult.decoder.decodeChunk(2 * MDCT_HOP_SIZE / sampleRate)[c];
+                    for (let i = 0; i < 2 * MDCT_HOP_SIZE; i++) {
+                        expect(chunk[i]).toBeCloseTo(decodedResult.channels[c][position + i], 5);
+                    }
+                }
+
                 for (const boundary of [firstBoundary, firstBoundary + samplesPerImage]) {
                     // The first hop of an image must reconstruct as well as any other hop
                     expect(hopRmse(channels[c], decodedResult.channels[c], boundary)).toBeLessThan(Math.max(0.01, interior * 3));

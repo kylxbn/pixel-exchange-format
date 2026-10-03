@@ -14,12 +14,16 @@ import {
 import {
     audioBlockToImageBlock,
     BLOCKS_PER_MCU,
+    FIRST_AUDIO_BLOCK_ROW,
     chromaGroupIndex,
     isLumaSubgroupA,
     MCUS_PER_AUDIO_ROW,
 } from '../audioLayout';
 import { AUDIO_PSYCHOACOUSTICS, getBlockMapForVersion } from '../psychoacoustics';
 import { analyzeRowSBR, createDefaultRowSBR, encodeRowSBR, type RowSBRParams } from '../utils/sbr';
+import { decodeBlockToCoefficients } from '../decoder/audioMath';
+import { floatToHalf, halfToFloat } from '../utils/ieee';
+import { simulateJpegChannel } from './jpegChannel';
 import {
     idct4x4,
     idct8x8,
@@ -67,6 +71,10 @@ export type RowMetadataWriter = (
 export interface PreparedAudioRow {
     rowDataCount: number;
     rowMDCTCoeffs: Float32Array[];
+    // Blocks as SBR analysis should see them: bins 0..95 the way the decoder
+    // reads them back, bins 96..127 clean. Same as rowMDCTCoeffs until
+    // analyzeRowPairSbr has run.
+    sbrSourceCoeffs: Float32Array[];
     rowSpatialY: Float32Array;
     // v300: per-block 4x4 chroma spatial samples (16 per block)
     rowSpatialCb: Float32Array;
@@ -126,7 +134,8 @@ export function prepareAudioRow(
         }
     }
 
-    const sbrParams = AUDIO_PSYCHOACOUSTICS.enableSbr
+    // v301 rows are analyzed by analyzeRowPairSbr once their pixels exist
+    const sbrParams = AUDIO_PSYCHOACOUSTICS.enableSbr && !isV301
         ? analyzeRowSBR(rowMDCTCoeffs, rowDataCount)
         : createDefaultRowSBR();
 
@@ -243,6 +252,7 @@ export function prepareAudioRow(
     return {
         rowDataCount,
         rowMDCTCoeffs,
+        sbrSourceCoeffs: rowMDCTCoeffs,
         rowSpatialY,
         rowSpatialCb,
         rowSpatialCr,
@@ -437,19 +447,17 @@ export function prepareRowPairChroma(
 }
 
 /**
- * Writes a prepared pair of rows using the v301 layout: blocks in MCU order,
- * per-block luma plus the MCU's shared chroma NN-upsampled to 16x16 px.
- * The whole data area of the pair is written; blocks past the end of the
- * audio get silent luma.
+ * Writes the pixels of a prepared pair of rows using the v301 layout: blocks
+ * in MCU order, per-block luma plus the MCU's shared chroma NN-upsampled to
+ * 16x16 px. The whole data area of the pair is written; blocks past the end
+ * of the audio get silent luma.
  */
-export function writePreparedAudioRowPair(
+export function writeRowPairPixels(
     topRowIndex: number,
-    firstAudioBlockIndex: number,
     top: PreparedAudioRow,
     bottom: PreparedAudioRow,
     pairChroma: PreparedPairChroma,
     imageData: SimpleImageData,
-    writeRowMetadata: RowMetadataWriter,
     formatVersion: number = FORMAT_VERSION
 ): void {
     const rows = [top, bottom];
@@ -458,9 +466,6 @@ export function writePreparedAudioRowPair(
     for (let r = 0; r < 2; r++) {
         const row = rows[r];
         const rowIndex = topRowIndex + r;
-        const sbrBytes = AUDIO_PSYCHOACOUSTICS.enableSbr
-            ? encodeRowSBR(row.sbrParams, formatVersion)
-            : new Uint8Array(ROW_META_SBR_BYTES);
 
         for (let i = 0; i < DATA_BLOCKS_PER_ROW; i++) {
             const hasData = i < row.rowDataCount;
@@ -494,8 +499,86 @@ export function writePreparedAudioRowPair(
                 }
             }
         }
+    }
+}
 
-        const metaBlockIdx = firstAudioBlockIndex + rowIndex * BLOCKS_PER_ROW + DATA_BLOCKS_PER_ROW;
+/**
+ * Reads a written pair of rows back the way a decoder will (after the target
+ * JPEG transport when sbrClosedLoop is on) and stores the result in each
+ * row's sbrSourceCoeffs. SBR is then fitted to the lowband synthesis will
+ * really patch from, which carries the transport's quantization noise.
+ */
+export function readBackRowPair(
+    topRowIndex: number,
+    top: PreparedAudioRow,
+    bottom: PreparedAudioRow,
+    imageData: SimpleImageData,
+    whiteningProfile: MdctWhiteningProfile | null,
+    formatVersion: number = FORMAT_VERSION
+): void {
+    if (!AUDIO_PSYCHOACOUSTICS.enableSbr || !AUDIO_PSYCHOACOUSTICS.sbrClosedLoop || !whiteningProfile) return;
+
+    const firstImageRow = FIRST_AUDIO_BLOCK_ROW + topRowIndex;
+    const stripStart = firstImageRow * 8 * IMAGE_WIDTH * 4;
+    const strip = simulateJpegChannel(
+        imageData.data.subarray(stripStart, stripStart + 16 * IMAGE_WIDTH * 4), IMAGE_WIDTH, 16
+    );
+
+    const buffers = {
+        spatialY: new Float32Array(64),
+        spatialCb: new Float32Array(64),
+        spatialCr: new Float32Array(64),
+        dctY: new Float32Array(64),
+        dctCb: new Float32Array(64),
+        dctCr: new Float32Array(64),
+        temp: new Float32Array(64)
+    };
+    // The decoder gets the scales from half-float row metadata
+    const stored = (scale: number) => halfToFloat(floatToHalf(scale));
+
+    [top, bottom].forEach((row, r) => {
+        const chromaScales = [row.scaleCAX, row.scaleCAY, row.scaleCBX, row.scaleCBY];
+        row.sbrSourceCoeffs = row.rowMDCTCoeffs.map((clean, i) => {
+            const isA = isLumaSubgroupA(i, formatVersion);
+            const coeffs = new Float32Array(clean.length);
+            decodeBlockToCoefficients(
+                strip, IMAGE_WIDTH,
+                audioBlockToImageBlock(topRowIndex + r, i, formatVersion) - firstImageRow * BLOCKS_PER_ROW,
+                stored(isA ? row.scaleYA : row.scaleYB),
+                stored(chromaScales[chromaGroupIndex(i, formatVersion)]),
+                whiteningProfile,
+                isA ? row.bandFactorsA : row.bandFactorsB,
+                coeffs, buffers, undefined, formatVersion
+            );
+            coeffs.set(clean.subarray(96), 96);
+            return coeffs;
+        });
+    });
+}
+
+/** Fits each row's SBR parameters; call after readBackRowPair. */
+export function analyzeRowPairSbr(top: PreparedAudioRow, bottom: PreparedAudioRow): void {
+    if (!AUDIO_PSYCHOACOUSTICS.enableSbr) return;
+    for (const row of [top, bottom]) {
+        row.sbrParams = analyzeRowSBR(row.rowMDCTCoeffs, row.rowDataCount, row.sbrSourceCoeffs);
+    }
+}
+
+export function writeRowPairMetadata(
+    topRowIndex: number,
+    firstAudioBlockIndex: number,
+    top: PreparedAudioRow,
+    bottom: PreparedAudioRow,
+    imageData: SimpleImageData,
+    writeRowMetadata: RowMetadataWriter,
+    formatVersion: number = FORMAT_VERSION
+): void {
+    [top, bottom].forEach((row, r) => {
+        const rowIndex = topRowIndex + r;
+        const sbrBytes = AUDIO_PSYCHOACOUSTICS.enableSbr
+            ? encodeRowSBR(row.sbrParams, formatVersion)
+            : new Uint8Array(ROW_META_SBR_BYTES);
+
         writeRowMetadata(
             rowIndex,
             row.scaleYA,
@@ -508,9 +591,9 @@ export function writePreparedAudioRowPair(
             row.bandFactorsB,
             sbrBytes,
             imageData,
-            metaBlockIdx
+            firstAudioBlockIndex + rowIndex * BLOCKS_PER_ROW + DATA_BLOCKS_PER_ROW
         );
-    }
+    });
 }
 
 export function processRowPair(
@@ -553,13 +636,8 @@ export function processRowPair(
 
     const pairChroma = prepareRowPairChroma(top, bottom, buffers);
 
-    writePreparedAudioRowPair(
-        topRowIndex,
-        firstAudioBlockIndex,
-        top,
-        bottom,
-        pairChroma,
-        imageData,
-        writeRowMetadata
-    );
+    writeRowPairPixels(topRowIndex, top, bottom, pairChroma, imageData);
+    readBackRowPair(topRowIndex, top, bottom, imageData, whiteningProfile);
+    analyzeRowPairSbr(top, bottom);
+    writeRowPairMetadata(topRowIndex, firstAudioBlockIndex, top, bottom, imageData, writeRowMetadata);
 }

@@ -53,6 +53,7 @@ If row metadata decode fails (or yields invalid values), decoder falls back to n
 - 128-point IMDCT produces 256 samples per transform
 - Sine windowing with 50% overlap (TDAC)
 - Overlap-add combines adjacent windows
+- When the first image of a v301 file is present, its first stored block is the lead-in block: audio hop `n` is the overlap of stored blocks `n` and `n + 1`, and the first 128 overlap-add output samples are dropped. A set that starts at a later image has no lead-in and starts at its first stored block.
 
 ### Channel Reconstruction
 - Mono: single channel output

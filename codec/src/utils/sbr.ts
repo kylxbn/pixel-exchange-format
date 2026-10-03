@@ -476,6 +476,66 @@ function getDeterministicNoise(seed: number, binIndex: number): number {
 
 // Synthesis
 
+// First source bin of each patch mode's 32-bin tile (mode 3 mirrors mode 0's tile)
+const PATCH_SOURCE_OFFSETS = [64, 48, 32, 64] as const;
+
+function patchSourceIndex(patchMode: number, j: number): number {
+    if (patchMode === 3) {
+        // Pair-swapped mirror preserves Even/Odd parity
+        return PATCH_SOURCE_OFFSETS[3] + (j % 2 === 0 ? 30 - j : 32 - j);
+    }
+    return PATCH_SOURCE_OFFSETS[patchMode] + j;
+}
+
+/**
+ * Reads the 32-bin source tile of a patch mode. whiteningLevel 0..3 flattens
+ * the tile by compressing every bin's magnitude with the exponent
+ * 1 - level/3 (level 3 leaves only the signs), so a tonal lowband can stand
+ * in for a noisier highband. Each 8-bin band keeps its energy, so gains mean
+ * the same at every level.
+ */
+export function readSourceTile(mdctCoeffs: Float32Array, patchMode: number, whiteningLevel: number, tile: Float32Array): void {
+    for (let j = 0; j < SBR_NUM_BINS; j++) {
+        tile[j] = mdctCoeffs[patchSourceIndex(patchMode, j)];
+    }
+    if (whiteningLevel <= 0) return;
+
+    const exponent = 1 - Math.min(3, whiteningLevel) / 3;
+
+    for (let band = 0; band < 4; band++) {
+        let energy = 0;
+        let whitenedEnergy = 0;
+        for (let j = band * 8; j < band * 8 + 8; j++) {
+            const magnitude = Math.abs(tile[j]);
+            energy += magnitude * magnitude;
+            tile[j] = magnitude > 1e-12 ? Math.sign(tile[j]) * Math.pow(magnitude, exponent) : 0;
+            whitenedEnergy += tile[j] * tile[j];
+        }
+        const scale = whitenedEnergy > 1e-20 ? Math.sqrt(energy / whitenedEnergy) : 0;
+        for (let j = band * 8; j < band * 8 + 8; j++) tile[j] *= scale;
+    }
+}
+
+// RMS of each transient shape over its span, so v301 shapes keep the energy
+// the gain was fitted for
+const TRANSIENT_SHAPE_RMS = [1.0, Math.sqrt(7 / 12), Math.sqrt(7 / 12), Math.sqrt(7 / 16)] as const;
+
+function transientShapeGain(shape: number, position: number, normalized: boolean): number {
+    let gain = 1.0;
+    switch (shape) {
+        case 1: // Attack
+            gain = 0.5 + 0.5 * position;
+            break;
+        case 2: // Decay
+            gain = 1.0 - 0.5 * position;
+            break;
+        case 3: // Impulse
+            gain = 1.0 - Math.abs(position - 0.5) * 1.5;
+            break;
+    }
+    return normalized ? gain / TRANSIENT_SHAPE_RMS[shape & 3] : gain;
+}
+
 /**
  * Synthesizes HF bins (96-127) based on mode.
  * For temporal mode, selects A or B parameters based on block position.
@@ -489,13 +549,17 @@ export function applySBRSynthesis(
     formatVersion: number = FORMAT_VERSION
 ): void {
     const synthParams = resolveSynthesisParams(params, blockIndexInSubgroup, subgroupSize, formatVersion);
-    synthesizeBlock(mdctCoeffs, synthParams, blockIndexInSubgroup, subgroupSize, externalSeed, formatVersion);
+    synthesizeBlock(mdctCoeffs, synthParams, externalSeed, formatVersion);
 }
 
 interface SynthesisParams {
     hfGain: number;
     bandEnvelope: number[];
-    noiseFloorRatio: number;
+    // Fraction of the HF energy replaced by noise (0..1)
+    noiseRatio: number;
+    // Position (0..1) inside the span the transient shape runs over, or
+    // null when the span is a single block
+    shapePosition: number | null;
     tonality: number;
     patchMode: number;
     procMode: number;
@@ -509,14 +573,25 @@ function resolveSynthesisParams(
     subgroupSize: number,
     formatVersion: number
 ): SynthesisParams {
+    const spanPosition = (index: number, size: number) => size > 1 ? index / (size - 1) : null;
+
     if (params.temporalMode) {
         const temporal = params as SBRParamsTemporal;
-        const isSecondHalf = blockIndexInSubgroup >= Math.floor(subgroupSize / 2);
+        const halfSize = Math.floor(subgroupSize / 2);
+        const isSecondHalf = blockIndexInSubgroup >= halfSize;
+        const noiseFloorRatio = isSecondHalf ? temporal.noiseFloorRatioB : temporal.noiseFloorRatioA;
 
         return {
             hfGain: isSecondHalf ? temporal.hfGainB : temporal.hfGainA,
-            noiseFloorRatio: isSecondHalf ? temporal.noiseFloorRatioB : temporal.noiseFloorRatioA,
+            // v300 read the 2-bit temporal field on the 4-bit scale
+            noiseRatio: Math.min(1.0, noiseFloorRatio / (formatVersion >= 301 ? 3.0 : 15.0)),
             transientShape: isSecondHalf ? temporal.transientB : temporal.transientA,
+            // v301 runs the shape over the half it was analyzed on
+            shapePosition: formatVersion >= 301
+                ? (isSecondHalf
+                    ? spanPosition(blockIndexInSubgroup - halfSize, subgroupSize - halfSize)
+                    : spanPosition(blockIndexInSubgroup, halfSize))
+                : spanPosition(blockIndexInSubgroup, subgroupSize),
             bandEnvelope: temporal.bandEnvelope,
             tonality: temporal.tonality,
             patchMode: temporal.patchMode,
@@ -529,7 +604,8 @@ function resolveSynthesisParams(
     return {
         hfGain: normal.hfGain,
         bandEnvelope: normal.bandEnvelope,
-        noiseFloorRatio: normal.noiseFloorRatio,
+        noiseRatio: Math.min(1.0, normal.noiseFloorRatio / 15.0),
+        shapePosition: spanPosition(blockIndexInSubgroup, subgroupSize),
         tonality: normal.tonality,
         patchMode: normal.patchMode,
         procMode: formatVersion >= 301 ? 0 : normal.procMode,
@@ -541,34 +617,22 @@ function resolveSynthesisParams(
 function synthesizeBlock(
     mdctFull: Float32Array,
     params: SynthesisParams,
-    blockIndexInSubgroup: number,
-    subgroupSize: number,
     externalSeed?: number,
     formatVersion: number = FORMAT_VERSION,
     unitNoiseProvider?: (destIdx: number) => number
 ): void {
-    // Scale noise ratio based on precision (temporal mode has 2 bits, normal has 4)
-    const noiseRatio = Math.min(1.0, params.noiseFloorRatio / 15.0);
+    const isV301 = formatVersion >= 301;
+    const noiseRatio = params.noiseRatio;
     const toneRatio = 1.0 - noiseRatio;
-    const tonalityDivisor = formatVersion >= 301 ? 3.0 : 7.0;
-    const tonalityFactor = Math.min(1.0, params.tonality / tonalityDivisor);
+    // v300 used tonality as a second tone/noise mix control. In v301 it
+    // selects how much the source tile is whitened and the mix is set by
+    // the noise ratio alone.
+    const tonalityFactor = isV301 ? 1.0 : Math.min(1.0, params.tonality / 7.0);
 
     // Temporal envelope multiplier
-    let temporalMult = 1.0;
-    if (subgroupSize > 1) {
-        const t = blockIndexInSubgroup / (subgroupSize - 1);
-        switch (params.transientShape) {
-            case 1: // Attack
-                temporalMult = 0.5 + 0.5 * t;
-                break;
-            case 2: // Decay
-                temporalMult = 1.0 - 0.5 * t;
-                break;
-            case 3: // Impulse
-                temporalMult = 1.0 - Math.abs(t - 0.5) * 1.5;
-                break;
-        }
-    }
+    const temporalMult = params.shapePosition === null
+        ? 1.0
+        : transientShapeGain(params.transientShape, params.shapePosition, isV301);
 
     // Content-based seed or external seed
     const frameSeed = externalSeed !== undefined ? externalSeed : Math.floor(
@@ -578,15 +642,11 @@ function synthesizeBlock(
     ) | 0;
 
     // Source offset
-    let srcOffset = 64;
-    let mirror = false;
+    const srcOffset = PATCH_SOURCE_OFFSETS[params.patchMode];
+    const mirror = params.patchMode === 3;
 
-    switch (params.patchMode) {
-        case 0: srcOffset = 64; break;
-        case 1: srcOffset = 48; break;
-        case 2: srcOffset = 32; break;
-        case 3: srcOffset = 64; mirror = true; break;
-    }
+    const sourceTile = new Float32Array(SBR_NUM_BINS);
+    readSourceTile(mdctFull, params.patchMode, isV301 ? 3 - Math.min(3, params.tonality) : 0, sourceTile);
 
     // --- Interpolation setup ---
 
@@ -599,13 +659,7 @@ function synthesizeBlock(
         const bandStart = b * 8;
         let srcEnergy = 0;
         for (let i = 0; i < 8; i++) {
-            const j = bandStart + i;
-            let srcIdx = srcOffset + j;
-            if (mirror) {
-                // Pair-swapped mirror preserves Even/Odd parity
-                srcIdx = srcOffset + (j % 2 === 0 ? 30 - j : 32 - j);
-            }
-            srcEnergy += mdctFull[srcIdx] ** 2;
+            srcEnergy += sourceTile[bandStart + i] ** 2;
         }
         const actualSourceRMS = Math.sqrt(srcEnergy / 8);
         const floor = (noiseRatio > 0.5) ? 0.001 : 1e-9;
@@ -673,13 +727,7 @@ function synthesizeBlock(
                 continue;
             }
 
-            const j = bandStart + i;
-            let srcReadIdx = srcOffset + j;
-            if (mirror) {
-                // Pair-swapped mirror preserves Even/Odd parity
-                srcReadIdx = srcOffset + (j % 2 === 0 ? 30 - j : 32 - j);
-            }
-            let val = mdctFull[srcReadIdx];
+            let val = sourceTile[bandStart + i];
 
             // Processing modes
             if (params.procMode === 2) {
@@ -749,20 +797,318 @@ export function applyJointStereoSBRSynthesis(
         (signFactor * sharedMix * sharedNoise(destIdx)) +
         (independentMix * getDeterministicNoise(sideFrameSeed, destIdx));
 
-    synthesizeBlock(midCoeffs, midParams, blockIndexInSubgroup, subgroupSize, midSeed, formatVersion, midNoise);
-    synthesizeBlock(sideCoeffs, sideParams, blockIndexInSubgroup, subgroupSize, sideSeed, formatVersion, sideNoise);
+    synthesizeBlock(midCoeffs, midParams, midSeed, formatVersion, midNoise);
+    synthesizeBlock(sideCoeffs, sideParams, sideSeed, formatVersion, sideNoise);
     projectStereoCueToHighFrequencies(midCoeffs, sideCoeffs, cue);
 }
 
 // Analysis
 
+// Noise-like spectra averaged over a subgroup measure about this flat; less
+// than this much of a flatness gap is not worth whitening or noise for
+const FLATNESS_TOLERANCE = 0.05;
+// Switch to temporal mode when the two halves need gains this far apart
+const TEMPORAL_GAIN_DELTA_DB = 3.0;
+// A transient shape must beat the flat envelope by this factor to be used
+const TRANSIENT_SHAPE_MARGIN = 0.9;
+
 /**
- * Analyzes a row and decides whether to use Normal or Temporal mode.
- * Uses Temporal mode when energy variation within subgroup is high.
+ * Pseudo-spectrum power of bin k: MDCT[k]^2 + (MDCT[k+1] - MDCT[k-1])^2,
+ * scaled so that it sums to the same energy as MDCT[k]^2 does on average.
+ * Unlike the raw MDCT it barely depends on the phase of a stationary tone,
+ * so it gives steadier energy and tonality estimates.
+ */
+function pseudoPower(bins: ArrayLike<number>, k: number, length: number): number {
+    const below = k > 0 ? bins[k - 1] : 0;
+    const above = k + 1 < length ? bins[k + 1] : 0;
+    return (bins[k] * bins[k] + (above - below) * (above - below)) / 3;
+}
+
+/** Spectral flatness of time-averaged bin powers, per band, weighted by band energy. */
+function bandedFlatness(binPower: Float64Array): number {
+    let weighted = 0;
+    let total = 0;
+    for (let band = 0; band < 4; band++) {
+        let logSum = 0;
+        let sum = 0;
+        for (let i = 0; i < 8; i++) {
+            const power = binPower[band * 8 + i];
+            logSum += Math.log(power + 1e-20);
+            sum += power;
+        }
+        if (sum <= 1e-18) continue;
+        weighted += sum * Math.min(1.0, Math.exp(logSum / 8) / (sum / 8));
+        total += sum;
+    }
+    return total > 0 ? weighted / total : 1.0;
+}
+
+interface RangeStats {
+    blockCount: number;
+    // Pseudo-spectrum energy per block (target, and source tile of each patch mode)
+    targetBlock: Float64Array;
+    sourceBlock: Float64Array[];
+    // Same, per band over the whole range
+    targetBand: Float64Array;
+    sourceBand: Float64Array[];
+    targetTotal: number;
+    sourceTotal: number[];
+    // Time-averaged target power per HF bin
+    targetBins: Float64Array;
+}
+
+/**
+ * Energy statistics of blocks [start, end). The target is the clean
+ * highband; the source is the lowband as the decoder will have it.
+ */
+function measureRange(
+    targetCoeffsArray: Float32Array[],
+    sourceCoeffsArray: Float32Array[],
+    start: number,
+    end: number
+): RangeStats {
+    const blockCount = Math.max(0, end - start);
+    const stats: RangeStats = {
+        blockCount,
+        targetBlock: new Float64Array(blockCount),
+        sourceBlock: [0, 1, 2, 3].map(() => new Float64Array(blockCount)),
+        targetBand: new Float64Array(4),
+        sourceBand: [0, 1, 2, 3].map(() => new Float64Array(4)),
+        targetTotal: 0,
+        sourceTotal: [0, 0, 0, 0],
+        targetBins: new Float64Array(SBR_NUM_BINS)
+    };
+    const tile = new Float32Array(SBR_NUM_BINS);
+
+    for (let b = start; b < end; b++) {
+        const target = targetCoeffsArray[b];
+        const source = sourceCoeffsArray[b];
+        if (!target || !source) continue;
+
+        for (let j = 0; j < SBR_NUM_BINS; j++) {
+            const power = pseudoPower(target, SBR_START_BIN + j, SBR_END_BIN);
+            stats.targetBins[j] += power;
+            stats.targetBand[j >> 3] += power;
+            stats.targetBlock[b - start] += power;
+            stats.targetTotal += power;
+        }
+
+        for (let patchMode = 0; patchMode < 4; patchMode++) {
+            readSourceTile(source, patchMode, 0, tile);
+            for (let j = 0; j < SBR_NUM_BINS; j++) {
+                const power = pseudoPower(tile, j, SBR_NUM_BINS);
+                stats.sourceBand[patchMode][j >> 3] += power;
+                stats.sourceBlock[patchMode][b - start] += power;
+                stats.sourceTotal[patchMode] += power;
+            }
+        }
+    }
+
+    for (let j = 0; j < SBR_NUM_BINS; j++) stats.targetBins[j] /= Math.max(1, blockCount);
+    return stats;
+}
+
+function isSilent(totalEnergy: number, blockCount: number): boolean {
+    return totalEnergy / Math.max(1, blockCount * SBR_NUM_BINS) <= SBR_SILENCE_ENERGY_PER_BIN;
+}
+
+/** Gain (dB) that brings a patch mode's source tile to the target energy. */
+function fitGain(stats: RangeStats, patchMode: number): number {
+    const source = stats.sourceTotal[patchMode];
+    if (isSilent(stats.targetTotal, stats.blockCount) || source <= 1e-9 || stats.targetTotal <= 1e-9) {
+        return MIN_GAIN_DB;
+    }
+    return Math.max(MIN_GAIN_DB, Math.min(MAX_GAIN_DB, 10 * Math.log10(stats.targetTotal / source)));
+}
+
+/**
+ * How badly a patch mode's band energies fit the target once its own
+ * overall gain is applied, i.e. how much the band envelope has to correct.
+ */
+function patchShapeError(stats: RangeStats, patchMode: number): number {
+    const gainLin = Math.pow(10, fitGain(stats, patchMode) / 20);
+    let error = 0;
+    for (let band = 0; band < 4; band++) {
+        const targetMag = Math.sqrt(stats.targetBand[band]);
+        const sourceMag = Math.sqrt(stats.sourceBand[patchMode][band]);
+        error += (targetMag - sourceMag * gainLin) ** 2;
+    }
+    return error;
+}
+
+function fitBandEnvelope(stats: RangeStats, patchMode: number, gainDb: number, minDb: number, maxDb: number): number[] {
+    const bandEnvelope: number[] = [];
+    for (let band = 0; band < 4; band++) {
+        const target = stats.targetBand[band];
+        const source = stats.sourceBand[patchMode][band];
+        const bandGainDb = source > 1e-9 && target > 1e-9 ? 10 * Math.log10(target / source) - gainDb : 0;
+        bandEnvelope.push(Math.max(minDb, Math.min(maxDb, bandGainDb)));
+    }
+    return bandEnvelope;
+}
+
+/** Transient shape whose envelope best explains the target given the source and gain. */
+function fitTransientShape(stats: RangeStats, patchMode: number, gainDb: number, candidates: number[]): number {
+    if (stats.blockCount < 2) return 0;
+
+    const gainLin = Math.pow(10, gainDb / 20);
+    let bestShape = 0;
+    let bestError = Infinity;
+    let flatError = Infinity;
+
+    for (const shape of [0, ...candidates]) {
+        let error = 0;
+        for (let b = 0; b < stats.blockCount; b++) {
+            const envelope = transientShapeGain(shape, b / (stats.blockCount - 1), true);
+            error += (Math.sqrt(stats.targetBlock[b]) - Math.sqrt(stats.sourceBlock[patchMode][b]) * gainLin * envelope) ** 2;
+        }
+        if (shape === 0) flatError = error;
+        if (error < bestError) {
+            bestError = error;
+            bestShape = shape;
+        }
+    }
+
+    return bestError < flatError * TRANSIENT_SHAPE_MARGIN ? bestShape : 0;
+}
+
+/**
+ * Chooses how to turn the source tile into something as noise-like as the
+ * target: first by whitening it (tonality 3 = untouched .. 0 = fully
+ * whitened), then by replacing the remaining share with noise.
+ */
+function fitTonality(
+    stats: RangeStats,
+    sourceCoeffsArray: Float32Array[],
+    start: number,
+    end: number,
+    patchMode: number
+): { tonality: number; noiseRatio: number } {
+    const targetFlatness = bandedFlatness(stats.targetBins);
+    const tile = new Float32Array(SBR_NUM_BINS);
+    const sourceBins = new Float64Array(SBR_NUM_BINS);
+    let sourceFlatness = 1.0;
+    let level = 0;
+
+    for (; level <= 3; level++) {
+        sourceBins.fill(0);
+        for (let b = start; b < end; b++) {
+            const source = sourceCoeffsArray[b];
+            if (!source) continue;
+            readSourceTile(source, patchMode, level, tile);
+            for (let j = 0; j < SBR_NUM_BINS; j++) sourceBins[j] += pseudoPower(tile, j, SBR_NUM_BINS);
+        }
+        sourceFlatness = bandedFlatness(sourceBins);
+        if (sourceFlatness >= targetFlatness - FLATNESS_TOLERANCE) break;
+    }
+    level = Math.min(3, level);
+
+    const gap = targetFlatness - sourceFlatness;
+    const noiseRatio = gap > FLATNESS_TOLERANCE
+        ? Math.max(0, Math.min(1, gap / Math.max(1e-6, 1 - sourceFlatness)))
+        : 0;
+
+    return { tonality: 3 - level, noiseRatio };
+}
+
+function bestPatchMode(statsList: RangeStats[]): number {
+    let best = 0;
+    let bestError = Infinity;
+    for (let patchMode = 0; patchMode < 4; patchMode++) {
+        let error = 0;
+        for (const stats of statsList) error += patchShapeError(stats, patchMode);
+        if (error < bestError) {
+            bestError = error;
+            best = patchMode;
+        }
+    }
+    return best;
+}
+
+function analyzeSubgroup(
+    targetCoeffsArray: Float32Array[],
+    sourceCoeffsArray: Float32Array[],
+    start: number,
+    end: number,
+    forcedPatchMode?: number
+): SBRParamsUnion {
+    const full = measureRange(targetCoeffsArray, sourceCoeffsArray, start, end);
+    const patchMode = forcedPatchMode ?? bestPatchMode([full]);
+
+    if (isSilent(full.targetTotal, full.blockCount)) {
+        return {
+            temporalMode: false,
+            hfGain: MIN_GAIN_DB,
+            bandEnvelope: [0, 0, 0, 0],
+            noiseFloorRatio: 0,
+            tonality: 0,
+            patchMode: forcedPatchMode ?? 0,
+            procMode: 0,
+            stereoCue: 0,
+            transientShape: 0
+        };
+    }
+
+    const midpoint = Math.floor((start + end) / 2);
+    const halfA = measureRange(targetCoeffsArray, sourceCoeffsArray, start, midpoint);
+    const halfB = measureRange(targetCoeffsArray, sourceCoeffsArray, midpoint, end);
+    const gainA = fitGain(halfA, patchMode);
+    const gainB = fitGain(halfB, patchMode);
+    const gain = fitGain(full, patchMode);
+    const { tonality, noiseRatio } = fitTonality(full, sourceCoeffsArray, start, end, patchMode);
+
+    // The decoder follows the source's energy block by block, so only a
+    // change in the gain it needs calls for the finer time resolution.
+    const useTemporalMode = halfA.blockCount > 0 && halfB.blockCount > 0 &&
+        Math.abs(gainA - gainB) > TEMPORAL_GAIN_DELTA_DB;
+
+    if (useTemporalMode) {
+        const quantize = (value: number) =>
+            Math.max(MIN_GAIN_DB, Math.round((value - MIN_GAIN_DB) / GAIN_STEP_DB_TEMPORAL) * GAIN_STEP_DB_TEMPORAL + MIN_GAIN_DB);
+        const hfGainA = quantize(gainA);
+        const hfGainB = quantize(gainB);
+        const noiseFloorRatio = Math.round(noiseRatio * 3);
+
+        return {
+            temporalMode: true,
+            patchMode,
+            procMode: 0,
+            tonality,
+            stereoCue: 0,
+            bandEnvelope: fitBandEnvelope(full, patchMode, gain, BAND_ENV_MIN_DB_TEMPORAL, 4.5),
+            hfGainA,
+            noiseFloorRatioA: noiseFloorRatio,
+            transientA: fitTransientShape(halfA, patchMode, hfGainA, [1]),
+            hfGainB,
+            noiseFloorRatioB: noiseFloorRatio,
+            transientB: fitTransientShape(halfB, patchMode, hfGainB, [1])
+        };
+    }
+
+    const hfGain = Math.round(gain / GAIN_STEP_DB_NORMAL) * GAIN_STEP_DB_NORMAL;
+    return {
+        temporalMode: false,
+        hfGain,
+        bandEnvelope: fitBandEnvelope(full, patchMode, hfGain, BAND_ENV_MIN_DB, 8.0),
+        noiseFloorRatio: Math.round(noiseRatio * 15),
+        tonality,
+        patchMode,
+        procMode: 0,
+        stereoCue: 0,
+        transientShape: fitTransientShape(full, patchMode, hfGain, [1, 2, 3])
+    };
+}
+
+/**
+ * Analyzes a row's SBR parameters. targetCoeffsArray holds the clean MDCT
+ * blocks (bins 96..127 are what synthesis should recreate);
+ * sourceCoeffsArray holds bins 0..95 as the decoder will read them, so the
+ * parameters are fitted to the lowband synthesis actually patches from.
  */
 export function analyzeRowSBR(
-    mdctCoeffsArray: Float32Array[],
+    targetCoeffsArray: Float32Array[],
     rowDataCount: number,
+    sourceCoeffsArray: Float32Array[] = targetCoeffsArray
 ): RowSBRParams {
     const subgroups: SBRParamsUnion[] = [];
 
@@ -774,273 +1120,10 @@ export function analyzeRowSBR(
             continue;
         }
 
-        const midpoint = Math.floor((start + end) / 2);
-
-        // Analyze first and second halves separately
-        const analysisA = analyzeHalfSubgroup(mdctCoeffsArray, start, midpoint);
-        const analysisB = analyzeHalfSubgroup(mdctCoeffsArray, midpoint, end);
-        const analysisFull = analyzeHalfSubgroup(mdctCoeffsArray, start, end);
-
-        // Decide mode: use temporal if gain varies significantly between halves
-        const gainDelta = Math.abs(analysisA.hfGain - analysisB.hfGain);
-        const energyVariation = Math.abs(analysisA.totalEnergy - analysisB.totalEnergy) /
-            (Math.max(analysisA.totalEnergy, analysisB.totalEnergy) + 1e-9);
-
-        const useTemporalMode = gainDelta > 4.0 || energyVariation > 0.5;
-
-        if (useTemporalMode) {
-            // Temporal mode: use per-half analysis
-            const temporal: SBRParamsTemporal = {
-                temporalMode: true,
-                patchMode: analysisFull.patchMode,
-                procMode: 0,
-                tonality: Math.min(3, Math.round(analysisFull.tonality / 2)),
-                stereoCue: 0,
-                bandEnvelope: analysisFull.bandEnvelope.map(v =>
-                    Math.max(BAND_ENV_MIN_DB_TEMPORAL, Math.min(4.5, v))
-                ),
-                hfGainA: analysisA.hfGain,
-                noiseFloorRatioA: Math.min(3, Math.round(analysisA.noiseFloorRatio / 4)),
-                transientA: analysisA.transientShape > 0 ? 1 : 0,
-                hfGainB: analysisB.hfGain,
-                noiseFloorRatioB: Math.min(3, Math.round(analysisB.noiseFloorRatio / 4)),
-                transientB: analysisB.transientShape > 0 ? 1 : 0
-            };
-            subgroups.push(temporal);
-        } else {
-            // Normal mode: use full analysis
-            const normal: SBRParams = {
-                temporalMode: false,
-                hfGain: analysisFull.hfGain,
-                bandEnvelope: analysisFull.bandEnvelope,
-                noiseFloorRatio: analysisFull.noiseFloorRatio,
-                tonality: Math.min(3, Math.round(analysisFull.tonality * 3 / 7)),
-                patchMode: analysisFull.patchMode,
-                procMode: 0,
-                stereoCue: 0,
-                transientShape: analysisFull.transientShape
-            };
-            subgroups.push(normal);
-        }
+        subgroups.push(analyzeSubgroup(targetCoeffsArray, sourceCoeffsArray, start, end));
     }
 
     return { subgroups: subgroups as [SBRParamsUnion, SBRParamsUnion] };
-}
-
-interface SubgroupAnalysis {
-    hfGain: number;
-    bandEnvelope: number[];
-    noiseFloorRatio: number;
-    tonality: number;
-    patchMode: number;
-    transientShape: number;
-    totalEnergy: number;
-}
-
-function analyzeHalfSubgroup(
-    mdctCoeffsArray: Float32Array[],
-    start: number,
-    end: number
-): SubgroupAnalysis {
-    if (end <= start) {
-        return {
-            hfGain: MIN_GAIN_DB,
-            bandEnvelope: [0, 0, 0, 0],
-            noiseFloorRatio: 4,
-            tonality: 4,
-            patchMode: 0,
-            transientShape: 0,
-            totalEnergy: 0
-        };
-    }
-
-    const targetBandEnergy = new Float32Array(4);
-    const sourceBandEnergy = new Float32Array(4);
-
-    // Track sum of energies
-    let totalTargetEnergy = 0;
-    let totalSourceEnergy = 0;
-
-    let prevEnergy = 0;
-    let energyRise = 0;
-    let energyFall = 0;
-    const blockCount = end - start;
-    const numHfBins = Math.max(1, blockCount * SBR_NUM_BINS);
-
-    for (let b = start; b < end; b++) {
-        const bins = mdctCoeffsArray[b];
-        let blockTargetEnergy = 0;
-        let blockSourceEnergy = 0;
-
-        for (let band = 0; band < 4; band++) {
-            const bandStart = SBR_START_BIN + band * 8;
-            for (let i = 0; i < 8; i++) {
-                const val = bins[bandStart + i];
-                targetBandEnergy[band] += val * val;
-                blockTargetEnergy += val * val;
-            }
-        }
-
-        for (let band = 0; band < 4; band++) {
-            const bandStart = 64 + band * 8;
-            for (let i = 0; i < 8; i++) {
-                const val = bins[bandStart + i];
-                sourceBandEnergy[band] += val * val;
-                blockSourceEnergy += val * val;
-            }
-        }
-
-        totalTargetEnergy += blockTargetEnergy;
-        totalSourceEnergy += blockSourceEnergy;
-
-        if (b > start) {
-            const delta = blockTargetEnergy - prevEnergy;
-            if (delta > 0) energyRise += delta;
-            else energyFall -= delta;
-        }
-        prevEnergy = blockTargetEnergy;
-    }
-
-    const avgTargetEnergyPerBin = totalTargetEnergy / numHfBins;
-    const avgSourceEnergyPerBin = totalSourceEnergy / numHfBins;
-    const isTargetSilent = avgTargetEnergyPerBin <= SBR_SILENCE_ENERGY_PER_BIN;
-    const isSourceSilent = avgSourceEnergyPerBin <= SBR_SILENCE_ENERGY_PER_BIN;
-
-    if (isTargetSilent && isSourceSilent) {
-        return {
-            hfGain: MIN_GAIN_DB,
-            bandEnvelope: [0, 0, 0, 0],
-            noiseFloorRatio: 0,
-            tonality: 0,
-            patchMode: 0,
-            transientShape: 0,
-            totalEnergy: totalTargetEnergy
-        };
-    }
-
-    // Transient shape detection
-    let transientShape = 0;
-    const maxDelta = Math.max(energyRise, energyFall);
-    const isTransient = maxDelta > totalTargetEnergy * 0.3;
-    if (isTransient) {
-        if (energyRise > energyFall * 2) transientShape = 1;      // Attack
-        else if (energyFall > energyRise * 2) transientShape = 2; // Decay
-        else transientShape = 3;                                  // Impulse
-    }
-
-    // HF gain calculation
-    // Base gain from average energy ratio
-    let hfGain = MIN_GAIN_DB;
-    if (isTargetSilent) {
-        hfGain = MIN_GAIN_DB;
-    } else if (totalSourceEnergy > 1e-9 && totalTargetEnergy > 1e-9) {
-        const ratio = Math.sqrt(totalTargetEnergy / totalSourceEnergy);
-        hfGain = 20 * Math.log10(ratio);
-    }
-
-    hfGain = Math.max(MIN_GAIN_DB, Math.min(MAX_GAIN_DB, hfGain));
-
-    // Tonality from spectral flatness
-    let spectralFlatness = 0;
-    if (!isTargetSilent && blockCount > 0) {
-        let geomMean = 0;
-        let arithMean = 0;
-        let count = 0;
-        for (let b = start; b < end; b++) {
-            const bins = mdctCoeffsArray[b];
-            for (let i = SBR_START_BIN; i < SBR_END_BIN; i++) {
-                const mag = Math.abs(bins[i]) + 1e-10;
-                geomMean += Math.log(mag);
-                arithMean += mag;
-                count++;
-            }
-        }
-        if (count > 0) {
-            geomMean = Math.exp(geomMean / count);
-            arithMean = arithMean / count;
-            spectralFlatness = geomMean / (arithMean + 1e-10);
-        }
-    }
-
-    const tonality = isTargetSilent ? 0 : Math.round((1.0 - Math.min(1.0, spectralFlatness)) * 7);
-    const noiseFloorRatio = isTargetSilent ? 0 : Math.round(spectralFlatness * 15);
-
-    // Patch mode selection
-    let bestPatchMode = 0;
-    let bestPatchError = Infinity;
-    const overallGainLin = Math.pow(10, hfGain / 20);
-
-    for (let patchMode = 0; patchMode < 4; patchMode++) {
-        let patchError = 0;
-        const srcOffset = [64, 48, 32, 64][patchMode];
-        const mirror = patchMode === 3;
-
-        for (let band = 0; band < 4; band++) {
-            let patchSourceEnergy = 0;
-            for (let b = start; b < end; b++) {
-                const bins = mdctCoeffsArray[b];
-                const bandStart = band * 8;
-                for (let i = 0; i < 8; i++) {
-                    const j = bandStart + i;
-                    let srcIdx = srcOffset + j;
-                    if (mirror) {
-                        srcIdx = srcOffset + (j % 2 === 0 ? 30 - j : 32 - j);
-                    }
-                    patchSourceEnergy += bins[srcIdx] ** 2;
-                }
-            }
-            const targetMag = Math.sqrt(targetBandEnergy[band]);
-            const sourceMag = Math.sqrt(patchSourceEnergy);
-            const scaledSource = sourceMag * overallGainLin;
-            patchError += (targetMag - scaledSource) ** 2;
-        }
-
-        if (patchError < bestPatchError) {
-            bestPatchError = patchError;
-            bestPatchMode = patchMode;
-        }
-    }
-
-    // Band envelope - Recalculate based on chosen patch mode!
-    const bandEnvelope: number[] = [];
-    const chosenSrcOffset = [64, 48, 32, 64][bestPatchMode];
-    const chosenMirror = bestPatchMode === 3;
-
-    for (let band = 0; band < 4; band++) {
-        let patchSourceEnergy = 0;
-        for (let b = start; b < end; b++) {
-            const bins = mdctCoeffsArray[b];
-            const bandStart = band * 8;
-            for (let i = 0; i < 8; i++) {
-                const j = bandStart + i;
-                let srcIdx = chosenSrcOffset + j;
-                if (chosenMirror) {
-                    // Pair-swapped mirror preserves Even/Odd parity
-                    srcIdx = chosenSrcOffset + (j % 2 === 0 ? 30 - j : 32 - j);
-                }
-                patchSourceEnergy += bins[srcIdx] ** 2;
-            }
-        }
-
-        let bandGainDb = 0;
-        if (patchSourceEnergy > 1e-9 && targetBandEnergy[band] > 1e-9) {
-            const bandRatio = Math.sqrt(targetBandEnergy[band] / (patchSourceEnergy + 1e-12));
-            const idealBandGain = 20 * Math.log10(bandRatio);
-            bandGainDb = idealBandGain - hfGain;
-        }
-        bandGainDb = Math.max(BAND_ENV_MIN_DB, Math.min(8.0, bandGainDb));
-        bandEnvelope.push(bandGainDb);
-    }
-
-    return {
-        hfGain,
-        bandEnvelope,
-        noiseFloorRatio,
-        tonality,
-        patchMode: bestPatchMode,
-        transientShape,
-        totalEnergy: totalTargetEnergy
-    };
 }
 
 function analyzeStereoCueRange(
@@ -1107,112 +1190,20 @@ function analyzeStereoCueRange(
     return (signBit << 2) | coherenceClass;
 }
 
-function getSynthesisHfGain(params: SBRParamsUnion): number {
-    if (params.temporalMode) {
-        const temporal = params as SBRParamsTemporal;
-        return (temporal.hfGainA + temporal.hfGainB) * 0.5;
-    }
-
-    return (params as SBRParams).hfGain;
-}
-
-function computePatchModeError(
-    mdctCoeffsArray: Float32Array[],
-    start: number,
-    end: number,
-    patchMode: number,
-    overallGainLin: number
-): number {
-    const targetBandEnergy = new Float32Array(4);
-    const srcOffset = [64, 48, 32, 64][patchMode];
-    const mirror = patchMode === 3;
-    let patchError = 0;
-
-    for (let band = 0; band < 4; band++) {
-        let patchSourceEnergy = 0;
-        for (let b = start; b < end; b++) {
-            const bins = mdctCoeffsArray[b];
-            if (!bins) continue;
-
-            const bandStart = band * 8;
-            for (let i = 0; i < 8; i++) {
-                const targetIdx = SBR_START_BIN + bandStart + i;
-                const val = bins[targetIdx];
-                targetBandEnergy[band] += val * val;
-
-                const j = bandStart + i;
-                let srcIdx = srcOffset + j;
-                if (mirror) {
-                    srcIdx = srcOffset + (j % 2 === 0 ? 30 - j : 32 - j);
-                }
-                patchSourceEnergy += bins[srcIdx] ** 2;
-            }
-        }
-
-        const targetMag = Math.sqrt(targetBandEnergy[band]);
-        const sourceMag = Math.sqrt(patchSourceEnergy);
-        const scaledSource = sourceMag * overallGainLin;
-        patchError += (targetMag - scaledSource) ** 2;
-    }
-
-    return patchError;
-}
-
-function computeBandEnvelopeForPatch(
-    mdctCoeffsArray: Float32Array[],
-    start: number,
-    end: number,
-    patchMode: number,
-    hfGain: number,
-    minDb: number,
-    maxDb: number
-): number[] {
-    const bandEnvelope: number[] = [];
-    const targetBandEnergy = new Float32Array(4);
-    const srcOffset = [64, 48, 32, 64][patchMode];
-    const mirror = patchMode === 3;
-
-    for (let band = 0; band < 4; band++) {
-        let patchSourceEnergy = 0;
-        for (let b = start; b < end; b++) {
-            const bins = mdctCoeffsArray[b];
-            if (!bins) continue;
-
-            const bandStart = band * 8;
-            for (let i = 0; i < 8; i++) {
-                const targetIdx = SBR_START_BIN + bandStart + i;
-                const targetVal = bins[targetIdx];
-                targetBandEnergy[band] += targetVal * targetVal;
-
-                const j = bandStart + i;
-                let srcIdx = srcOffset + j;
-                if (mirror) {
-                    srcIdx = srcOffset + (j % 2 === 0 ? 30 - j : 32 - j);
-                }
-                patchSourceEnergy += bins[srcIdx] ** 2;
-            }
-        }
-
-        let bandGainDb = 0;
-        if (patchSourceEnergy > 1e-9 && targetBandEnergy[band] > 1e-9) {
-            const bandRatio = Math.sqrt(targetBandEnergy[band] / (patchSourceEnergy + 1e-12));
-            const idealBandGain = 20 * Math.log10(bandRatio);
-            bandGainDb = idealBandGain - hfGain;
-        }
-
-        bandEnvelope.push(Math.max(minDb, Math.min(maxDb, bandGainDb)));
-    }
-
-    return bandEnvelope;
-}
-
+/**
+ * For subgroups whose highband is strongly correlated between mid and side,
+ * makes both channels patch from the same source tile (the one that fits
+ * both best) and refits their parameters for it.
+ */
 export function lockStereoRowPatchModes(
     midRowParams: RowSBRParams,
     sideRowParams: RowSBRParams,
     stereoCues: [number, number],
-    midMdctCoeffsArray: Float32Array[],
-    sideMdctCoeffsArray: Float32Array[],
-    rowDataCount: number
+    midTargetCoeffsArray: Float32Array[],
+    sideTargetCoeffsArray: Float32Array[],
+    rowDataCount: number,
+    midSourceCoeffsArray: Float32Array[] = midTargetCoeffsArray,
+    sideSourceCoeffsArray: Float32Array[] = sideTargetCoeffsArray
 ): { mid: RowSBRParams; side: RowSBRParams } {
     const midSubgroups = [...midRowParams.subgroups] as [SBRParamsUnion, SBRParamsUnion];
     const sideSubgroups = [...sideRowParams.subgroups] as [SBRParamsUnion, SBRParamsUnion];
@@ -1225,54 +1216,13 @@ export function lockStereoRowPatchModes(
 
         if (start >= rowDataCount || end <= start) continue;
 
-        const midParams = midSubgroups[subgroup];
-        const sideParams = sideSubgroups[subgroup];
-        const midGainLin = Math.pow(10, getSynthesisHfGain(midParams) / 20);
-        const sideGainLin = Math.pow(10, getSynthesisHfGain(sideParams) / 20);
+        const patchMode = bestPatchMode([
+            measureRange(midTargetCoeffsArray, midSourceCoeffsArray, start, end),
+            measureRange(sideTargetCoeffsArray, sideSourceCoeffsArray, start, end)
+        ]);
 
-        let bestPatchMode = midParams.patchMode;
-        let bestError = Infinity;
-
-        for (let patchMode = 0; patchMode < 4; patchMode++) {
-            const midError = computePatchModeError(midMdctCoeffsArray, start, end, patchMode, midGainLin);
-            const sideError = computePatchModeError(sideMdctCoeffsArray, start, end, patchMode, sideGainLin);
-            const combinedError = midError + sideError;
-
-            if (combinedError < bestError) {
-                bestError = combinedError;
-                bestPatchMode = patchMode;
-            }
-        }
-
-        const midEnvelope = computeBandEnvelopeForPatch(
-            midMdctCoeffsArray,
-            start,
-            end,
-            bestPatchMode,
-            getSynthesisHfGain(midParams),
-            midParams.temporalMode ? BAND_ENV_MIN_DB_TEMPORAL : BAND_ENV_MIN_DB,
-            midParams.temporalMode ? 4.5 : 8.0
-        );
-        const sideEnvelope = computeBandEnvelopeForPatch(
-            sideMdctCoeffsArray,
-            start,
-            end,
-            bestPatchMode,
-            getSynthesisHfGain(sideParams),
-            sideParams.temporalMode ? BAND_ENV_MIN_DB_TEMPORAL : BAND_ENV_MIN_DB,
-            sideParams.temporalMode ? 4.5 : 8.0
-        );
-
-        midSubgroups[subgroup] = {
-            ...midParams,
-            patchMode: bestPatchMode,
-            bandEnvelope: midEnvelope
-        };
-        sideSubgroups[subgroup] = {
-            ...sideParams,
-            patchMode: bestPatchMode,
-            bandEnvelope: sideEnvelope
-        };
+        midSubgroups[subgroup] = analyzeSubgroup(midTargetCoeffsArray, midSourceCoeffsArray, start, end, patchMode);
+        sideSubgroups[subgroup] = analyzeSubgroup(sideTargetCoeffsArray, sideSourceCoeffsArray, start, end, patchMode);
     }
 
     return {

@@ -162,6 +162,10 @@ export const AUDIO_PSYCHOACOUSTICS = {
     // High-frequency reconstruction for bins 96..127
     enableSbr: true,
 
+    // Fit SBR to the lowband as it comes back from the target JPEG
+    // transport (see encoder/jpegChannel.ts) instead of the clean lowband
+    sbrClosedLoop: true,
+
     // Static MDCT whitening on stored bins 0..95
     enableMdctWhitening: true,
 

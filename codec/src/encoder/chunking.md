@@ -20,11 +20,11 @@ Audio chunking is hop-aligned:
    - remaining rows contribute `124` audio blocks per row
    - each audio block = one MDCT hop (`128` samples)
 2. Align per-image sample capacity to hop boundaries.
-3. Slice each channel with the same sample boundaries.
+3. Slice each channel with the same sample boundaries. The first image stores one lead-in block (see Audio Mode Format), so its chunk is one hop (`128` samples) shorter than the others; `calculateMaxSamplesForFirstImage` is the capacity of a single-image file.
 
 This guarantees chunk boundaries do not break MDCT hop alignment.
 
-The MDCT framing itself runs across chunk boundaries: the last block of a non-final image windows into the first hop of the next chunk, so its aliasing cancels against the next image's first block and the decoder's overlap-add continues seamlessly from one image to the next. Only the last block of the final image is padded with zeros.
+The MDCT framing itself runs across chunk boundaries: the last block of a non-final image windows into the first hop of the next chunk, so its aliasing cancels against the next image's first block and the decoder's overlap-add continues seamlessly from one image to the next. Only the last block of the final image is padded with zeros. The first hop of the file gets its second window from the lead-in block.
 
 ## Binary Chunking
 

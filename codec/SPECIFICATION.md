@@ -561,7 +561,7 @@ Each 32-bit word uses `bit0` as mode flag:
 - `[31:26]` hf gain
 - `[25:14]` band envelope (4 bands x 3 bits)
 - `[13:10]` noise floor ratio (4 bits)
-- `[9:8]` tonality (2 bits)
+- `[9:8]` tonality (2 bits; selects source whitening, see Synthesis)
 - `[7:5]` stereo cue (3 bits)
 - `[4:3]` patch mode (2 bits)
 - `[2:1]` transient shape (2 bits)
@@ -574,12 +574,14 @@ Each 32-bit word uses `bit0` as mode flag:
 - `[26:25]` tonality
 - `[24:17]` band envelope (4 bands x 2 bits)
 - `[16:12]` hf gain A
-- `[11:10]` noise floor A
-- `[9]` transient A
+- `[11:10]` noise floor A (2 bits, noise share = value / 3)
+- `[9]` transient A (1 = attack shape over the first half)
 - `[8:4]` hf gain B
 - `[3:2]` noise floor B
-- `[1]` transient B
+- `[1]` transient B (1 = attack shape over the second half)
 - `[0]` mode flag = 1
+
+Temporal mode splits the subgroup at `floor(size / 2)`; blocks before the split use the A parameters and the rest use B.
 
 ## Patch and Processing Modes
 
@@ -602,23 +604,33 @@ Version note:
 
 ## Synthesis
 
-For each HF bin:
-1. Pick source bin via patch mode.
-2. Compute interpolated gain (junction-aware in dB).
-3. Apply legacy processing mode transform when decoding `v300`.
-4. Mix tonal + deterministic noise components.
-5. Write scaled value to bins `96..127`.
+For each block:
+1. Read the 32-bin source tile selected by the patch mode.
+2. v301+: whiten the tile by `3 - tonality` (0 = untouched, 3 = full). Each bin keeps its sign and has its magnitude raised to the power `1 - level / 3` (level 3 leaves only the signs), then each 8-bin band is rescaled to the energy it had before whitening.
+3. Compute the per-bin gain: `hfGain + bandEnvelope[band]` at the band centres, interpolated in dB, with a junction point toward the baseband.
+4. Multiply by the transient shape, evaluated at the block's position `t` in `0..1` within its span:
+- `1` Attack `0.5 + 0.5t`, `2` Decay `1 - 0.5t`, `3` Impulse `1 - 1.5|t - 0.5|`
+- v301+: the shape is divided by its RMS over the span (`sqrt(7/12)` for attack and decay, `sqrt(7/16)` for impulse), so it redistributes energy in time without changing the total. In temporal mode the span is the half the block belongs to. v300 used the raw shape over the whole subgroup.
+5. Mix the tile with deterministic noise of the same band RMS. With noise share `n` (normal mode `noiseFloorRatio / 15`, temporal mode `noiseFloor / 3`): `out = tile * sqrt(1 - n) + noise * sqrt(n)`. v300 also scaled the tonal part by `tonality / 7` and read the temporal 2-bit noise field on the 4-bit scale.
+6. Apply the legacy processing mode transform when decoding `v300`.
+7. Write the scaled value to bins `96..127`. Bands whose source RMS is at or below `1e-4` stay silent.
 
 Noise is deterministic from a content-derived or external seed, so behavior is reproducible.
 For stereo `v301+` decode, the stochastic HF component is synthesized jointly from a shared cue so cancellation-sensitive panning can survive the mid/side round-trip more reliably.
 
 ## Encoder Analysis
 
-Row analysis computes subgroup parameters from source/target energy:
-- Chooses patch mode with minimal energy mismatch.
-- Derives hf gain, band envelope, tonality, and noise ratio.
-- Switches to temporal mode when intra-subgroup variation is high (`|hfGainA-hfGainB| > 4 dB` or energy-variation ratio `> 0.5`).
-- For stereo `v301+`, also derives a 3-bit cue per subgroup describing HF sign and coherence between mid and side.
+Analysis is closed-loop: the target is the clean highband (bins `96..127`), the source is the lowband as the decoder will read it back after the target JPEG transport (see Audio Row Math). Quantization noise in bins `64..95` therefore counts as source energy, as it will at synthesis.
+
+Energies are measured on the MDCT pseudo-spectrum, `(X[k]^2 + (X[k+1] - X[k-1])^2) / 3`, which sums to the same energy as `X[k]^2` on average but depends far less on the phase of a stationary tone.
+
+Per subgroup:
+- **Patch mode**: each mode gets the overall gain that matches its own source tile to the target; the mode whose band energies then deviate least from the target wins. For stereo subgroups with a strongly coherent highband, mid and side share the mode that fits both best.
+- **Gain and band envelope**: overall gain from total target / source energy of the chosen tile, band envelope from the per-band ratios relative to the quantized gain.
+- **Temporal mode** when the two halves of the subgroup need gains more than 3 dB apart. Energy changes that the source tile already follows do not need it.
+- **Tonality and noise**: spectral flatness is measured per band on time-averaged bin powers. The source tile is whitened only as far as needed to become as flat as the target; if it is still less flat at full whitening, the remaining gap sets the noise share.
+- **Transient shape**: the shape whose envelope, applied to the gained source, tracks the per-block target energy best, used only if it beats the flat envelope by 10 %.
+- For stereo `v301+`, a 3-bit cue per subgroup describes HF sign and coherence between mid and side.
 
 ## Usage in Format
 
@@ -847,6 +859,16 @@ Each MCU therefore holds four consecutive audio blocks and one shared 8x8 Cb and
 
 v300 stores audio row `R` as raster image block row `2 + R`, block `i` at column `i`.
 
+## Lead-In Block (v301+)
+
+An MDCT hop is only reconstructed correctly where two windows overlap, and the first hop of a file would have just one. The first image of a v301 file (`imageIndex = 1`, plus the side image `imageIndex = 2` for stereo) therefore stores one extra block ahead of the audio: 128 samples of silence are prepended before MDCT framing, so stored block 0 covers samples `-128..127` and stored block `n + 1` is the block that starts at audio sample `128 * n`.
+
+- The header sample count is the number of real audio samples and does not include the lead-in.
+- Such an image stores `ceil((samples + 128) / 128)` blocks; every other image stores `ceil(samples / 128)`.
+- Decoders overlap-add as usual and drop the first 128 output samples.
+
+v300 files have no lead-in block.
+
 ## Block Pipeline
 
 For each audio block (`hop = 128`, `window = 256`):
@@ -857,16 +879,16 @@ For each audio block (`hop = 128`, `window = 256`):
 
 Per row, the encoder then:
 
-1. Runs SBR analysis and encodes 8 bytes of row SBR metadata.
-2. Applies static MDCT whitening to stored bins `0..95`.
-3. Computes subgroup band factors (4 bands over bins `0..63`).
-4. Applies subgroup band factors to bins `0..63`.
-5. Maps coefficients to:
+1. Applies static MDCT whitening to stored bins `0..95`.
+2. Computes subgroup band factors (4 bands over bins `0..63`).
+3. Applies subgroup band factors to bins `0..63`.
+4. Maps coefficients to:
 - 8x8 luma DCT coefficients (`bins 0..63`), one block per audio block
 - 8x8 chroma DCT coefficients (`bins 64..95`, interleaved Cb/Cr), one block shared by the four audio blocks of an MCU (v301+; v300 used per-block 4x4 chroma)
-6. Runs IDCT to spatial domain.
-7. Computes row scaling factors to avoid clipping (see Row Scaling Strategy).
-8. Writes pixels via OBB mapping (point space -> YCbCr -> RGB).
+5. Runs IDCT to spatial domain.
+6. Computes row scaling factors to avoid clipping (see Row Scaling Strategy).
+7. Writes pixels via OBB mapping (point space -> YCbCr -> RGB).
+8. Reads the written pixels back through a model of the target JPEG transport and runs SBR analysis against that lowband (see SBR, Encoder Analysis), then encodes 8 bytes of row SBR metadata.
 
 Because MCUs span two image rows, v301 images always contain an even number of data rows (unused blocks are written as silence).
 
@@ -1027,11 +1049,11 @@ Audio chunking is hop-aligned:
 - remaining rows contribute `124` audio blocks per row
 - each audio block = one MDCT hop (`128` samples)
 2. Align per-image sample capacity to hop boundaries.
-3. Slice each channel with the same sample boundaries.
+3. Slice each channel with the same sample boundaries. The first image stores one lead-in block (see Audio Mode Format), so its chunk is one hop (`128` samples) shorter than the others; `calculateMaxSamplesForFirstImage` is the capacity of a single-image file.
 
 This guarantees chunk boundaries do not break MDCT hop alignment.
 
-The MDCT framing itself runs across chunk boundaries: the last block of a non-final image windows into the first hop of the next chunk, so its aliasing cancels against the next image's first block and the decoder's overlap-add continues seamlessly from one image to the next. Only the last block of the final image is padded with zeros.
+The MDCT framing itself runs across chunk boundaries: the last block of a non-final image windows into the first hop of the next chunk, so its aliasing cancels against the next image's first block and the decoder's overlap-add continues seamlessly from one image to the next. Only the last block of the final image is padded with zeros. The first hop of the file gets its second window from the lead-in block.
 
 ## Binary Chunking
 
@@ -1375,6 +1397,7 @@ If row metadata decode fails (or yields invalid values), decoder falls back to n
 - 128-point IMDCT produces 256 samples per transform
 - Sine windowing with 50% overlap (TDAC)
 - Overlap-add combines adjacent windows
+- When the first image of a v301 file is present, its first stored block is the lead-in block: audio hop `n` is the overlap of stored blocks `n` and `n + 1`, and the first 128 overlap-add output samples are dropped. A set that starts at a later image has no lead-in and starts at its first stored block.
 
 ### Channel Reconstruction
 - Mono: single channel output
@@ -1453,19 +1476,22 @@ This makes runtime version reporting deterministic for debugging and compatibili
 
 `prepareAudioRow(...)` runs per row and:
 1. Builds MDCT blocks (128 bins) from windowed audio
-2. Runs row-level SBR analysis
-3. Applies static whitening to stored bins `0..95`
-4. Computes subgroup band maxima and quantized band factors (A/B)
-5. Maps bins `0..63` to the 8x8 luma coefficient plane and runs IDCT
-6. Computes subgroup luma scaling factors via `ScalingUtils`
-7. Keeps the 16 Cb and 16 Cr coefficients (bins `64..95`) for the pair step
+2. Applies static whitening to stored bins `0..95`
+3. Computes subgroup band maxima and quantized band factors (A/B)
+4. Maps bins `0..63` to the 8x8 luma coefficient plane and runs IDCT
+5. Computes subgroup luma scaling factors via `ScalingUtils`
+6. Keeps the 16 Cb and 16 Cr coefficients (bins `64..95`) for the pair step
 
 `prepareRowPairChroma(top, bottom)` then, per row and per MCU (four consecutive audio blocks):
 1. Places each block's 16 chroma coefficients into the MCU's 8x8 chroma plane at importance rank `4k + ordinal`, where `ordinal` is the block's position in the MCU (so the four blocks interleave by importance)
 2. Runs one IDCT per MCU and plane
 3. Derives the row's chroma scales (`scaleCAX/CAY/CBX/CBY`) from the absolute maximum of each chroma group. Groups are whole MCUs, so every MCU has exactly one scale
 
-`writePreparedAudioRowPair(...)` places blocks in MCU order, scales luma per block, NN-upsamples the MCU's chroma to 16x16 px, writes RGB pixels through OBB mapping, and emits row metadata through the injected callback (`writeRowMetadata`).
+`writeRowPairPixels(...)` places blocks in MCU order, scales luma per block, NN-upsamples the MCU's chroma to 16x16 px and writes RGB pixels through OBB mapping.
+
+`readBackRowPair(...)` passes the pair's pixel strip through `simulateJpegChannel` (baseline JPEG, quality 92, 4:2:0, read back without chroma interpolation) and decodes every block with the decoder's own `decodeBlockToCoefficients`, using the scales as the half-float metadata will carry them. `analyzeRowPairSbr(...)` then fits SBR with those blocks as the source and the clean bins `96..127` as the target. With `AUDIO_PSYCHOACOUSTICS.sbrClosedLoop` off, the clean lowband is the source.
+
+`writeRowPairMetadata(...)` emits row metadata through the injected callback (`writeRowMetadata`).
 
 `writePreparedAudioRow(...)` is the legacy v300 writer (per-block 4x4 chroma); it is kept for decoder compatibility tests only.
 
