@@ -36,6 +36,17 @@ The parity portion uses a dual-diagonal staircase:
 
 This allows parity accumulation during encoding and message propagation during decoding.
 
+### Deck Construction (binary strip code)
+
+The binary strip code is too large to search with PEG and is built directly, so it needs no stored graph. With `m = n - k` checks and the RNG seeded by `LDPC_BINARY_SEED`:
+
+1. Add the staircase edges as above.
+2. Build a deck of `m * ceil(3k / m)` slots where slot `i` holds check `i mod m`, and Fisher-Yates shuffle it (`j = next32() mod (i + 1)`, for `i` from the last slot down to 1).
+3. For each data variable `0..k-1`, three times: scan the deck from the current position for the first slot whose check is not yet on this variable and does not share a pair of checks with an earlier variable. If there is none, take the first slot whose check is not yet on this variable. Swap the chosen slot with the slot at the current position and advance the position by one.
+4. After a variable has its three checks, record its three check pairs as used.
+
+If no slot qualifies at all, the check at the current position is used, stepping to the next check index (mod `m`) while it is already on the variable. For the binary code's parameters the construction leaves every check with 25 to 27 data edges and no two variables on the same pair of checks.
+
 ## Encoding Algorithm
 
 Systematic encoding computes parity bits p such that H * [d | p]^T = 0:
@@ -72,7 +83,7 @@ Post-processing for failed SPA convergence:
 
 - **Header LDPC**: N=8192, K=6144 (rate 0.75)
 - **Row Metadata LDPC**: N=256, K=224 (rate 0.875)
-- **Binary LDPC**: N=20064, K=19840 (rate ~0.989)
+- **Binary LDPC**: N=64896, K=58400 (rate ~0.90), deck construction
 
 ## Usage in Format
 

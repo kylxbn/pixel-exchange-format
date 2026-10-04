@@ -3,30 +3,24 @@ order: 8
 title: Data Permutation
 ---
 
-The format uses deterministic permutation of binary data to improve error correction performance by scattering correlated data across the image.
+The format uses a deterministic permutation of binary data so that damage concentrated in one image block is scattered across the LDPC codeword.
 
 ## Binary Mode Permutation
 
-For binary mode rows, data is permuted at the 2-bit pair level:
+A binary strip carries one codeword of `LDPC_BINARY_N = 64896` bits. The permutation is over single bits and is the same for every strip:
 
-- Row data capacity: 2480 bytes = 19840 bits = 9920 pairs of 2 bits each
-- Generate permutation array of 9920 indices (`0..9919`)
-- Use Fisher-Yates shuffle with seeded RNG
+- Generate the index array `0..64895`
+- Fisher-Yates shuffle it with the RNG seeded by `BINARY_PERMUTATION_SEED`
+
+Transmitted bit `i` of the strip is bit `perm[i]` of the whitened codeword.
 
 ## Fisher-Yates Algorithm
 
 1. Initialize array with sequential indices [0, 1, 2, ..., n-1]
 2. For i from n-1 downto 1:
-   - Generate random j in [0, i] using seeded RNG
+   - Generate random j in [0, i] using seeded RNG (`next32() mod (i + 1)`)
    - Swap array[i] and array[j]
-
-## Seeding
-
-Permutation seed combines format constant with row index for per-row uniqueness:
-seed = BINARY_PERMUTATION_SEED + rowIndex
-
-`rowIndex` here is the data-row index within the current image chunk (`0..numDataRows-1`), not the absolute image Y row.
 
 ## Usage in Format
 
-Permutation is applied after LDPC parity generation, so parity still protects the original sequential byte order. The decoder inverts the permutation before LDPC decode.
+The permutation is applied after LDPC encoding and whitening. The decoder writes the LLR of transmitted bit `i` to codeword position `perm[i]`, undoes the whitening by flipping signs, and then runs the LDPC decoder.

@@ -7,6 +7,8 @@ import { PxfDecoder } from './decoder';
 import { createRNG } from './utils/rng';
 import { ChunkingUtils } from './encoder/chunking';
 import { MDCT_HOP_SIZE } from './constants';
+import { simulateJpegChannel } from './encoder/jpegChannel';
+import { BINARY_STRIP_DATA_CAPACITY } from './utils/binaryModulation';
 
 describe('Integration Pipeline', () => {
     describe('Audio Pipeline', () => {
@@ -104,8 +106,38 @@ describe('Integration Pipeline', () => {
         }
     });
 
+    it('Binary survives the JPEG 4:2:0 transport', async () => {
+        // Three strips: random bytes, then a long run of zeros that only whitening keeps in range
+        const size = BINARY_STRIP_DATA_CAPACITY * 3;
+        const originalData = new Uint8Array(size);
+        const rng = createRNG(2468);
+        for (let i = 0; i < BINARY_STRIP_DATA_CAPACITY; i++) originalData[i] = rng.nextByte();
+
+        const [image] = await PxfEncoder.encode({ binary: originalData }, { 'fn': 'jpeg.bin' });
+        expect(image.height).toBe(16 + 3 * 16);
+
+        const transported = simulateJpegChannel(image.data, image.width, image.height);
+        const source = PxfDecoder.load({ data: transported, width: image.width, height: image.height });
+        const debugCapture = { rowHealth: [] as number[], overallHealth: 0 };
+        const decodedResult = await PxfDecoder.decode([source], debugCapture);
+
+        if (decodedResult.type !== 'binary') {
+            throw new Error("Decoder returned unexpected audio result for binary source");
+        }
+
+        expect(decodedResult.validChecksum).toBe(true);
+        expect(Array.from(decodedResult.data)).toEqual(Array.from(originalData));
+
+        // The channel does flip bits; the strip code is what repairs them
+        expect(debugCapture.rowHealth.length).toBe(3);
+        for (const health of debugCapture.rowHealth) {
+            expect(health).toBeGreaterThan(98);
+            expect(health).toBeLessThan(100);
+        }
+    });
+
     it('Multi-Image Binary Pipeline (Large Data)', async () => {
-        const size = 1024 * 100;
+        const size = 1024 * 300;
         const originalData = new Uint8Array(size);
         for (let i = 0; i < size; i++) {
             originalData[i] = i % 256; // Repeating pattern for easy verification

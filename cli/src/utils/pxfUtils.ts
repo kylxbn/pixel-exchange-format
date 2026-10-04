@@ -64,10 +64,10 @@ export function printBinaryReport(result: BinaryResult, debugCapture: BinaryDeco
     }
 
     if (debugCapture && debugCapture.rowHealth.length > 0) {
-        console.log('\n📈 Data Health (per row):');
+        console.log('\n📈 Data Health (per strip):');
         debugCapture.rowHealth.forEach((health, idx) => {
             const pct = Number.isFinite(health) ? health : 0;
-            console.log(`   Row ${idx + 1}: ${pct.toFixed(2)}%`);
+            console.log(`   Strip ${idx + 1}: ${pct.toFixed(2)}%`);
         });
         if (typeof debugCapture.overallHealth === 'number') {
             console.log(`\n📊 Overall Data Health: ${debugCapture.overallHealth.toFixed(2)}%`);

@@ -51,19 +51,19 @@ Band mapping for bins `0..63`:
 
 ## Binary Constants
 
-Binary blocks are 4:2:0 YCbCr-mapped:
-- `BINARY_BYTES_PER_BLOCK = 20`
-- Per block: 16 bytes Y (2-bit symbols) + 2 bytes Cb (1-bit) + 2 bytes Cr (1-bit)
+Binary strips are 16 px tall and carry DCT-domain symbols on the 4:2:0 MCU grid (see Binary Modulation):
+- `BINARY_STRIP_HEIGHT = 16`
+- `BINARY_MCUS_PER_STRIP = 64`
+- `BINARY_BITS_PER_MCU = 1014` (4 luma blocks of 211 bits, 2 chroma blocks of 85 bits)
 
-Per row:
-- `BINARY_ROW_DATA_CAPACITY = 2480`
-- `BINARY_ROW_META_BYTES = 32`
-- `BINARY_ROW_PARITY_BYTES = 28`
-- `BINARY_ROW_CRC_BYTES = 4`
+Per strip:
+- `BINARY_STRIP_DATA_CAPACITY = 7296`
+- `BINARY_STRIP_CRC_BYTES = 4`
+- `BINARY_STRIP_PARITY_BITS = 6496`
 
 Binary LDPC:
-- `LDPC_BINARY_K = 19840`
-- `LDPC_BINARY_N = 20064`
+- `LDPC_BINARY_K = 58400`
+- `LDPC_BINARY_N = 64896`
 
 ## Protocol and Seeds
 
@@ -78,7 +78,9 @@ Channel modes:
 Whitening/permutation seeds:
 - `HEADER_XOR_MASK_SEED = 0xe5b4d3bd`
 - `ROW_META_XOR_SEED_BASE = 0xc4396125`
-- `BINARY_PERMUTATION_SEED = 0xbf4d0153`
+- `BINARY_PERMUTATION_SEED = 0x5954dd24`
+- `BINARY_SCRAMBLE_SEED = 0xa627ff6c`
+- `LDPC_BINARY_SEED = 0x74c734ed`
 
 ## Coefficient Orders and Mu-Law
 

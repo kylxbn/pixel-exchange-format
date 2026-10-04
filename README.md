@@ -24,7 +24,7 @@ Stereo is represented as mid/side image pairs, not left/right image channels.
 
 ![binary_mode](doc/img/christmas.webp)
 
-Binary mode stores 2480 bytes per data row. Payload symbols are mapped into YCbCr/RGB blocks (2-bit Y + 1-bit Cb + 1-bit Cr), then protected with row LDPC parity and CRC32C.
+Binary mode stores 7296 bytes per 16 px strip (3.56 bits per pixel). The bits are written as PAM symbols on 8x8 DCT coefficients on the JPEG 4:2:0 block grid, sized to survive JPEG at quality 90, and each strip is one LDPC codeword that also carries its CRC32C.
 
 ## Decoding Capabilities
 

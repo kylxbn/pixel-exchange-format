@@ -30,9 +30,9 @@ The MDCT framing itself runs across chunk boundaries: the last block of a non-fi
 
 Binary chunking is byte-based:
 
-1. Compute max data rows = `floor(maxHeight / 8) - 2`.
-2. Per-row capacity is `2480` bytes.
-3. Slice the payload into contiguous chunks of `maxDataRows * 2480` bytes.
+1. Compute max strips = `floor((maxHeight - 16) / 16)`.
+2. Per-strip capacity is `7296` bytes.
+3. Slice the payload into contiguous chunks of `maxStrips * 7296` bytes.
 
 ## Reassembly Metadata
 

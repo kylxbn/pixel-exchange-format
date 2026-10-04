@@ -1,5 +1,34 @@
 # Changelog
 
+## 2026-10-04 - Binary mode moved to DCT-domain modulation
+
+Binary mode now writes its bits as PAM symbols on 8x8 DCT coefficients, on the block grid a 4:2:0 JPEG encoder uses, instead of 4-level luma and 1-bit chroma per pixel. Capacity goes from 2480 bytes per 8 px row (2.42 bits per pixel) to 7296 bytes per 16 px strip (3.56 bits per pixel, +47 %), and the mode tolerates more than before. This replaces the v301 binary layout: binary images from earlier builds do not decode, audio is untouched.
+
+- **Layout.** The unit is a 16 px strip of 64 MCUs. A luma block is one DCT block; a chroma block spans the 16x16 MCU and is written pixel-replicated, the same structure audio mode uses. All 128 block columns carry data.
+- **Bit loading.** Each coefficient gets a level spacing of 1.15 (luma) or 1.2 (chroma) times its libjpeg quality-90 quantizer step plus 2, and 1 to 5 bits depending on how much pixel range the spacing costs. That is 211 bits per luma block and 85 per chroma block, 3.96 bits per pixel before coding.
+- **Parity at payload density.** The per-row metadata blocks are gone. Each strip is one LDPC codeword (`N = 64896`, `K = 58400`, rate 0.90) holding payload, CRC32C and parity, all modulated the same way. Parity used to sit in 1-bit-per-pixel blocks, which is why a lower code rate looked expensive.
+- **RGB cube.** Pixels that leave the RGB cube are clipped and the coefficient damage is pushed back iteratively until every coefficient is within 15 % of a spacing of its symbol.
+- **Whitening.** The codeword is XORed with a per-strip mask, and the bit permutation is now one fixed permutation over the whole codeword.
+- **Decoder.** Pixels in, as before: RGB to YCbCr, 2x2 chroma average, DCT, then per-bit LLRs from a noise level estimated per coefficient position over the image. It does not read quantization tables or coefficients from a JPEG file.
+- **LDPC.** The strip code's graph is built at first use by a deck construction (`buildDeckGraph`, 94 ms) instead of shipped as JSON; `graph_20064_19840_*.json` (1.4 MB) is removed. The decoder's inner loop now runs on flat typed arrays; on the strip code that took a 16-strip decode from 5.3 s to 0.44 s.
+
+Measured with libjpeg-turbo 3.2, 64 strips of random payload per case, against the previous build on the same transports:
+
+| Transport | Before (2.42 bits/px) | Now (3.56 bits/px) |
+| --- | --- | --- |
+| JPEG 4:2:0 Q92, Q90, box chroma upsampling | intact | intact |
+| JPEG 4:2:0 Q90, smoothed chroma upsampling | lost | intact |
+| JPEG 4:2:0 Q89 | lost (55 of 64 rows) | intact, either upsampling |
+| JPEG 4:2:0 Q88 | lost | lost |
+| JPEG 4:4:4 Q90 | intact | intact |
+| jpegli q95, WebP q95 | intact | intact |
+| WebP q90 | intact | lost |
+| jpegli q90 | lost | lost |
+
+The code rate is a small lever: in the same test, rate 0.95 (3.76 bits/px) still passes Q90 with box upsampling but not with smoothing, 0.93 (3.68) passes Q90 with both, 0.92 (3.64) adds Q89 with box, 0.90 adds Q89 with both, and 0.875 (3.47) does not yet reach Q88. Below Q89 the limit is the level spacing, not the code. WebP q90 is the one transport that got worse; JPEG 4:2:0 is the design target.
+
+API: `BINARY_*` row constants and `binaryLdpc` are replaced by the strip constants and `getBinaryLdpc()` in `utils/binaryModulation.ts`; `generateBinaryPermutation(rowIndex)` became `getBinaryPermutation()`; `PxfDecoder.computeBinaryLLRs` and the 2-bit and chroma LLR tables are removed. `rowHealth` in the binary debug capture now has one entry per strip.
+
 ## 2026-10-04 - SBR noise fields replaced by gain time segments
 
 The SBR word's noise-floor fields are gone and their bits now carry extra gain time resolution. This changes the v301 SBR word, so audio images from earlier v301 builds decode with wrong highband gains.

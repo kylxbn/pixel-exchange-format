@@ -49,31 +49,15 @@ export const ROW_META_AUDIO_BYTES = 20;
 export const ROW_META_SBR_BYTES = 8;
 export const ROW_META_PAYLOAD_BYTES = ROW_META_SBR_BYTES + ROW_META_AUDIO_BYTES; // 28
 
-// // --- Binary Mode Constants (Stream Mode) ---
-export const BINARY_DATA_BLOCKS_PER_ROW = 124;
-export const BINARY_BYTES_PER_BLOCK = 20; // 160 bits: 128 bits Y (64 pixels * 2) + 16 bits Cb (16 pixels) + 16 bits Cr (16 pixels)
-export const BINARY_ROW_DATA_CAPACITY = BINARY_DATA_BLOCKS_PER_ROW * BINARY_BYTES_PER_BLOCK; // 2480 bytes
-
-// // Binary Row Metadata: 4 blocks = 256 pixels = 256 bits = 32 bytes
-export const BINARY_ROW_META_BYTES = 32;
-
-// // Parity allocation for Binary Stream:
-// // We have 32 bytes metadata. 4 bytes are CRC32.
-// // Remaining 28 bytes are used for LDPC Parity.
-export const BINARY_ROW_PARITY_BYTES = 28;
-export const BINARY_ROW_CRC_BYTES = 4;
-
-// // LDPC Params for Binary Stream
-export const LDPC_BINARY_K = BINARY_ROW_DATA_CAPACITY * 8; // 19840
-export const LDPC_BINARY_N = (BINARY_ROW_DATA_CAPACITY + BINARY_ROW_PARITY_BYTES) * 8; // 20064
-
 // // --- Protocol & Format Identifiers ---
 
 export const FORMAT_VERSION = 301;
 
 export const HEADER_XOR_MASK_SEED = 0xe5b4d3bd; // SHA256("PXF:v300:Main header whitening seed")[0:4]
 export const ROW_META_XOR_SEED_BASE = 0xc4396125; // SHA256("PXF:v300:Audio row metadata whitening seed")[0:4]
-export const BINARY_PERMUTATION_SEED = 0xbf4d0153; // SHA256("PXF:v300:Binary mode byte pair permutation seed")[0:4]
+export const BINARY_PERMUTATION_SEED = 0x5954dd24; // SHA256("PXF:v301:Binary mode bit permutation seed")[0:4]
+export const BINARY_SCRAMBLE_SEED = 0xa627ff6c; // SHA256("PXF:v301:Binary mode scramble seed")[0:4]
+export const LDPC_BINARY_SEED = 0x74c734ed; // SHA256("PXF:v301:LDPC binary strip seed")[0:4]
 
 // // Seeds for LDPC Matrix Generation (ensures decoder matches encoder)
 // export const LDPC_SEED_HEADER = 0x46a11d63; // SHA256("PXF:v300:Binary mode byte pair permutation seed")[0:4]
@@ -89,15 +73,12 @@ export const CHANNEL_MODE = {
 
 import headerGraphJson from './ldpc/graph_8192_6144_1184963939.json';
 import rowMetaGraphJson from './ldpc/graph_256_224_2426525499.json';
-import binaryGraphJson from './ldpc/graph_20064_19840_3326221624.json';
 
 // // Instantiate Codecs once using pre-calculated graphs or on-the-fly generation as fallback
 const headerLdpcGraph: LDPCGraphData = (headerGraphJson as any);
 const rowMetaLdpcGraph: LDPCGraphData = (rowMetaGraphJson as any);
-const binaryLdpcGraph: LDPCGraphData = (binaryGraphJson as any);
 
 export const headerLdpc: LdpcCode = new LdpcCode(headerLdpcGraph);
 export const rowMetaLdpc: LdpcCode = new LdpcCode(rowMetaLdpcGraph);
-export const binaryLdpc: LdpcCode = new LdpcCode(binaryLdpcGraph);
 
 export const SILENCE_THRESHOLD: number = 1e-9;

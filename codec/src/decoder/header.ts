@@ -2,8 +2,9 @@
 // Copyright (c) 2026 Kyle Alexander Buan
 
 import { leadInSamples } from "../audioLayout";
-import { BINARY_ROW_DATA_CAPACITY, BLOCK_SIZE, BLOCKS_PER_ROW, CHANNEL_MODE, DATA_BLOCKS_PER_ROW, FORMAT_VERSION, HEADER_PAYLOAD_BYTES, HEADER_TOTAL_BYTES, HEADER_XOR_MASK_SEED, headerLdpc, IMAGE_WIDTH, MDCT_HOP_SIZE } from "../constants";
+import { BLOCK_SIZE, BLOCKS_PER_ROW, CHANNEL_MODE, DATA_BLOCKS_PER_ROW, FORMAT_VERSION, HEADER_PAYLOAD_BYTES, HEADER_TOTAL_BYTES, HEADER_XOR_MASK_SEED, headerLdpc, IMAGE_WIDTH, MDCT_HOP_SIZE } from "../constants";
 import { PxfDecoder } from ".";
+import { BINARY_STRIP_DATA_CAPACITY } from "../utils/binaryModulation";
 import { bytesToNumber, decodeBytesFromBlocks } from "../utils/audioUtils";
 import { MurmurHash3_x64_128 } from "../utils/murmurHash";
 import { createRNG } from "../utils/rng";
@@ -127,7 +128,7 @@ export class HeaderDecoder {
         const storedBlocks = Math.ceil((totalSamples + leadInSamples(channelMode, imageIndex)) / hopSize);
         const audioDataRows = 2 * Math.ceil(Math.ceil(storedBlocks / DATA_BLOCKS_PER_ROW) / 2);
         const minRows = isBinary
-            ? 2 + Math.ceil(totalSamples / BINARY_ROW_DATA_CAPACITY)
+            ? 2 + 2 * Math.ceil(totalSamples / BINARY_STRIP_DATA_CAPACITY)
             : 2 + audioDataRows;
         const expectedMinHeight = minRows * BLOCK_SIZE;
 

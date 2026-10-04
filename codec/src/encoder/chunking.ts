@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Kyle Alexander Buan
 
-import { MDCT_HOP_SIZE, BLOCK_SIZE, BLOCKS_PER_ROW, BINARY_ROW_DATA_CAPACITY, CHANNEL_MODE, DATA_BLOCKS_PER_ROW } from '../constants';
+import { MDCT_HOP_SIZE, BLOCK_SIZE, BLOCKS_PER_ROW, CHANNEL_MODE, DATA_BLOCKS_PER_ROW } from '../constants';
 import { leadInSamples } from '../audioLayout';
+import { BINARY_STRIP_DATA_CAPACITY, BINARY_STRIP_HEIGHT } from '../utils/binaryModulation';
 
 export class ChunkingUtils {
     public static splitAudioForMultiImage(
@@ -84,9 +85,8 @@ export class ChunkingUtils {
 
     
     public static calculateMaxBinaryBytesPerImage(maxHeight: number = 4096): number {
-        const blockSize = BLOCK_SIZE;
-        const maxBlockRows = Math.floor(maxHeight / blockSize);
-        const maxDataRows = maxBlockRows - 2; // Subtract header and text rows
-        return maxDataRows * BINARY_ROW_DATA_CAPACITY;
+        // Header and text rows, then whole 16px strips
+        const maxStrips = Math.floor((maxHeight - 2 * BLOCK_SIZE) / BINARY_STRIP_HEIGHT);
+        return maxStrips * BINARY_STRIP_DATA_CAPACITY;
     }
 }

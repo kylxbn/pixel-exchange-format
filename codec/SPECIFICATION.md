@@ -56,19 +56,19 @@ Band mapping for bins `0..63`:
 
 ## Binary Constants
 
-Binary blocks are 4:2:0 YCbCr-mapped:
-- `BINARY_BYTES_PER_BLOCK = 20`
-- Per block: 16 bytes Y (2-bit symbols) + 2 bytes Cb (1-bit) + 2 bytes Cr (1-bit)
+Binary strips are 16 px tall and carry DCT-domain symbols on the 4:2:0 MCU grid (see Binary Modulation):
+- `BINARY_STRIP_HEIGHT = 16`
+- `BINARY_MCUS_PER_STRIP = 64`
+- `BINARY_BITS_PER_MCU = 1014` (4 luma blocks of 211 bits, 2 chroma blocks of 85 bits)
 
-Per row:
-- `BINARY_ROW_DATA_CAPACITY = 2480`
-- `BINARY_ROW_META_BYTES = 32`
-- `BINARY_ROW_PARITY_BYTES = 28`
-- `BINARY_ROW_CRC_BYTES = 4`
+Per strip:
+- `BINARY_STRIP_DATA_CAPACITY = 7296`
+- `BINARY_STRIP_CRC_BYTES = 4`
+- `BINARY_STRIP_PARITY_BITS = 6496`
 
 Binary LDPC:
-- `LDPC_BINARY_K = 19840`
-- `LDPC_BINARY_N = 20064`
+- `LDPC_BINARY_K = 58400`
+- `LDPC_BINARY_N = 64896`
 
 ## Protocol and Seeds
 
@@ -83,7 +83,9 @@ Channel modes:
 Whitening/permutation seeds:
 - `HEADER_XOR_MASK_SEED = 0xe5b4d3bd`
 - `ROW_META_XOR_SEED_BASE = 0xc4396125`
-- `BINARY_PERMUTATION_SEED = 0xbf4d0153`
+- `BINARY_PERMUTATION_SEED = 0x5954dd24`
+- `BINARY_SCRAMBLE_SEED = 0xa627ff6c`
+- `LDPC_BINARY_SEED = 0x74c734ed`
 
 ## Coefficient Orders and Mu-Law
 
@@ -141,7 +143,7 @@ Audio is encoded with:
 Stereo is represented as mid/side image pairs, not left/right image channels.
 
 ### Binary Mode
-Binary mode stores 2480 bytes per data row. Payload symbols are mapped into YCbCr/RGB blocks (2-bit Y + 1-bit Cb + 1-bit Cr), then protected with row LDPC parity and CRC32C.
+Binary mode stores 7296 bytes per 16 px strip (3.56 bits per pixel). The bits are written as PAM symbols on 8x8 DCT coefficients on the JPEG 4:2:0 block grid, sized to survive JPEG at quality 90, and each strip is one LDPC codeword that also carries its CRC32C.
 
 ## Decoding Capabilities
 
@@ -156,7 +158,7 @@ Decoding supports:
 All images are 1024 pixels wide:
 - Row 0: LDPC-protected header stream
 - Row 1: human-readable text row
-- Rows 2+: audio or binary payload rows with per-row metadata in the final 4 blocks
+- Rows 2+: audio payload rows with per-row metadata in the final 4 blocks, or binary strips of 16 px that use the full width
 
 ## Channel Configurations
 
@@ -398,33 +400,27 @@ Using fixed seeds keeps encoder/decoder behavior reproducible.
 
 ## Data Permutation
 
-The format uses deterministic permutation of binary data to improve error correction performance by scattering correlated data across the image.
+The format uses a deterministic permutation of binary data so that damage concentrated in one image block is scattered across the LDPC codeword.
 
 ## Binary Mode Permutation
 
-For binary mode rows, data is permuted at the 2-bit pair level:
+A binary strip carries one codeword of `LDPC_BINARY_N = 64896` bits. The permutation is over single bits and is the same for every strip:
 
-- Row data capacity: 2480 bytes = 19840 bits = 9920 pairs of 2 bits each
-- Generate permutation array of 9920 indices (`0..9919`)
-- Use Fisher-Yates shuffle with seeded RNG
+- Generate the index array `0..64895`
+- Fisher-Yates shuffle it with the RNG seeded by `BINARY_PERMUTATION_SEED`
+
+Transmitted bit `i` of the strip is bit `perm[i]` of the whitened codeword.
 
 ## Fisher-Yates Algorithm
 
 1. Initialize array with sequential indices [0, 1, 2, ..., n-1]
 2. For i from n-1 downto 1:
-- Generate random j in [0, i] using seeded RNG
+- Generate random j in [0, i] using seeded RNG (`next32() mod (i + 1)`)
 - Swap array[i] and array[j]
-
-## Seeding
-
-Permutation seed combines format constant with row index for per-row uniqueness:
-seed = BINARY_PERMUTATION_SEED + rowIndex
-
-`rowIndex` here is the data-row index within the current image chunk (`0..numDataRows-1`), not the absolute image Y row.
 
 ## Usage in Format
 
-Permutation is applied after LDPC parity generation, so parity still protects the original sequential byte order. The decoder inverts the permutation before LDPC decode.
+The permutation is applied after LDPC encoding and whitening. The decoder writes the LLR of transmitted bit `i` to codeword position `perm[i]`, undoes the whitening by flipping signs, and then runs the LDPC decoder.
 
 ---
 
@@ -692,6 +688,17 @@ The parity portion uses a dual-diagonal staircase:
 
 This allows parity accumulation during encoding and message propagation during decoding.
 
+### Deck Construction (binary strip code)
+
+The binary strip code is too large to search with PEG and is built directly, so it needs no stored graph. With `m = n - k` checks and the RNG seeded by `LDPC_BINARY_SEED`:
+
+1. Add the staircase edges as above.
+2. Build a deck of `m * ceil(3k / m)` slots where slot `i` holds check `i mod m`, and Fisher-Yates shuffle it (`j = next32() mod (i + 1)`, for `i` from the last slot down to 1).
+3. For each data variable `0..k-1`, three times: scan the deck from the current position for the first slot whose check is not yet on this variable and does not share a pair of checks with an earlier variable. If there is none, take the first slot whose check is not yet on this variable. Swap the chosen slot with the slot at the current position and advance the position by one.
+4. After a variable has its three checks, record its three check pairs as used.
+
+If no slot qualifies at all, the check at the current position is used, stepping to the next check index (mod `m`) while it is already on the variable. For the binary code's parameters the construction leaves every check with 25 to 27 data edges and no two variables on the same pair of checks.
+
 ## Encoding Algorithm
 
 Systematic encoding computes parity bits p such that H * [d | p]^T = 0:
@@ -728,7 +735,7 @@ Post-processing for failed SPA convergence:
 
 - **Header LDPC**: N=8192, K=6144 (rate 0.75)
 - **Row Metadata LDPC**: N=256, K=224 (rate 0.875)
-- **Binary LDPC**: N=20064, K=19840 (rate ~0.989)
+- **Binary LDPC**: N=64896, K=58400 (rate ~0.90), deck construction
 
 ## Usage in Format
 
@@ -864,49 +871,49 @@ Binary mode stores arbitrary data in Pixel Exchange Format images. Large files a
 
 ## Image Structure
 
-### Row Layout
-- Row 0: Header (format metadata)
-- Row 1: Text information (human-readable)
-- Rows 2+: Data rows with payload and metadata
+- Row 0 (8 px): Header (format metadata)
+- Row 1 (8 px): Text information (human-readable)
+- From y = 16: one strip of 16 px per codeword
 
-### Data Row Format
-Each data row contains:
-- 124 data blocks: 2480 bytes of binary data
-- 4 metadata blocks: 32 bytes of error correction and integrity data
+The header and text rows together are one 16 px MCU row, so the strips sit on the 16x16 MCU grid of a 4:2:0 JPEG. Every block of a strip carries data; there are no per-row metadata blocks.
 
-## Data Encoding
+## Strip Format
 
-### Pixel Mapping
-Each 8x8 data block stores 20 bytes total using a 4:2:0-style split:
-- 16 bytes for luma (`Y`): 64 samples, each 2-bit Gray-coded
-- 2 bytes for `Cb`: 16 samples, each 1 bit
-- 2 bytes for `Cr`: 16 samples, each 1 bit
+Each strip holds one LDPC codeword of 64896 bits:
 
-Luma Gray symbols map to point values:
-- `00 -> -1.0`
-- `01 -> -1/3`
-- `11 -> +1/3`
-- `10 -> +1.0`
+| Part | Size |
+| --- | --- |
+| Payload | 7296 bytes |
+| CRC32C of the payload | 4 bytes, big-endian |
+| LDPC parity | 6496 bits |
 
-The `(Y, Cb, Cr)` point triplets are converted to RGB through the OBB mapping with mu-law disabled in binary mode.
+That is 3.56 payload bits per pixel. Parity and CRC are modulated exactly like the payload, at the same density.
 
-### LDPC and Permutation Order
-1. LDPC parity is computed on sequential row bytes (2480 bytes).
-2. CRC32C is computed on the same sequential bytes.
-3. Row payload is then permuted at the 2-bit-pair level using a deterministic row seed.
-4. Permuted payload is written to data blocks; parity+CRC are written to the metadata blocks.
+Encoding a strip:
 
-Implementation notes:
-- Final partial rows are zero-padded to 2480 bytes before LDPC/CRC.
-- Permutation row index is local to each image chunk (`0..numRows-1` per image), so decoder uses the same per-chunk indexing.
+1. Take 7296 payload bytes, zero-padded in the last strip of an image.
+2. Append the CRC32C of those 7296 bytes.
+3. LDPC-encode the 7300 bytes (`K = 58400`, `N = 64896`, systematic).
+4. XOR the codeword with the whitening mask of the strip.
+5. Permute the bits.
+6. Map the bits to DCT coefficients and render the pixels.
 
-## Metadata and Error Correction
+Steps 4 to 6 are specified under Binary Modulation and Data Permutation. The strip index used for whitening is local to each image (`0..numStrips-1`).
 
-### Row Metadata (32 bytes)
-- 28 bytes: LDPC error correction parity
-- 4 bytes: CRC32 integrity checksum
+## Design Target
 
-Metadata is stored as 1 bit per pixel in the last 4 blocks of each row.
+The level spacings are sized for baseline JPEG at libjpeg quality 90 with 4:2:0 chroma, and the code rate (0.90) leaves room for one quality step below that and for decoders that smooth chroma when upsampling. Measured with libjpeg-turbo 3.2 on random payloads (64 strips each):
+
+| Transport | Result |
+| --- | --- |
+| lossless | intact |
+| JPEG 4:2:0, quality 95 / 92 / 90 / 89 | intact, with box and with smoothed chroma upsampling |
+| JPEG 4:2:0, quality 88 | lost |
+| JPEG 4:4:4, quality 90 | intact |
+| jpegli quality 95, WebP quality 95 | intact |
+| jpegli quality 90, WebP quality 90 | lost |
+
+Other encoders are not a design target. The format only requires RGB pixels in and out.
 
 ## Multi-Image Files
 
@@ -914,6 +921,8 @@ Large binary data is split across multiple images:
 - Each image contains a sequential chunk of data
 - Header indicates total images and current index
 - Images are processed in order to reconstruct complete files
+
+An image of height `H` holds `floor((H - 16) / 16)` strips.
 
 ## Header Information
 
@@ -1006,9 +1015,9 @@ The MDCT framing itself runs across chunk boundaries: the last block of a non-fi
 
 Binary chunking is byte-based:
 
-1. Compute max data rows = `floor(maxHeight / 8) - 2`.
-2. Per-row capacity is `2480` bytes.
-3. Slice the payload into contiguous chunks of `maxDataRows * 2480` bytes.
+1. Compute max strips = `floor((maxHeight - 16) / 16)`.
+2. Per-strip capacity is `7296` bytes.
+3. Slice the payload into contiguous chunks of `maxStrips * 7296` bytes.
 
 ## Reassembly Metadata
 
@@ -1244,42 +1253,31 @@ Binary mode decoding reconstructs data from Pixel Exchange Format images. Multi-
 
 ## Multi-Image Processing
 
-Images are sorted by index from the header and processed sequentially. Each image contains a chunk of the total data with its position indicated in the header.
+Images are sorted by index from the header and processed sequentially. Each image contains a chunk of the total data with its size given in the header.
 
-## Row Processing
+## Image Processing
 
-For each data row (rows 2+), decoders must:
+The number of strips is `ceil(chunkSize / 7296)`. For each image, decoders must:
 
-1. Read 124 data blocks carrying 2480 bytes of payload symbols.
-2. Decode block RGB through inverse OBB mapping (binary mode path).
-3. Reconstruct:
-- 64 luma samples per block (2-bit each, Gray-coded)
-- 16 Cb + 16 Cr samples per block (1-bit each)
-4. Build soft LLRs for the 19840 data bits.
-5. Read metadata blocks (32 bytes total):
-- 28 bytes parity (soft LLR extraction)
-- 4 bytes stored CRC32C
-6. Reverse the row permutation at 2-bit-pair level.
-7. LDPC decode full codeword (`K=19840`, `N=20064`).
-8. Validate row CRC32C on decoded sequential bytes.
+1. Read the DCT coefficients of every strip from the RGB pixels (16 px per strip, starting at y = 16).
+2. Estimate the noise of each coefficient position over the whole image.
 
-## Data Reconstruction
+Then, per strip:
 
-### Pixel to Byte Mapping
-Each 8x8 data block maps to 20 bytes:
-- 16 bytes Y (2-bit symbols)
-- 2 bytes Cb (1-bit symbols)
-- 2 bytes Cr (1-bit symbols)
+3. Soft-demodulate the coefficients into 64896 LLRs.
+4. Reverse the bit permutation and the whitening (flip the LLR sign where the mask bit is 1).
+5. LDPC decode (`K = 58400`, `N = 64896`).
+6. Check the CRC32C stored after the 7296 payload bytes.
 
-### Permutation Reversal
-Permutation is defined over 2-bit pairs and must be inverted before LDPC decode, because parity was computed on sequential (pre-permuted) data.
-
-### Error Correction
-LDPC decoding (`19840 -> 20064` bits) corrects row errors. CRC32C verifies integrity.
+Steps 1 to 4 are specified under Binary Modulation and Data Permutation. The decoder works from pixels alone; it does not use quantization tables or coefficients of a JPEG file.
 
 ## Output Assembly
 
-Decoded chunk data from all images is concatenated in index order to reconstruct the full binary payload.
+Decoded payloads are concatenated in strip order and truncated to the chunk size; chunks from all images are concatenated in index order.
+
+## Health Report
+
+For diagnostics a decoder may report, per strip, the share of the 58400 message bits whose hard decision before LDPC decoding matched the decoded result. A strip that fails LDPC decoding or its CRC reports 0.
 
 ## Usage in Format
 
@@ -1356,38 +1354,27 @@ Audio decoding recovers high-quality PCM audio with perceptual coding optimizati
 
 ## LLR Lookup Models
 
-This module precomputes pixel-to-LLR lookup tables used by soft-decision decoding.
+This module precomputes the pixel-to-LLR lookup table used by soft-decision decoding of 1-bit-per-pixel blocks.
 
 ## Tables
 
 - `LLR_LOOKUP_1BIT_LUMA` (size 256)
-- `LLR_LOOKUP_1BIT_CHROMA` (size 256)
-- `LLR_LOOKUP_2BIT` (size 256 x 2)
 
 All values are clamped to `[-20, +20]`.
 
 ## Noise Model
 
-LLRs use a distance-based Laplacian-style model:
-- luma sigma: `12.0`
-- chroma sigma: `40.0`
+LLRs use a distance-based Laplacian-style model with sigma `12.0`.
 
 Larger sigma gives softer confidence.
 
 ## Symbol Assumptions
 
-### 1-bit paths
 - Candidate centroids: `0` and `255`
 - Positive LLR means bit `0` is more likely
 - Negative LLR means bit `1` is more likely
 
-### 2-bit path
-- Candidate centroids: `[0, 85, 170, 255]`
-- Bitwise grouping:
-- MSB: `{0,85}` vs `{170,255}`
-- LSB: `{0,255}` vs `{85,170}`
-
-These tables are consumed by binary payload and metadata LDPC decode paths.
+The table is consumed by the header and row-metadata LDPC decode paths. Binary payload strips compute their LLRs from DCT coefficients instead (see Binary Modulation).
 
 ---
 
@@ -1483,5 +1470,115 @@ Example row encoding:
 - `2` = `010`
 
 Glyphs are consumed by `TextRenderer.drawTextRow(...)`.
+
+---
+
+## Binary Modulation
+
+Binary mode writes its bits as PAM symbols on 8x8 DCT coefficients, placed on the block grid a 4:2:0 JPEG encoder uses. The pixels are what that DCT synthesizes, so a JPEG encoder finds the symbols again in its own coefficients and its quantizer moves each one by at most half a step.
+
+## Strip
+
+The unit is a strip: 16 pixel rows across the full 1024 px width, which is 64 MCUs of 16x16 px. An MCU holds:
+
+- four 8x8 luma blocks, one DCT block each
+- one 8x8 Cb block and one 8x8 Cr block, each spanning the whole 16x16 px (every chroma sample is written to a 2x2 pixel group)
+
+The DCT is the orthonormal 8x8 DCT-II on values offset by 128, as in JPEG. Colour conversion is JFIF YCbCr (BT.601 full range).
+
+## Bit Loading
+
+Coefficient `k` (raster order inside the block) carries `bits[k]` bits as one of `2^bits[k]` levels spaced `step[k]` apart and centred on zero:
+
+`amplitude = (index - (2^bits - 1) / 2) * step`
+
+The steps follow the libjpeg quantization tables at quality 90: `step = 1.15 * q + 2` for luma and `step = 1.2 * q + 2` for chroma, where `q` is the quantizer step of that coefficient. The fixed 2 covers pixel rounding in the colour conversions on both sides of the transport.
+
+Luma bits (211 per block):
+
+```
+5 5 5 5 4 3 3 3
+5 5 5 4 4 3 3 3
+5 5 5 4 3 3 3 3
+5 5 4 4 3 3 3 3
+4 4 4 3 3 2 2 3
+4 4 3 3 3 2 2 2
+3 3 3 3 2 2 2 2
+3 2 2 2 2 2 2 2
+```
+
+Chroma bits (85 per block):
+
+```
+3 3 3 2 1 1 1 1
+3 3 3 2 1 1 1 1
+3 3 2 1 1 1 1 1
+2 2 1 1 1 1 1 1
+1 1 1 1 1 1 1 1
+1 1 1 1 1 1 1 1
+1 1 1 1 1 1 1 1
+1 1 1 1 1 1 1 1
+```
+
+Luma quantizer steps at quality 90:
+
+```
+3  2  2  3  5  8 10 12
+2  2  3  4  5 12 12 11
+3  3  3  5  8 11 14 11
+3  3  4  6 10 17 16 12
+4  4  7 11 14 22 21 15
+5  7 11 13 16 21 23 18
+10 13 16 17 21 24 24 20
+14 18 19 20 22 20 21 20
+```
+
+Chroma quantizer steps at quality 90:
+
+```
+3  4  5  9 20 20 20 20
+4  4  5 13 20 20 20 20
+5  5 11 20 20 20 20 20
+9 13 20 20 20 20 20 20
+20 20 20 20 20 20 20 20
+20 20 20 20 20 20 20 20
+20 20 20 20 20 20 20 20
+20 20 20 20 20 20 20 20
+```
+
+The bit counts are the greedy loading that fills a pixel standard deviation of 38 (luma) and 14 (chroma) with these steps.
+
+An MCU carries `4 * 211 + 2 * 85 = 1014` bits and a strip `64 * 1014 = 64896` bits, 3.96 bits per pixel before error correction.
+
+## Bit Order
+
+The coded bits of a strip are consumed MCU by MCU, left to right. Inside an MCU the blocks come in the order top-left, top-right, bottom-left, bottom-right luma, then Cb, then Cr. Inside a block the coefficients come in raster order. Each coefficient reads its bits most significant first as a Gray code `g`; the level index is the Gray decode of `g`, so neighbouring levels differ in one bit.
+
+## Fitting the RGB Cube
+
+A sum of 64 independent symbols occasionally leaves the range a pixel can hold, and a decoder only ever sees clamped RGB. The encoder therefore repeats eight times:
+
+1. convert the strip to RGB with chroma replicated 2x2 and clamp to `0..255`
+2. convert back, averaging chroma over each 2x2 group
+3. take the DCT of every block and limit each coefficient's deviation from its symbol to `0.15 * step`; the lowest and highest level of a coefficient may move outward without limit
+4. inverse DCT
+
+The final pixels are the clamped, rounded RGB of the last result. Decoders do not need to know this step exists.
+
+## Demodulation
+
+The decoder converts RGB to YCbCr, averages chroma over 2x2 groups and takes the same DCTs. It never looks at a JPEG file's quantization tables or coefficients; the input is pixels.
+
+Noise is estimated per coefficient position and plane (Y, Cb, Cr) over all strips of the image: the RMS distance between each received coefficient and its nearest level, plus 0.05.
+
+Each bit's LLR is `ln(sum of likelihoods of levels whose Gray bit is 0 / sum for bit 1)`, clamped to +-25, with the level likelihood
+
+`0.98 * exp(-z) + (0.02 / 3) * exp(-z / 9)`, `z = distance^2 / (2 * sigma^2)`
+
+The second term is a three times wider Gaussian that keeps an outlier from being read as a certain wrong symbol.
+
+## Whitening
+
+The LDPC codeword of strip `s` is XORed with a byte mask taken from the RNG seeded with `BINARY_SCRAMBLE_SEED + s` (`nextByte()` per codeword byte). Without it, a run of equal payload bytes would put every coefficient on the same level.
 
 ---

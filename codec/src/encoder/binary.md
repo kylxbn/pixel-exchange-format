@@ -7,49 +7,49 @@ Binary mode stores arbitrary data in Pixel Exchange Format images. Large files a
 
 ## Image Structure
 
-### Row Layout
-- Row 0: Header (format metadata)
-- Row 1: Text information (human-readable)
-- Rows 2+: Data rows with payload and metadata
+- Row 0 (8 px): Header (format metadata)
+- Row 1 (8 px): Text information (human-readable)
+- From y = 16: one strip of 16 px per codeword
 
-### Data Row Format
-Each data row contains:
-- 124 data blocks: 2480 bytes of binary data
-- 4 metadata blocks: 32 bytes of error correction and integrity data
+The header and text rows together are one 16 px MCU row, so the strips sit on the 16x16 MCU grid of a 4:2:0 JPEG. Every block of a strip carries data; there are no per-row metadata blocks.
 
-## Data Encoding
+## Strip Format
 
-### Pixel Mapping
-Each 8x8 data block stores 20 bytes total using a 4:2:0-style split:
-- 16 bytes for luma (`Y`): 64 samples, each 2-bit Gray-coded
-- 2 bytes for `Cb`: 16 samples, each 1 bit
-- 2 bytes for `Cr`: 16 samples, each 1 bit
+Each strip holds one LDPC codeword of 64896 bits:
 
-Luma Gray symbols map to point values:
-- `00 -> -1.0`
-- `01 -> -1/3`
-- `11 -> +1/3`
-- `10 -> +1.0`
+| Part | Size |
+| --- | --- |
+| Payload | 7296 bytes |
+| CRC32C of the payload | 4 bytes, big-endian |
+| LDPC parity | 6496 bits |
 
-The `(Y, Cb, Cr)` point triplets are converted to RGB through the OBB mapping with mu-law disabled in binary mode.
+That is 3.56 payload bits per pixel. Parity and CRC are modulated exactly like the payload, at the same density.
 
-### LDPC and Permutation Order
-1. LDPC parity is computed on sequential row bytes (2480 bytes).
-2. CRC32C is computed on the same sequential bytes.
-3. Row payload is then permuted at the 2-bit-pair level using a deterministic row seed.
-4. Permuted payload is written to data blocks; parity+CRC are written to the metadata blocks.
+Encoding a strip:
 
-Implementation notes:
-- Final partial rows are zero-padded to 2480 bytes before LDPC/CRC.
-- Permutation row index is local to each image chunk (`0..numRows-1` per image), so decoder uses the same per-chunk indexing.
+1. Take 7296 payload bytes, zero-padded in the last strip of an image.
+2. Append the CRC32C of those 7296 bytes.
+3. LDPC-encode the 7300 bytes (`K = 58400`, `N = 64896`, systematic).
+4. XOR the codeword with the whitening mask of the strip.
+5. Permute the bits.
+6. Map the bits to DCT coefficients and render the pixels.
 
-## Metadata and Error Correction
+Steps 4 to 6 are specified under Binary Modulation and Data Permutation. The strip index used for whitening is local to each image (`0..numStrips-1`).
 
-### Row Metadata (32 bytes)
-- 28 bytes: LDPC error correction parity
-- 4 bytes: CRC32 integrity checksum
+## Design Target
 
-Metadata is stored as 1 bit per pixel in the last 4 blocks of each row.
+The level spacings are sized for baseline JPEG at libjpeg quality 90 with 4:2:0 chroma, and the code rate (0.90) leaves room for one quality step below that and for decoders that smooth chroma when upsampling. Measured with libjpeg-turbo 3.2 on random payloads (64 strips each):
+
+| Transport | Result |
+| --- | --- |
+| lossless | intact |
+| JPEG 4:2:0, quality 95 / 92 / 90 / 89 | intact, with box and with smoothed chroma upsampling |
+| JPEG 4:2:0, quality 88 | lost |
+| JPEG 4:4:4, quality 90 | intact |
+| jpegli quality 95, WebP quality 95 | intact |
+| jpegli quality 90, WebP quality 90 | lost |
+
+Other encoders are not a design target. The format only requires RGB pixels in and out.
 
 ## Multi-Image Files
 
@@ -57,6 +57,8 @@ Large binary data is split across multiple images:
 - Each image contains a sequential chunk of data
 - Header indicates total images and current index
 - Images are processed in order to reconstruct complete files
+
+An image of height `H` holds `floor((H - 16) / 16)` strips.
 
 ## Header Information
 

@@ -1,26 +1,30 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Kyle Alexander Buan
 
-import { BINARY_PERMUTATION_SEED, BINARY_ROW_DATA_CAPACITY } from "../constants";
+import { BINARY_PERMUTATION_SEED } from "../constants";
+import { LDPC_BINARY_N } from "./binaryModulation";
 import { createRNG } from "./rng";
 
-export function generateBinaryPermutation(rowIndex: number): Uint16Array {
-    const rng = createRNG(BINARY_PERMUTATION_SEED + rowIndex);
+let binaryPermutation: Uint32Array | null = null;
 
-    // Permute at 2-bit pair level: 2480 bytes = 9920 pairs
-    const numPairs = BINARY_ROW_DATA_CAPACITY * 4; // 9920
-    const perm = new Uint16Array(numPairs);
-    for (let i = 0; i < numPairs; i++) {
+/** Position in the codeword of each transmitted bit of a binary strip. The same for every strip. */
+export function getBinaryPermutation(): Uint32Array {
+    if (binaryPermutation) return binaryPermutation;
+
+    const rng = createRNG(BINARY_PERMUTATION_SEED);
+    const perm = new Uint32Array(LDPC_BINARY_N);
+    for (let i = 0; i < perm.length; i++) {
         perm[i] = i;
     }
 
-    // Fisher-Yates shuffle on bit pairs
-    for (let i = numPairs - 1; i > 0; i--) {
+    // Fisher-Yates shuffle
+    for (let i = perm.length - 1; i > 0; i--) {
         const j = (rng.next32() >>> 0) % (i + 1);
         const temp = perm[i];
         perm[i] = perm[j];
         perm[j] = temp;
     }
 
+    binaryPermutation = perm;
     return perm;
 }

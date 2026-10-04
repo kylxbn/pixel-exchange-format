@@ -7,42 +7,31 @@ Binary mode decoding reconstructs data from Pixel Exchange Format images. Multi-
 
 ## Multi-Image Processing
 
-Images are sorted by index from the header and processed sequentially. Each image contains a chunk of the total data with its position indicated in the header.
+Images are sorted by index from the header and processed sequentially. Each image contains a chunk of the total data with its size given in the header.
 
-## Row Processing
+## Image Processing
 
-For each data row (rows 2+), decoders must:
+The number of strips is `ceil(chunkSize / 7296)`. For each image, decoders must:
 
-1. Read 124 data blocks carrying 2480 bytes of payload symbols.
-2. Decode block RGB through inverse OBB mapping (binary mode path).
-3. Reconstruct:
-   - 64 luma samples per block (2-bit each, Gray-coded)
-   - 16 Cb + 16 Cr samples per block (1-bit each)
-4. Build soft LLRs for the 19840 data bits.
-5. Read metadata blocks (32 bytes total):
-   - 28 bytes parity (soft LLR extraction)
-   - 4 bytes stored CRC32C
-6. Reverse the row permutation at 2-bit-pair level.
-7. LDPC decode full codeword (`K=19840`, `N=20064`).
-8. Validate row CRC32C on decoded sequential bytes.
+1. Read the DCT coefficients of every strip from the RGB pixels (16 px per strip, starting at y = 16).
+2. Estimate the noise of each coefficient position over the whole image.
 
-## Data Reconstruction
+Then, per strip:
 
-### Pixel to Byte Mapping
-Each 8x8 data block maps to 20 bytes:
-- 16 bytes Y (2-bit symbols)
-- 2 bytes Cb (1-bit symbols)
-- 2 bytes Cr (1-bit symbols)
+3. Soft-demodulate the coefficients into 64896 LLRs.
+4. Reverse the bit permutation and the whitening (flip the LLR sign where the mask bit is 1).
+5. LDPC decode (`K = 58400`, `N = 64896`).
+6. Check the CRC32C stored after the 7296 payload bytes.
 
-### Permutation Reversal
-Permutation is defined over 2-bit pairs and must be inverted before LDPC decode, because parity was computed on sequential (pre-permuted) data.
-
-### Error Correction
-LDPC decoding (`19840 -> 20064` bits) corrects row errors. CRC32C verifies integrity.
+Steps 1 to 4 are specified under Binary Modulation and Data Permutation. The decoder works from pixels alone; it does not use quantization tables or coefficients of a JPEG file.
 
 ## Output Assembly
 
-Decoded chunk data from all images is concatenated in index order to reconstruct the full binary payload.
+Decoded payloads are concatenated in strip order and truncated to the chunk size; chunks from all images are concatenated in index order.
+
+## Health Report
+
+For diagnostics a decoder may report, per strip, the share of the 58400 message bits whose hard decision before LDPC decoding matched the decoded result. A strip that fails LDPC decoding or its CRC reports 0.
 
 ## Usage in Format
 

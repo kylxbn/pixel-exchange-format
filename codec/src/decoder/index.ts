@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Kyle Alexander Buan
 
 import { CHANNEL_MODE, BLOCK_SIZE } from '../constants';
-import { LLR_LOOKUP_1BIT_LUMA, LLR_LOOKUP_2BIT } from './models/generic';
+import { LLR_LOOKUP_1BIT_LUMA } from './models/generic';
 import { StreamingAudioDecoder } from './audio';
 import { BinaryDecoder } from './binary';
 import { HeaderDecoder } from './header';
@@ -31,21 +31,6 @@ export class PxfDecoder {
             imageData[offset + 1],
             imageData[offset + 2],
         ];
-    }
-
-    /**
-     * Computes Log-Likelihood Ratios (LLRs) for Gray Coded pixels.
-     * Used for Soft-Decision LDPC Decoding.
-     *
-     * LLR = log( P(bit=0) / P(bit=1) )
-     * Positive LLR -> Strong 0
-     * Negative LLR -> Strong 1
-     */
-    public static computeBinaryLLRs(pixel: number): { llr0: number, llr1: number } {
-        const p = Math.max(0, Math.min(255, pixel));
-
-        const entry = LLR_LOOKUP_2BIT[Math.round(p)];
-        return { llr0: entry[0], llr1: entry[1] };
     }
 
     /**

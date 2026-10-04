@@ -17,7 +17,7 @@ Audio is encoded with:
 Stereo is represented as mid/side image pairs, not left/right image channels.
 
 ### Binary Mode
-Binary mode stores 2480 bytes per data row. Payload symbols are mapped into YCbCr/RGB blocks (2-bit Y + 1-bit Cb + 1-bit Cr), then protected with row LDPC parity and CRC32C.
+Binary mode stores 7296 bytes per 16 px strip (3.56 bits per pixel). The bits are written as PAM symbols on 8x8 DCT coefficients on the JPEG 4:2:0 block grid, sized to survive JPEG at quality 90, and each strip is one LDPC codeword that also carries its CRC32C.
 
 ## Decoding Capabilities
 
@@ -32,7 +32,7 @@ Decoding supports:
 All images are 1024 pixels wide:
 - Row 0: LDPC-protected header stream
 - Row 1: human-readable text row
-- Rows 2+: audio or binary payload rows with per-row metadata in the final 4 blocks
+- Rows 2+: audio payload rows with per-row metadata in the final 4 blocks, or binary strips of 16 px that use the full width
 
 ## Channel Configurations
 

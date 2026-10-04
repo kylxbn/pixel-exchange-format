@@ -1,23 +1,18 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2026 Kyle Alexander Buan
 
-import { encodeBytesToBlocks, numberToBytes } from '../utils/audioUtils';
+import { numberToBytes } from '../utils/audioUtils';
 import { createRNG } from '../utils/rng';
-import {
-    BLOCK_SIZE, CHANNEL_MODE,
-    IMAGE_WIDTH, BLOCKS_PER_ROW,
-    FORMAT_VERSION,
-    BINARY_ROW_DATA_CAPACITY, BINARY_DATA_BLOCKS_PER_ROW,
-    BINARY_ROW_CRC_BYTES,
-    BINARY_ROW_PARITY_BYTES,
-} from '../constants';
+import { BLOCK_SIZE, CHANNEL_MODE, IMAGE_WIDTH, FORMAT_VERSION } from '../constants';
 import { crc32c } from '../utils/crc32';
-import { binaryLdpc } from '../constants';
 import { ChunkingUtils } from './chunking';
 import { HeaderEncoder } from './header';
 import { TextRenderer } from './text';
-import { generateBinaryPermutation } from '../utils/shuffle';
-import { encodePointToRGB } from '../utils/obb';
+import {
+    BINARY_STRIP_DATA_CAPACITY, BINARY_STRIP_HEIGHT, LDPC_BINARY_N,
+    generateBinaryScrambleMask, getBinaryLdpc, modulateStrip, renderStrip,
+} from '../utils/binaryModulation';
+import { getBinaryPermutation } from '../utils/shuffle';
 import type { EncodedImageResult, SimpleImageData } from './types';
 
 export class BinaryEncoder {
@@ -55,12 +50,12 @@ export class BinaryEncoder {
         onProgress?: (p: number) => void
     ): Promise<EncodedImageResult> {
         const fileSize = data.length;
-        const numDataRows = Math.ceil(fileSize / BINARY_ROW_DATA_CAPACITY);
+        const numStrips = Math.ceil(fileSize / BINARY_STRIP_DATA_CAPACITY);
 
-        // Layout: Row 0=Header, Row 1=Text, Row 2...N=Data
-        const totalRows = 2 + numDataRows;
+        // Layout: Row 0=Header, Row 1=Text, then one 16px strip per codeword
+        const headerHeight = 2 * BLOCK_SIZE;
         const width = IMAGE_WIDTH;
-        const height = totalRows * BLOCK_SIZE;
+        const height = headerHeight + numStrips * BINARY_STRIP_HEIGHT;
 
         const buffer = new Uint8ClampedArray(width * height * 4);
         const imageData: SimpleImageData = { data: buffer, width, height };
@@ -84,22 +79,22 @@ export class BinaryEncoder {
         }
         TextRenderer.drawTextRow(TextRenderer.toDisplayText(infoText), imageData.data, width, 1);
 
-        // --- Row 2+: Data ---
-        const rowBytes = new Uint8Array(BINARY_ROW_DATA_CAPACITY);
+        // --- Strips ---
+        const stripBytes = new Uint8Array(BINARY_STRIP_DATA_CAPACITY);
 
-        for (let r = 0; r < numDataRows; r++) {
-            if (r % 50 === 0) {
-                if (onProgress) onProgress((r / numDataRows) * 100);
+        for (let s = 0; s < numStrips; s++) {
+            if (s % 8 === 0) {
+                if (onProgress) onProgress((s / numStrips) * 100);
                 await new Promise(resolve => setTimeout(resolve, 0));
             }
 
-            const rowStart = r * BINARY_ROW_DATA_CAPACITY;
-            const rowEnd = Math.min(rowStart + BINARY_ROW_DATA_CAPACITY, fileSize);
+            const start = s * BINARY_STRIP_DATA_CAPACITY;
+            const end = Math.min(start + BINARY_STRIP_DATA_CAPACITY, fileSize);
 
-            rowBytes.fill(0);
-            rowBytes.set(data.subarray(rowStart, rowEnd), 0);
+            stripBytes.fill(0);
+            stripBytes.set(data.subarray(start, end), 0);
 
-            this.encodeBinaryRow(imageData, r, rowBytes);
+            this.encodeBinaryStrip(imageData, s, stripBytes);
         }
 
         if (onProgress) onProgress(100);
@@ -109,129 +104,31 @@ export class BinaryEncoder {
         return { data: buffer, width, height, name: (metadata.fn || 'file') + suffix };
     }
 
-    public static encodeBinaryRow(imageData: SimpleImageData, rowIndex: number, rowBytes: Uint8Array): void {
-        // rowBytes is now exactly 2480 bytes (padded if needed)
+    public static encodeBinaryStrip(imageData: SimpleImageData, stripIndex: number, stripBytes: Uint8Array): void {
+        // 1. Payload + CRC32C of the payload
+        const message = new Uint8Array(BINARY_STRIP_DATA_CAPACITY + 4);
+        message.set(stripBytes, 0);
+        const crc = crc32c(stripBytes);
+        message[BINARY_STRIP_DATA_CAPACITY] = (crc >>> 24) & 0xFF;
+        message[BINARY_STRIP_DATA_CAPACITY + 1] = (crc >>> 16) & 0xFF;
+        message[BINARY_STRIP_DATA_CAPACITY + 2] = (crc >>> 8) & 0xFF;
+        message[BINARY_STRIP_DATA_CAPACITY + 3] = crc & 0xFF;
 
-        // 1. LDPC Encode on SEQUENTIAL data
-        // Encode 2480 bytes -> 2508 bytes
-        // Parity is computed on sequential byte positions
-        const encoded = binaryLdpc.encode(rowBytes);
-        const parityBytes = encoded.slice(BINARY_ROW_DATA_CAPACITY); // 28 bytes
+        // 2. LDPC encode, then whiten the whole codeword
+        const codeword = getBinaryLdpc().encode(message);
+        const mask = generateBinaryScrambleMask(stripIndex);
+        for (let i = 0; i < codeword.length; i++) codeword[i] ^= mask[i];
 
-        // 2. Calculate CRC32 of original sequential data for integrity check
-        const rowCrc = crc32c(rowBytes);
-
-        // 3. Generate row-specific random permutation at 2-bit pair level
-        // This happens AFTER LDPC so that when the decoder de-permutes,
-        // burst errors from corrupted JPEG blocks become maximally scattered
-        const permutation = generateBinaryPermutation(rowIndex);
-
-        // Extract 2-bit pairs from sequential data and apply permutation
-        // Total pairs: 2480 bytes * 4 pairs/byte = 9920 pairs
-        const totalPairs = BINARY_ROW_DATA_CAPACITY * 4;
-        const permutedPairs = new Uint8Array(BINARY_ROW_DATA_CAPACITY); // Initialize with zeros
-        for (let pairIdx = 0; pairIdx < totalPairs; pairIdx++) {
-            const sourcePairIdx = permutation[pairIdx];
-
-            // Extract source 2-bit pair
-            const sourceByteIdx = Math.floor(sourcePairIdx / 4);
-            const sourcePairInByte = sourcePairIdx % 4;
-            const sourceShift = 6 - sourcePairInByte * 2;
-            const pair = (rowBytes[sourceByteIdx] >> sourceShift) & 0b11;
-
-            // Write to permuted position
-            const destByteIdx = Math.floor(pairIdx / 4);
-            const destPairInByte = pairIdx % 4;
-            const destShift = 6 - destPairInByte * 2;
-            permutedPairs[destByteIdx] |= (pair << destShift);
+        // 3. Interleave, so that a damaged block spreads over the codeword
+        const permutation = getBinaryPermutation();
+        const bits = new Uint8Array(LDPC_BINARY_N);
+        for (let i = 0; i < LDPC_BINARY_N; i++) {
+            const source = permutation[i];
+            bits[i] = (codeword[source >>> 3] >> (7 - (source & 7))) & 1;
         }
 
-        // 4. Assemble Metadata Buffer (32 Bytes)
-        // [0-27]: LDPC Parity (28 bytes) - computed on sequential (non-interleaved) data
-        // [28-31]: CRC32 (4 bytes) - computed on sequential (non-interleaved) data
-        const metaBuffer = new Uint8Array(BINARY_ROW_PARITY_BYTES + BINARY_ROW_CRC_BYTES);
-        metaBuffer.set(parityBytes, 0);
-
-        metaBuffer[BINARY_ROW_PARITY_BYTES] = (rowCrc >>> 24) & 0xFF;
-        metaBuffer[BINARY_ROW_PARITY_BYTES + 1] = (rowCrc >>> 16) & 0xFF;
-        metaBuffer[BINARY_ROW_PARITY_BYTES + 2] = (rowCrc >>> 8) & 0xFF;
-        metaBuffer[BINARY_ROW_PARITY_BYTES + 3] = rowCrc & 0xFF;
-
-        // 5. Write Data Blocks (124 Blocks) using YCbCr 4:2:0 encoding
-        // Each block: 20 bytes = 160 bits
-        //   - 16 bytes (128 bits) for 64 Y values (8x8 grid, 2 bits each)
-        //   - 2 bytes (32 bits) for 16 Cb values (4x4 grid, 1 bit each)
-        //   - 2 bytes (32 bits) for 16 Cr values (4x4 grid, 1 bit each)
-        const startBlock = (rowIndex + 2) * BLOCKS_PER_ROW;
-        const baseY = (rowIndex + 2) * 8;
-
-        for (let b = 0; b < BINARY_DATA_BLOCKS_PER_ROW; b++) {
-            const blockStart = b * 20; // 20 bytes per block now
-            const bx = (b % BLOCKS_PER_ROW) * 8;
-
-            // Extract Y, Cb, Cr data for this block
-            const yBytes = permutedPairs.slice(blockStart, blockStart + 16); // 16 bytes = 64 Y values
-            const cbBytes = permutedPairs.slice(blockStart + 16, blockStart + 18); // 2 bytes = 16 Cb values
-            const crBytes = permutedPairs.slice(blockStart + 18, blockStart + 20); // 2 bytes = 16 Cr values
-
-            // Process each pixel in the 8x8 block
-            for (let py = 0; py < 8; py++) {
-                for (let px = 0; px < 8; px++) {
-                    // Get Y value for this pixel (8x8 grid)
-                    const yIdx = py * 8 + px;
-                    const yByteIdx = yIdx >>> 2; // Math.floor(yIdx / 4)
-                    const yPairInByte = yIdx & 3; // yIdx % 4
-                    const yShift = 6 - yPairInByte * 2;
-                    const yBits = (yBytes[yByteIdx] >> yShift) & 0b11;
-
-                    // Get Cb and Cr values (4x4 grid, 4:2:0 subsampling)
-                    // Each chroma sample covers a 2x2 block of luma pixels
-                    const cY = py >>> 1; // Math.floor(py / 2)
-                    const cX = px >>> 1; // Math.floor(px / 2)
-                    
-                    // Okay, so now that we know the 4x4 index,
-                    // we need to know which byte and which bit to write in Cb and Cr.
-                    // The Cb plane contains 2 bytes, just like Cr.
-                    const cByteIdx = cY >>> 1; // so cY == 0 -> byte 0, cY == 1 -> byte 0, cY == 2 -> byte 1, etc.
-                    const cBit = 7 - cX - (cY & 0b1) * 4;
-
-                    // Map bit to [-1..1] point space
-                    const yPoint = this.grayCodeToPoint(yBits);
-                    const cbPoint = ((cbBytes[cByteIdx] >>> cBit) & 0b1) ? 1 : -1;
-                    const crPoint = ((crBytes[cByteIdx] >>> cBit) & 0b1) ? 1 : -1;
-
-                    // Convert point to RGB using OBB (without mu-law for binary mode)
-                    const rgb = encodePointToRGB([yPoint, cbPoint, crPoint], false);
-
-                    // Clamp to valid RGB range and write pixel
-                    const off = ((baseY + py) * IMAGE_WIDTH + (bx + px)) * 4;
-                    imageData.data[off] = Math.max(0, Math.min(255, Math.round(rgb[0])));
-                    imageData.data[off + 1] = Math.max(0, Math.min(255, Math.round(rgb[1])));
-                    imageData.data[off + 2] = Math.max(0, Math.min(255, Math.round(rgb[2])));
-                    imageData.data[off + 3] = 255;
-                }
-            }
-        }
-
-        // 6. Write Metadata Blocks (4 Blocks) using 1-bit encoding
-        encodeBytesToBlocks(metaBuffer, imageData.data, IMAGE_WIDTH, startBlock + BINARY_DATA_BLOCKS_PER_ROW);
-    }
-
-    /**
-     * Helper: Maps 2-bit Gray code to point value in [-1..1] range.
-     * Gray code mapping (ensures adjacent values differ by only 1 bit):
-     * 00 -> -1.0
-     * 01 -> -0.333...
-     * 11 -> +0.333...
-     * 10 -> +1.0
-     */
-    private static grayCodeToPoint(bits: number): number {
-        switch (bits) {
-            case 0b00: return -1.0;
-            case 0b01: return -1.0 / 3.0;
-            case 0b11: return 1.0 / 3.0;
-            case 0b10: return 1.0;
-            default: return -1.0;
-        }
+        // 4. Bits -> DCT coefficients -> pixels
+        const baseY = 2 * BLOCK_SIZE + stripIndex * BINARY_STRIP_HEIGHT;
+        renderStrip(modulateStrip(bits), imageData.data, baseY);
     }
 }

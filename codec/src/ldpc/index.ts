@@ -251,6 +251,89 @@ export class LDPCGraphBuilder {
     }
 }
 
+/**
+ * Builds a staircase graph without a search, for codes too large to ship as JSON.
+ * Every data variable takes three check nodes off a shuffled deck that holds each
+ * check the same number of times, which keeps the check degrees balanced. A slot is
+ * skipped when it would repeat a check within the variable or put two variables on
+ * the same pair of checks (a 4-cycle).
+ */
+export function buildDeckGraph(n: number, k: number, seed: number): LDPCGraphData {
+    const m = n - k;
+    const colWeight = 3;
+    const rng = createRNG(seed);
+
+    const edges: Edge[] = [];
+    const checkNodeEdges: number[][] = Array.from({ length: m }, () => []);
+    const variableNodeEdges: number[][] = Array.from({ length: n }, () => []);
+    const addEdge = (checkIdx: number, varIdx: number) => {
+        checkNodeEdges[checkIdx].push(edges.length);
+        variableNodeEdges[varIdx].push(edges.length);
+        edges.push([checkIdx, varIdx]);
+    };
+
+    for (let i = 0; i < m; i++) {
+        addEdge(i, k + i);
+        if (i < m - 1) addEdge(i + 1, k + i);
+    }
+
+    const copies = Math.ceil((colWeight * k) / m);
+    const deck = new Int32Array(m * copies);
+    for (let i = 0; i < deck.length; i++) deck[i] = i % m;
+    for (let i = deck.length - 1; i > 0; i--) {
+        const j = (rng.next32() >>> 0) % (i + 1);
+        const t = deck[i]; deck[i] = deck[j]; deck[j] = t;
+    }
+
+    const usedPairs = new Set<number>();
+    const pairKey = (a: number, b: number) => (a < b ? a * m + b : b * m + a);
+    const chosen = new Int32Array(colWeight);
+    let pos = 0;
+
+    for (let col = 0; col < k; col++) {
+        for (let l = 0; l < colWeight; l++) {
+            // First slot that keeps the graph free of 4-cycles, else the first that
+            // is at least a new check for this variable
+            let pick = -1;
+            let fallback = -1;
+            for (let j = pos; j < deck.length; j++) {
+                const c = deck[j];
+                let repeated = false;
+                let shared = false;
+                for (let p = 0; p < l; p++) {
+                    if (chosen[p] === c) repeated = true;
+                    else if (usedPairs.has(pairKey(chosen[p], c))) shared = true;
+                }
+                if (repeated) continue;
+                if (!shared) { pick = j; break; }
+                if (fallback === -1) fallback = j;
+            }
+            if (pick === -1) pick = fallback;
+
+            let check: number;
+            if (pick === -1) {
+                // Deck exhausted of usable slots: take the next check not yet on this variable
+                check = deck[pos];
+                for (let p = 0; p < l; p++) {
+                    if (chosen[p] === check) { check = (check + 1) % m; p = -1; }
+                }
+            } else {
+                check = deck[pick];
+                deck[pick] = deck[pos];
+                deck[pos] = check;
+            }
+            pos++;
+            chosen[l] = check;
+        }
+        usedPairs.add(pairKey(chosen[0], chosen[1]));
+        usedPairs.add(pairKey(chosen[0], chosen[2]));
+        usedPairs.add(pairKey(chosen[1], chosen[2]));
+        for (let l = 0; l < colWeight; l++) addEdge(chosen[l], col);
+    }
+
+    return { n, k, m, seed, edges, checkNodeEdges, variableNodeEdges };
+}
+
 export class LdpcCode {
     private n: number; // Total bits
     private k: number; // Data bits
@@ -264,6 +347,12 @@ export class LdpcCode {
     private checkNodeEdges: number[][];    // [CheckIndex] -> [EdgeIndices...]
     private variableNodeEdges: number[][]; // [VarIndex]   -> [EdgeIndices...]
 
+    // The same graph flattened for the decoder: the variables of check c are
+    // checkVars[checkStart[c] .. checkStart[c + 1])
+    private checkStart: Int32Array;
+    private checkVars: Int32Array;
+    private maxCheckDegree = 0;
+
     public constructor(graph: LDPCGraphData) {
         this.n = graph.n;
         this.k = graph.k;
@@ -271,6 +360,16 @@ export class LdpcCode {
         this.edges = graph.edges;
         this.checkNodeEdges = graph.checkNodeEdges;
         this.variableNodeEdges = graph.variableNodeEdges;
+
+        this.checkStart = new Int32Array(this.m + 1);
+        this.checkVars = new Int32Array(this.edges.length);
+        let pos = 0;
+        for (let c = 0; c < this.m; c++) {
+            this.checkStart[c] = pos;
+            for (const edgeIdx of this.checkNodeEdges[c]) this.checkVars[pos++] = this.edges[edgeIdx][1];
+            this.maxCheckDegree = Math.max(this.maxCheckDegree, pos - this.checkStart[c]);
+        }
+        this.checkStart[this.m] = pos;
     }
 
     /**
@@ -337,61 +436,40 @@ export class LdpcCode {
     public decode(llrs: Float32Array, maxIter: number = 50): { data: Uint8Array, corrected: boolean, osd: boolean, iter: number } {
         const n = this.n;
         const m = this.m;
-        const edgeCount = this.edges.length;
+        const checkStart = this.checkStart;
+        const checkVars = this.checkVars;
 
         // Message Storage: Check-to-Variable messages (R_cv)
         // In Layered decoding, we only strictly need to store R messages.
         // Lq (Posterior LLRs) serves as the Variable-to-Check interface.
-        const R = new Float32Array(edgeCount); // Initialized to 0
-        const Lq = new Float32Array(llrs);     // Initialize with Channel LLRs (Intrinsic)
+        const R = new Float32Array(checkVars.length); // Initialized to 0
+        const Lq = new Float32Array(llrs);            // Initialize with Channel LLRs (Intrinsic)
 
         const hardDecision = new Uint8Array(n);
+        const tanhs = new Float32Array(this.maxCheckDegree);
 
-        // Helper: Check Syndrome (H * x = 0)
-        // Returns true if syndrome is 0 (valid codeword).
-        const checkSyndrome = () => {
-            let valid = true;
-            for (let c = 0; c < m; c++) {
-                let p = 0;
-                const edgeIndices = this.checkNodeEdges[c];
-                for (let k = 0; k < edgeIndices.length; k++) {
-                    const v = this.edges[edgeIndices[k]][1]; // varIndex
-                    const bit = Lq[v] >= 0 ? 0 : 1;
-                    p ^= bit;
-                }
-                if (p !== 0) {
-                    valid = false;
-                    break;
-                }
-            }
-            if (valid) {
-                for (let i = 0; i < n; i++) hardDecision[i] = Lq[i] >= 0 ? 0 : 1;
-            }
-            return valid;
-        }
-
-        // --- DEBUG HELPERS ---
-        const countUnsatisfiedChecks = (currentHardDecision?: Uint8Array) => {
+        // Number of parity checks the given hard decision fails; stops at the first when `any` is set
+        const countUnsatisfiedChecks = (bits: Uint8Array, any: boolean) => {
             let count = 0;
             for (let c = 0; c < m; c++) {
                 let p = 0;
-                const edgeIndices = this.checkNodeEdges[c];
-                for (let k = 0; k < edgeIndices.length; k++) {
-                    const v = this.edges[edgeIndices[k]][1]; // varIndex
-                    // Use provided hard decision or derive from Lq
-                    const bit = currentHardDecision ? currentHardDecision[v] : (Lq[v] >= 0 ? 0 : 1);
-                    p ^= bit;
+                for (let e = checkStart[c]; e < checkStart[c + 1]; e++) p ^= bits[checkVars[e]];
+                if (p !== 0) {
+                    count++;
+                    if (any) break;
                 }
-                if (p !== 0) count++;
             }
             return count;
         };
 
-        // Initial Check (Pre-Decoding)
-        const initialSyndromeCount = countUnsatisfiedChecks();
-        if (initialSyndromeCount === 0) {
-            // Channel was perfect!
+        const decide = () => {
             for (let i = 0; i < n; i++) hardDecision[i] = Lq[i] >= 0 ? 0 : 1;
+        };
+
+        // Initial Check (Pre-Decoding)
+        decide();
+        if (countUnsatisfiedChecks(hardDecision, true) === 0) {
+            // Channel was perfect!
             return { data: this.packData(hardDecision), corrected: true, osd: false, iter: 0 };
         }
 
@@ -400,55 +478,43 @@ export class LdpcCode {
 
             // Layered pass: Visit each check node c
             for (let c = 0; c < m; c++) {
-                const edgeIndices = this.checkNodeEdges[c];
-                const degree = edgeIndices.length;
+                const start = checkStart[c];
+                const end = checkStart[c + 1];
 
-                // 1. Compute incoming Variable-to-Check messages (L_vc)
-                //    and prepare for Check Node update.
-                //    L_vc = Lq[v] - R_old[edge]
-
-                // We'll compute the product of tanh(L_vc / 2) on the fly.
+                // 1. Compute incoming Variable-to-Check messages (L_vc = Lq[v] - R_old[edge])
+                //    and the product of tanh(L_vc / 2) on the fly.
                 let totalProd = 1.0;
                 let zeroCount = 0;
                 let firstZeroIdx = -1;
 
-                // Temporary storage for tanh values to avoid recomputing
-                const tanhs = new Float32Array(degree);
-
-                for (let k = 0; k < degree; k++) {
-                    const edgeIdx = edgeIndices[k];
-                    const v = this.edges[edgeIdx][1]; // varIndex
-
-                    let l_vc = Lq[v] - R[edgeIdx];
+                for (let e = start; e < end; e++) {
+                    let l_vc = Lq[checkVars[e]] - R[e];
 
                     // Numerical Stability Clamp
                     if (l_vc > 30) l_vc = 30;
                     else if (l_vc < -30) l_vc = -30;
 
                     const t = Math.tanh(l_vc / 2.0);
-                    tanhs[k] = t;
+                    tanhs[e - start] = t;
 
                     if (Math.abs(t) < 1e-15) {
                         zeroCount++;
-                        if (firstZeroIdx === -1) firstZeroIdx = k;
+                        if (firstZeroIdx === -1) firstZeroIdx = e;
                     } else {
                         totalProd *= t;
                     }
                 }
 
                 // 2. Compute new R_cv messages
-                for (let k = 0; k < degree; k++) {
-                    const edgeIdx = edgeIndices[k];
-                    const v = this.edges[edgeIdx][1]; // varIndex
-
+                for (let e = start; e < end; e++) {
                     let prodExcl = 0;
                     if (zeroCount > 1) {
                         prodExcl = 0;
                     } else if (zeroCount === 1) {
-                        if (k === firstZeroIdx) prodExcl = totalProd;
+                        if (e === firstZeroIdx) prodExcl = totalProd;
                         else prodExcl = 0;
                     } else {
-                        prodExcl = totalProd / tanhs[k];
+                        prodExcl = totalProd / tanhs[e - start];
                     }
 
                     if (prodExcl > SPA_CLAMP) prodExcl = SPA_CLAMP;
@@ -457,14 +523,15 @@ export class LdpcCode {
                     const r_new = 2.0 * Math.atanh(prodExcl);
 
                     // 3. Update Posterior Lq immediately
-                    const diff = r_new - R[edgeIdx];
-                    R[edgeIdx] = r_new;
-                    Lq[v] += diff;
+                    const diff = r_new - R[e];
+                    R[e] = r_new;
+                    Lq[checkVars[e]] += diff;
                 }
             }
 
             // End of full iteration check
-            if (checkSyndrome()) {
+            decide();
+            if (countUnsatisfiedChecks(hardDecision, true) === 0) {
                 return { data: this.packData(hardDecision), corrected: true, osd: false, iter: iter + 1 };
             }
         }
@@ -473,11 +540,9 @@ export class LdpcCode {
         const magnitudes = new Float32Array(n);
         const indices = new Int32Array(n);
 
-        // Refresh hardDecision based on final Lq
         for (let i = 0; i < n; i++) {
             magnitudes[i] = Math.abs(Lq[i]);
             indices[i] = i;
-            hardDecision[i] = Lq[i] >= 0 ? 0 : 1;
         }
 
         indices.sort((a, b) => magnitudes[a] - magnitudes[b]);
@@ -488,21 +553,7 @@ export class LdpcCode {
 
             hardDecision[idx] ^= 1; // Flip
 
-            // Check
-            let valid = true;
-            for (let c = 0; c < m; c++) {
-                let p = 0;
-                const edgeIndices = this.checkNodeEdges[c];
-                for (const ei of edgeIndices) {
-                    p ^= hardDecision[this.edges[ei][1]]; // varIndex
-                }
-                if (p !== 0) {
-                    valid = false;
-                    break;
-                }
-            }
-
-            if (valid) {
+            if (countUnsatisfiedChecks(hardDecision, true) === 0) {
                 return { data: this.packData(hardDecision), corrected: true, osd: true, iter: iter + k };
             }
 
