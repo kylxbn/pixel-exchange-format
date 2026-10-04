@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-10-04 - SBR noise fields replaced by gain time segments
+
+The SBR word's noise-floor fields are gone and their bits now carry extra gain time resolution. This changes the v301 SBR word, so audio images from earlier v301 builds decode with wrong highband gains.
+
+The noise fields were dead weight: the encoder never wrote anything but 0. That was not a detection fault. At the target transport the source tile (bins 64..95 after JPEG Q92) already carries quantization noise and is as noise-like as the highband it replaces: measured per block on the 36-track corpus at 32 kHz, median spectral flatness is 0.61 for the target highband, 0.59 for the decoded source tile and 0.65 for white noise. Forcing noise in made PEAQ worse monotonically (noise share +25 %: -0.024 ODG, +50 %: -0.056, all noise: -0.079, worse on 35 of 36 tracks), so the decoder's noise synthesis and its per-block seeds were removed as well. Whitening by the tonality field stays.
+
+What limited the highband was time resolution, not parameter precision: one gain per subgroup (62 blocks, 248 ms at 32 kHz) in normal mode, two in temporal mode. Simulated on the corpus, the RMS error of the synthesized band-energy envelope was 4.81 dB; with unquantized parameters in the same structure it was still 4.55 dB, while four unquantized gains per subgroup reach 4.07 dB and eight 3.68 dB.
+
+- **Normal mode**: the 4-bit noise field is now a gain delta (-8..+7 dB). `hfGain` applies to the first half of the subgroup, `hfGain + gainDelta` to the second.
+- **Temporal mode**: each half's 2-bit noise field is now a quarter delta (-4, 0, +4, +8 dB) that splits the half into two quarters at `gain -/+ delta / 2`, for four gains per subgroup.
+- **Band envelope**: the top band's range is shifted down by 4 dB in both modes (-10..+4 and -8.5..+0.5). It sits on the source's anti-alias rolloff: its fitted envelope averaged -4 dB against about 0 dB for the other three bands, and 9 % (normal) and 16 % (temporal) of all envelope values sat at the old lower limit.
+- **Mode decision**: the encoder fits both modes and keeps the one whose stored parameters make the decoder's energy envelope land closer to the target, replacing the "halves more than 3 dB apart" rule.
+
+With these the simulated envelope error drops from 4.81 to about 4.1 dB. PEAQ through the Q92 4:2:0 channel on the 36-track corpus: 32 kHz mean ODG -1.988 to -1.967 (21 tracks better, 6 worse; largest drops -0.08 on two dense electronic tracks, largest gain +0.14), 44.1 kHz -1.367 to -1.361.
+
+The app's SBR readout shows the block's effective gain and the gain step in place of the noise share; `SBRParams.noiseFloorRatio` and `SBRParamsTemporal.noiseFloorRatioA/B` became `gainDelta` and `quarterDeltaA/B`, and the seed arguments of `applySBRSynthesis`, `applyJointStereoSBRSynthesis`, `decodeBlock` and `decodeStereoBlocks` were dropped.
+
 ## 2026-10-04 - Integer luma centre
 
 The luma centre of the OBB pixel mapping moved from 127.426 to 128 (extents and rotation unchanged). With the fractional centre a zero luma sample was written as gray 127 and read back as about -0.0034, so every silent block that shared a scale group with loud audio carried a constant offset in its DC coefficient. The v300 zigzag map put DC in MDCT bin 0, where it was an inaudible DC offset; the JPEG-tuned maps put it in bin 8, where it became a steady tone at 8 x fs/256 (1000 Hz at 32 kHz, about -54 dBFS before a loud onset). Zero is now gray 128, which is exact in the pixels and a zero DC term in JPEG. The box reaches at most 0.42 past 255 at its extreme corners, within pixel rounding. This changes the pixel values of both audio and binary images, so images from earlier v301 builds decode with a small luma offset.

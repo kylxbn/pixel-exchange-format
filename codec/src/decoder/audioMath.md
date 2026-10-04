@@ -20,5 +20,5 @@ Given one 8x8 image block plus row metadata, it:
 
 ## Determinism Notes
 
-- SBR synthesis accepts an optional external seed for reproducible/noise-controlled decode behavior.
+- SBR synthesis is a deterministic function of the decoded lowband and the row's SBR bytes.
 - If scaling or band factors are invalid (`0`), function outputs silence for stability.

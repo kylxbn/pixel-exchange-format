@@ -90,7 +90,7 @@
 	"channel_mono_side_missing": "モノラル (Side欠落)",
 	"channel_mono": "モノラル",
 	"stat_envelope": "エンベロープ",
-	"stat_noise": "ノイズ",
+	"stat_gain_step": "ステップ",
 	"stat_tonal": "トーナル",
 	"stat_trans": "トランジェント",
 	"stat_patch": "パッチ",

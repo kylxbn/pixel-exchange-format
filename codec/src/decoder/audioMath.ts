@@ -186,7 +186,6 @@ export function decodeBlock(
     buffers: DecodeBlockBuffers,
     sbrBytes: Uint8Array | null,
     colInAudioArea: number,
-    externalSbrSeed?: number,
     rowDataCount: number = DATA_BLOCKS_PER_ROW
 ): Float32Array {
     decodeBlockToCoefficients(
@@ -199,8 +198,7 @@ export function decodeBlock(
             coeffBuffer,
             selection.params,
             selection.blockIdxInSubgroup,
-            selection.subgroupSize,
-            externalSbrSeed
+            selection.subgroupSize
         );
     } else {
         for (let k = 96; k < 128; k++) {
@@ -239,9 +237,6 @@ export function decodeStereoBlocks(
     mdctWindow: Float32Array,
     buffers: DecodeBlockBuffers,
     colInAudioArea: number,
-    sharedSeed?: number,
-    midSeed?: number,
-    sideSeed?: number,
     rowDataCount: number = DATA_BLOCKS_PER_ROW
 ): { midWindow: Float32Array; sideWindow: Float32Array } {
     decodeBlockToCoefficients(
@@ -277,18 +272,14 @@ export function decodeStereoBlocks(
             midSelection.params,
             sideSelection.params,
             midSelection.blockIdxInSubgroup,
-            midSelection.subgroupSize,
-            sharedSeed,
-            midSeed,
-            sideSeed
+            midSelection.subgroupSize
         );
     } else if (midSelection) {
         applySBRSynthesis(
             midBlock.coeffBuffer,
             midSelection.params,
             midSelection.blockIdxInSubgroup,
-            midSelection.subgroupSize,
-            midSeed
+            midSelection.subgroupSize
         );
         deriveMissingStereoHighFrequencies(
             sideBlock.coeffBuffer,
@@ -300,8 +291,7 @@ export function decodeStereoBlocks(
             sideBlock.coeffBuffer,
             sideSelection.params,
             sideSelection.blockIdxInSubgroup,
-            sideSelection.subgroupSize,
-            sideSeed
+            sideSelection.subgroupSize
         );
         deriveMissingStereoHighFrequencies(
             midBlock.coeffBuffer,

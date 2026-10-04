@@ -42,8 +42,7 @@ If row metadata decode fails (or yields invalid values), decoder falls back to n
 ### Frequency Domain Processing
 - Band factors restore original coefficient magnitudes
 - SBR synthesizes bins 96-127 from source tiles in lower bands
-- Deterministic noise generation ensures reproducible high frequencies
-- Stereo decoding synthesizes mid and side jointly: a subgroup stereo cue couples the stochastic HF reconstruction between the two channels. A mid image decoded without its side image uses its own channel-specific SBR seed
+- Stereo decoding synthesizes mid and side jointly: after each channel's own synthesis, the subgroup stereo cue projects the two highbands onto a common axis. A mid image decoded without its side image is synthesized on its own
 
 ## Time Domain Reconstruction
 

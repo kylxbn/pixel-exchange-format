@@ -90,7 +90,7 @@
 	"channel_mono_side_missing": "Mono (Side Missing)",
 	"channel_mono": "Mono",
 	"stat_envelope": "Envelope",
-	"stat_noise": "Noise",
+	"stat_gain_step": "Step",
 	"stat_tonal": "Tonal",
 	"stat_trans": "Trans",
 	"stat_patch": "Patch",

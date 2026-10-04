@@ -504,15 +504,6 @@ export class StreamingAudioDecoder {
         return [outL];
     }
 
-    private getSbrSeeds(src: ImageSource, localAudioBlockIdx: number) {
-        const isStereo = src.channelMode === CHANNEL_MODE.STEREO_MID || src.channelMode === CHANNEL_MODE.STEREO_SIDE;
-        const chunkIdx = isStereo ? Math.floor((src.imageIndex - 1) / 2) : (src.imageIndex - 1);
-        const salt = (src.randomBytes[0] << 24) | (src.randomBytes[1] << 16) | (src.randomBytes[2] << 8) | src.randomBytes[3];
-        const sharedSeed = (salt ^ chunkIdx ^ localAudioBlockIdx) | 0;
-        const channelSeed = (sharedSeed ^ src.channelMode) | 0;
-        return { sharedSeed, channelSeed };
-    }
-
     private decodeStereoWindowPair(
         midSrc: ImageSource,
         sideSrc: ImageSource,
@@ -542,8 +533,6 @@ export class StreamingAudioDecoder {
         const { scaleY: sideScaleY, scaleC: sideScaleC, bandFactors: sideBandFactors } =
             StreamingAudioDecoder.selectBlockScales(sideMeta, colInAudioArea);
         const whiteningProfile = this.getWhiteningProfile(midSrc.sampleRate);
-        const midSeeds = this.getSbrSeeds(midSrc, localAudioBlockIdx);
-        const sideSeeds = this.getSbrSeeds(sideSrc, localAudioBlockIdx);
 
         return decodeStereoBlocks(
             {
@@ -573,9 +562,6 @@ export class StreamingAudioDecoder {
             this.mdctWindow,
             this.buffers,
             colInAudioArea,
-            midSeeds.sharedSeed,
-            midSeeds.channelSeed,
-            sideSeeds.channelSeed,
             rowDataCount
         );
     }
@@ -619,13 +605,11 @@ export class StreamingAudioDecoder {
         const { scaleY, scaleC, bandFactors } = StreamingAudioDecoder.selectBlockScales(meta, colInAudioArea);
         const sbrData = meta.sbrData;
         const whiteningProfile = this.getWhiteningProfile(src.sampleRate);
-        const { channelSeed } = this.getSbrSeeds(src, localAudioBlockIdx);
 
         return decodeBlock(
             src.data, src.width, imgBlockAbsIdx, scaleY, scaleC, whiteningProfile, bandFactors,
             this.buffers.coeffs, this.buffers.decodedWindow, this.mdctWindow,
             this.buffers, sbrData, colInAudioArea,
-            channelSeed,
             rowDataCount
         );
     }

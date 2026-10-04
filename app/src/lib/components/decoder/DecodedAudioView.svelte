@@ -73,7 +73,7 @@ Copyright (c) 2026 Kyle Alexander Buan
 	let hudSbrMode = $state('Normal'); // Normal or Temporal
 	let hudSbrGain = $state('0 dB');
 	let hudSbrGainBarWidth = $state(0);
-	let hudSbrNoise = $state('0');
+	let hudSbrGainStep = $state('0 dB');
 	let hudSbrTonality = $state('0');
 	let hudSbrPatch = $state('Adjacent');
 	let hudSbrStereo = $state('');
@@ -354,17 +354,26 @@ Copyright (c) 2026 Kyle Alexander Buan
 			const subgroupSize = Math.max(1, subgroupRange.end - subgroupRange.start);
 			const sbrParams = rowSBRParams.subgroups[sbrSubgroupIndex];
 
+			const blockInSubgroup = colInAudioArea - subgroupRange.start;
+			const halfSize = Math.floor(subgroupSize / 2);
+			const isSecondHalf = blockInSubgroup >= halfSize;
+			const formatDb = (value: number) => `${value >= 0 ? '+' : ''}${value.toFixed(1)} dB`;
+
 			// Check if temporal mode
 			if (sbrParams.temporalMode) {
 				const temporal = sbrParams as SBRParamsTemporal;
-				const blockInSubgroup = colInAudioArea - subgroupRange.start;
-				const isSecondHalf = blockInSubgroup >= Math.floor(subgroupSize / 2);
+				const halfLength = isSecondHalf ? subgroupSize - halfSize : halfSize;
+				const blockInHalf = isSecondHalf ? blockInSubgroup - halfSize : blockInSubgroup;
+				const isSecondQuarter = blockInHalf >= Math.floor(halfLength / 2);
+				const quarterDelta = isSecondHalf ? temporal.quarterDeltaB : temporal.quarterDeltaA;
 
-				hudSbrMode = `Temporal (${isSecondHalf ? 'B' : 'A'})`;
-				const gain = isSecondHalf ? temporal.hfGainB : temporal.hfGainA;
-				hudSbrGain = `${gain >= 0 ? '+' : ''}${gain.toFixed(1)} dB`;
+				hudSbrMode = `Temporal (${isSecondHalf ? 'B' : 'A'}${isSecondQuarter ? 2 : 1})`;
+				const gain =
+					(isSecondHalf ? temporal.hfGainB : temporal.hfGainA) +
+					(isSecondQuarter ? 0.5 : -0.5) * quarterDelta;
+				hudSbrGain = formatDb(gain);
 				hudSbrGainBarWidth = Math.min(100, Math.max(0, ((gain + 48) / 63) * 100));
-				hudSbrNoise = `${isSecondHalf ? temporal.noiseFloorRatioB : temporal.noiseFloorRatioA}/3`;
+				hudSbrGainStep = formatDb(quarterDelta);
 				hudSbrTonality = `${temporal.tonality}/3`;
 				hudSbrPatch = PATCH_MODE_NAMES[temporal.patchMode] || 'Adjacent';
 				hudSbrStereo = describeStereoCue(temporal.stereoCue);
@@ -376,10 +385,11 @@ Copyright (c) 2026 Kyle Alexander Buan
 					.join(', ');
 			} else {
 				const normal = sbrParams as SBRParams;
-				hudSbrMode = 'Normal';
-				hudSbrGain = `${normal.hfGain >= 0 ? '+' : ''}${normal.hfGain.toFixed(1)} dB`;
-				hudSbrGainBarWidth = Math.min(100, Math.max(0, ((normal.hfGain + 48) / 63) * 100));
-				hudSbrNoise = `${normal.noiseFloorRatio}/15`;
+				const gain = isSecondHalf ? normal.hfGain + normal.gainDelta : normal.hfGain;
+				hudSbrMode = `Normal (${isSecondHalf ? 'B' : 'A'})`;
+				hudSbrGain = formatDb(gain);
+				hudSbrGainBarWidth = Math.min(100, Math.max(0, ((gain + 48) / 63) * 100));
+				hudSbrGainStep = formatDb(normal.gainDelta);
 				hudSbrTonality = `${normal.tonality}/3`;
 				hudSbrPatch = PATCH_MODE_NAMES[normal.patchMode] || 'Adjacent';
 				hudSbrStereo = describeStereoCue(normal.stereoCue);
@@ -553,14 +563,14 @@ Copyright (c) 2026 Kyle Alexander Buan
 						<span class="text-amber-400 text-xs font-mono">{hudSbrEnvelope}</span>
 					</div>
 
-					<!-- Row 3: Noise, Tonality, Transient -->
+					<!-- Row 3: Mode, Gain step, Tonality, Transient -->
 					<div class="flex justify-between items-center">
 						<span class="text-gray-400 text-xs">{m.stat_mode()}</span>
 						<span class="text-sky-400 text-xs">{hudSbrMode}</span>
 					</div>
 					<div class="flex justify-between items-center">
-						<span class="text-gray-400 text-xs">{m.stat_noise()}</span>
-						<span class="text-sky-400 text-xs">{hudSbrNoise}</span>
+						<span class="text-gray-400 text-xs">{m.stat_gain_step()}</span>
+						<span class="text-sky-400 text-xs">{hudSbrGainStep}</span>
 					</div>
 					<div class="flex justify-between items-center">
 						<span class="text-gray-400 text-xs">{m.stat_tonal()}</span>
